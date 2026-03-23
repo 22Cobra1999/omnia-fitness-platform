@@ -20,6 +20,7 @@ type IncomingPlato = {
   bunny_video_id?: string | null
   bunny_library_id?: number | string | null
   video_thumbnail_url?: string | null
+  ingredientes?: string | any[] | null
 }
 
 type BulkRequest = {
@@ -112,20 +113,16 @@ export async function POST(request: NextRequest) {
     const activityIdRaw = body.activityId
     const platesPayload = body.plates || body.exercises || []
 
-    if (!activityIdRaw || platesPayload.length === 0) {
+    if (platesPayload.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'activityId y plates son requeridos' },
+        { success: false, error: 'plates son requeridos' },
         { status: 400 }
       )
     }
 
-    const activityId = typeof activityIdRaw === 'string' ? parseInt(activityIdRaw, 10) : activityIdRaw
-    if (!activityId || Number.isNaN(activityId)) {
-      return NextResponse.json(
-        { success: false, error: 'activityId inválido' },
-        { status: 400 }
-      )
-    }
+    const activityId = activityIdRaw !== undefined && activityIdRaw !== null 
+      ? (typeof activityIdRaw === 'string' ? parseInt(activityIdRaw, 10) : activityIdRaw)
+      : 0
 
     const supabaseService = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -139,19 +136,18 @@ export async function POST(request: NextRequest) {
       nombre?: string
       motivo: string
       detalles?: string
+      record?: any
     }> = []
 
-    console.log('📥 BULK NUTRITION: Recibiendo request:', {
-      activityId,
-      totalPlates: platesPayload.length,
-      firstPlate: platesPayload[0] ? {
-        id: platesPayload[0].id,
-        tempId: (platesPayload[0] as any).tempId,
+    console.log(`📥 [API/Nutrition] Processing ${platesPayload.length} plates. ActivityId: ${activityId}`)
+    if (platesPayload.length > 0) {
+      console.log(`📦 [API/Nutrition] First item preview:`, {
+        keys: Object.keys(platesPayload[0]),
         nombre: platesPayload[0].nombre,
-        isExisting: (platesPayload[0] as any).isExisting,
-        allKeys: Object.keys(platesPayload[0] || {})
-      } : null
-    })
+        tipo: platesPayload[0].tipo,
+        hasIngredientes: !!platesPayload[0].ingredientes
+      })
+    }
 
     for (const plato of platesPayload) {
       console.log('🔍 BULK NUTRITION: Procesando plato:', {
@@ -181,6 +177,8 @@ export async function POST(request: NextRequest) {
         video_thumbnail_url
       } = plato
 
+      console.log(`🥘 [API/Nutrition] Processing plate: "${nombre}"`)
+
       const tempIdValue = (plato as any).tempId
       const tempId =
         typeof tempIdValue === 'string'
@@ -195,6 +193,7 @@ export async function POST(request: NextRequest) {
 
       const normalizedName =
         nombre ||
+        (plato as any).Nombre ||
         (plato as any)['Nombre del Plato'] ||
         (plato as any)['Nombre de la Actividad'] ||
         (plato as any).title ||
@@ -269,11 +268,10 @@ export async function POST(request: NextRequest) {
 
       const record: any = {
         nombre: sanitizedName,
-        tipo: normalizeTipo(rawTipo || 'otro'),
-        calorias: NORMALIZE_NUMBER(calorias || (plato as any)['Calorías']),
-        proteinas: NORMALIZE_NUMBER(proteinas || (plato as any)['Proteínas']),
-        carbohidratos: NORMALIZE_NUMBER(carbohidratos || (plato as any)['Carbohidratos']),
-        grasas: NORMALIZE_NUMBER(grasas || (plato as any)['Grasas']),
+        calorias: NORMALIZE_NUMBER(calorias || (plato as any)['Calorías'] || (plato as any).calorias),
+        proteinas: NORMALIZE_NUMBER(proteinas || (plato as any)['Proteínas'] || (plato as any).proteinas),
+        carbohidratos: NORMALIZE_NUMBER(carbohidratos || (plato as any)['Carbohidratos'] || (plato as any).carbohidratos),
+        grasas: NORMALIZE_NUMBER(grasas || (plato as any)['Grasas'] || (plato as any).grasas),
         dificultad: dificultad,
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
         video_file_name: coerceTextNullable(video_file_name),
@@ -281,7 +279,7 @@ export async function POST(request: NextRequest) {
         bunny_library_id: NORMALIZE_NUMBER(bunny_library_id || (plato as any).bunny_library_id),
         video_thumbnail_url: sanitizeNullable(video_thumbnail_url || (plato as any).video_thumbnail_url),
         coach_id: user.id,
-        activity_id: activityId
+        activity_id: activityId > 0 ? activityId : null
       }
 
       if (receta_id) {
@@ -383,8 +381,11 @@ export async function POST(request: NextRequest) {
 
         const updateData: any = {
           ...record,
-          activity_id: activityId, // Siempre actualizar como integer
-          activity_id_new: existingMap // Actualizar el mapa JSONB
+          activity_id: activityId > 0 ? activityId : null,
+          activity_id_new: existingMap,
+          // Preservar día y semana si ya existen y el record los tiene a 0
+          "día": (record.día === 0 && (existingRow as any).día !== undefined) ? (existingRow as any).día : record.día,
+          "semana": (record.semana === 0 && (existingRow as any).semana !== undefined) ? (existingRow as any).semana : record.semana
         }
 
         console.log('🔄 BULK NUTRITION: Actualizando plato existente:', {
@@ -394,7 +395,7 @@ export async function POST(request: NextRequest) {
           activity_id_new: updateData.activity_id_new
         })
 
-        const { error: updateError } = await supabaseService
+        let { error: updateError } = await supabaseService
           .from('nutrition_program_details')
           .update(updateData)
           .eq('id', existingId)
@@ -434,40 +435,12 @@ export async function POST(request: NextRequest) {
           coach_id: record.coach_id
         })
 
-        // ✅ Intentar insertar con activity_id_new primero
+        // 🔄 INSERT Masivo
         let { data: inserted, error: insertError } = await supabaseService
           .from('nutrition_program_details')
           .insert(record)
           .select('id')
           .single()
-
-        // ✅ Si falla y tiene activity_id_new, verificar si es por columna inexistente
-        if (insertError && record.activity_id_new) {
-          const isColumnError = insertError.code === '42703' ||
-            insertError.message?.includes('column "activity_id_new" does not exist') ||
-            insertError.message?.includes('does not exist')
-
-          if (isColumnError) {
-            console.log('⚠️ BULK NUTRITION: Columna activity_id_new no existe, reintentando sin ella:', insertError.message)
-            const recordWithoutNew = { ...record }
-            delete recordWithoutNew.activity_id_new
-
-            const retryResult = await supabaseService
-              .from('nutrition_program_details')
-              .insert(recordWithoutNew)
-              .select('id')
-              .single()
-
-            inserted = retryResult.data
-            insertError = retryResult.error
-
-            if (!insertError) {
-              console.log('✅ BULK NUTRITION: Insertado exitosamente sin activity_id_new')
-            } else {
-              console.error('❌ BULK NUTRITION: Error persistió después de retry sin activity_id_new:', insertError.message)
-            }
-          }
-        }
 
         if (insertError) {
           const errorDetails = {
@@ -491,7 +464,8 @@ export async function POST(request: NextRequest) {
             rawId: id,
             nombre: record.nombre,
             motivo: 'insert-error',
-            detalles: errorMessage
+            detalles: errorMessage,
+            record // Incluir para depuración profunda
           })
           results.push({ id: null, tempId, error: errorMessage })
           continue

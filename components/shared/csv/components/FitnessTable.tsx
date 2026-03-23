@@ -1,10 +1,9 @@
 import React from 'react'
-import { Flame, Eye, Power, Play } from 'lucide-react'
+import { Flame, Eye, Power, Play, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExerciseData } from '../types'
 import { PreviewVideoModal } from '@/components/shared/ui/preview-video-modal'
 
-// Helper functions (copied from original implementation)
 const normalizeExerciseType = (type: string): string => {
     const t = (type || '').toString().toLowerCase().trim()
     if (t.includes('cardio')) return 'cardio'
@@ -67,6 +66,7 @@ interface FitnessTableProps {
     toggleSelectAll: () => void
     isAllSelected: boolean
     onEdit: (item: ExerciseData, index: number) => void
+    onDelete?: (index: number) => void
     activityId: number
     exerciseUsage: Record<number, { activities: Array<{ id: number; name: string }> }>
     activityNamesMap: Record<number, string>
@@ -76,9 +76,8 @@ interface FitnessTableProps {
     bunnyVideoTitles?: Record<string, string>
     sortConfig?: { key: string; direction: 'asc' | 'desc' } | null
     onSort?: (key: string) => void
+    newlyAddedIds?: Set<string | number>
 }
-
-import { ChevronUp, ChevronDown } from 'lucide-react'
 
 export function FitnessTable({
     data,
@@ -88,6 +87,7 @@ export function FitnessTable({
     toggleSelectAll,
     isAllSelected,
     onEdit,
+    onDelete,
     activityId,
     exerciseUsage,
     activityNamesMap,
@@ -96,7 +96,8 @@ export function FitnessTable({
     loadingExisting,
     bunnyVideoTitles = {},
     sortConfig,
-    onSort
+    onSort,
+    newlyAddedIds = new Set()
 }: FitnessTableProps) {
     const [previewVideo, setPreviewVideo] = React.useState<{ url: string; title: string; libraryId?: string | number } | null>(null)
 
@@ -126,19 +127,18 @@ export function FitnessTable({
                             <button
                                 onClick={toggleSelectAll}
                                 className="p-1 hover:bg-zinc-800 rounded transition-colors mx-auto"
-                                title="Seleccionar/deseleccionar todos"
+                                title="Seleccionar todos"
                             >
                                 <Flame className={`h-4 w-4 transition-colors ${isAllSelected ? 'text-[#FF7939]' : 'text-white'}`} />
                             </button>
                         </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-12"></th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-16">Acciones</th>
                         {activityId === 0 && (
                             <ThLink column="isExisting" label="Estado" className="w-24" />
                         )}
                         <ThLink column="nombre" label="Ejercicio" className="w-56" />
                         <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-64 uppercase tracking-widest">Descripción</th>
                         <ThLink column="duracion_min" label="Duración" className="w-24" />
-                        <ThLink column="tipo" label="Tipo" className="w-28" />
                         <ThLink column="equipo" label="Equipo" className="w-36" />
                         <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-36 uppercase tracking-widest">P-R-S</th>
                         <ThLink column="body_parts" label="Partes" className="w-36" />
@@ -150,7 +150,7 @@ export function FitnessTable({
                 <tbody>
                     {data.length === 0 ? (
                         <tr>
-                            <td colSpan={14 + (activityId === 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
+                            <td colSpan={13 + (activityId === 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
                                 {loadingExisting ? 'Cargando ejercicios existentes...' : 'No hay ejercicios para mostrar'}
                             </td>
                         </tr>
@@ -165,9 +165,12 @@ export function FitnessTable({
                             const hasIntensityIssue = validationErrors.some(error => error.toLowerCase().includes('intensidad'))
                             const hasBodyPartsIssue = validationErrors.some(error => error.toLowerCase().includes('partes'))
                             const hasEquipmentIssue = validationErrors.some(error => error.toLowerCase().includes('equipo'))
+                            
+                            const newItemIdentifier = item.id || (item as any).tempRowId
+                            const isNew = newItemIdentifier && newlyAddedIds.has(newItemIdentifier)
 
                             return (
-                                <tr key={actualIndex} className="border-b border-gray-700 hover:bg-zinc-900/40">
+                                <tr key={actualIndex} className={`border-b border-gray-700 transition-all duration-1000 ${isNew ? 'bg-[#FF7939]/10 shadow-[inset_0_0_20px_rgba(255,121,57,0.05)] animate-pulse-subtle' : 'hover:bg-zinc-900/40'}`}>
                                     <td className="px-2 py-3 text-center w-8">
                                         <span className="text-[#FF7939] text-[10px] font-medium">{actualIndex + 1}</span>
                                     </td>
@@ -180,14 +183,26 @@ export function FitnessTable({
                                         </button>
                                     </td>
                                     <td className="px-2 py-3 text-center">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => onEdit(item, actualIndex)}
-                                            className="text-blue-400 hover:bg-blue-400/10 p-1 h-5 w-5"
-                                        >
-                                            <Eye className="h-3 w-3" />
-                                        </Button>
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onEdit(item, actualIndex)}
+                                                className="text-blue-400 hover:bg-blue-400/10 p-1 h-6 w-6"
+                                                title="Editar"
+                                            >
+                                                <Eye className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onDelete?.(actualIndex)}
+                                                className="text-red-400 hover:bg-red-400/10 p-1 h-6 w-6"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
                                     </td>
                                     {activityId === 0 && (
                                         <td className="px-3 py-3 text-xs text-white">
@@ -265,17 +280,6 @@ export function FitnessTable({
                                     <td className="px-3 py-3 text-xs text-white">
                                         {item['Duración (min)'] || item.duracion_min || item.Duración || '-'} min
                                     </td>
-                                    <td className="px-3 py-3 text-xs whitespace-pre-wrap break-words">
-                                        {(() => {
-                                            const type = item['Tipo de Ejercicio'] || item.tipo_ejercicio || item.type || ''
-                                            const normalized = normalizeExerciseType(type)
-                                            return (
-                                                <span className={`${getExerciseTypeColor(normalized)} text-black text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-black/10 inline-block`}>
-                                                    {getExerciseTypeLabel(normalized)}
-                                                </span>
-                                            )
-                                        })()}
-                                    </td>
                                     <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasEquipmentIssue ? 'text-red-400' : 'text-white'}`}>
                                         {item['Equipo Necesario'] || item.equipo_necesario || '-'}
                                     </td>
@@ -308,18 +312,8 @@ export function FitnessTable({
                                             const url = bunnyId || rawUrl || ''
                                             const libId = item.bunny_library_id || item.bunnyLibraryId
 
-                                            console.log('--- FitnessTable Video Item ---', {
-                                                nombre: item.nombre_ejercicio,
-                                                video_file_name: item.video_file_name,
-                                                bunnyId,
-                                                rawUrl,
-                                                url,
-                                                libId
-                                            })
-
                                             let fileName = item.video_file_name || (bunnyId && bunnyVideoTitles ? bunnyVideoTitles[bunnyId] : null)
 
-                                            // Extract from URL if still missing
                                             if (!fileName && rawUrl && rawUrl.includes('/')) {
                                                 const parts = rawUrl.split('/')
                                                 const lastPart = parts[parts.length - 1]

@@ -56,33 +56,33 @@ export const useProductPreviewLogic = ({ product, onPurchase, csvData }: Product
 
         // TALLERES
         if (product.type === 'workshop') {
-            if (product.capacity) details.push({ label: 'Capacidad', value: `${product.capacity} personas`, icon: Users, color: 'text-blue-400' })
-            if (product.sessionsPerClient) details.push({ label: 'Sesiones/cliente', value: `${product.sessionsPerClient}`, icon: Clock, color: 'text-green-400' })
-            if (product.workshopType) details.push({ label: 'Tipo', value: product.workshopType, icon: Target, color: 'text-purple-400' })
-            if (product.modality) details.push({ label: 'Modalidad', value: product.modality, icon: MapPin, color: 'text-orange-400' })
+            if (product.capacity) details.push({ label: 'Capacidad', value: `${product.capacity} personas`, icon: Users, color: 'text-[#FF7939]' })
+            if (product.sessionsPerClient) details.push({ label: 'Sesiones/cliente', value: `${product.sessionsPerClient}`, icon: Clock, color: 'text-[#FF7939]' })
+            if (product.workshopType) details.push({ label: 'Tipo', value: product.workshopType, icon: Target, color: 'text-[#FF7939]' })
+            if (product.modality) details.push({ label: 'Modalidad', value: product.modality, icon: MapPin, color: 'text-[#FF7939]' })
 
             if (product.items_unicos !== undefined) {
-                details.push({ label: 'Temas', value: `${product.items_unicos} temas`, icon: Zap, color: 'text-cyan-400' })
+                details.push({ label: 'Temas', value: `${product.items_unicos} temas`, icon: Zap, color: 'text-[#FF7939]' })
             } else if (product.blocks?.length) {
-                details.push({ label: 'Temas', value: `${product.blocks.length}`, icon: Zap, color: 'text-cyan-400' })
+                details.push({ label: 'Temas', value: `${product.blocks.length}`, icon: Zap, color: 'text-[#FF7939]' })
             }
         }
         // INSTANT & DOCUMENTOS
         else {
-            if (product.difficulty) details.push({ label: 'Nivel', value: product.difficulty, icon: Target, color: 'text-blue-400' })
-            if (product.duration) details.push({ label: 'Duración', value: product.duration, icon: Clock, color: 'text-green-400' })
+            if (product.difficulty) details.push({ label: 'Nivel', value: product.difficulty, icon: Target, color: 'text-[#FF7939]' })
+            if (product.duration) details.push({ label: 'Duración', value: product.duration, icon: Clock, color: 'text-[#FF7939]' })
 
             // Programas / Fitness
             if (product.type === 'program' || product.type === 'fitness') {
                 const exercisesCount = product.exercisesCount || (csvData && csvData.length > 1 ? csvData.length - 1 : 0)
-                if (exercisesCount > 0) details.push({ label: 'Ejercicios', value: `${exercisesCount}`, icon: Flame, color: 'text-red-400' })
+                if (exercisesCount > 0) details.push({ label: 'Ejercicios', value: `${exercisesCount}`, icon: Flame, color: 'text-[#FF7939]' })
 
                 const totalSessions = product.totalSessions || (csvData && csvData.length > 1 ? new Set(csvData.slice(1).map(row => row[0])).size : 0)
-                if (totalSessions > 0) details.push({ label: 'Sesiones', value: `${totalSessions}`, icon: Calendar, color: 'text-blue-400' })
+                if (totalSessions > 0) details.push({ label: 'Sesiones', value: `${totalSessions}`, icon: Calendar, color: 'text-[#FF7939]' })
             }
 
-            if (product.pages) details.push({ label: 'Extensión', value: product.pages, icon: BookOpen, color: 'text-orange-400' })
-            if (product.modality && product.type !== 'program') details.push({ label: 'Modalidad', value: product.modality, icon: MapPin, color: 'text-yellow-400' })
+            if (product.pages) details.push({ label: 'Extensión', value: product.pages, icon: BookOpen, color: 'text-[#FF7939]' })
+            if (product.modality && product.type !== 'program') details.push({ label: 'Modalidad', value: product.modality, icon: MapPin, color: 'text-[#FF7939]' })
         }
 
         return details

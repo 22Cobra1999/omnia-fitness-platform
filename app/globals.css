@@ -602,3 +602,17 @@ html {
   background: rgba(255, 121, 57, 0.8);
 }
 
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    background-size: 100% 100%;
+  }
+  50% {
+    opacity: 0.8;
+    background-size: 110% 110%;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

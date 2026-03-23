@@ -33,7 +33,7 @@ export function PreviewVideoModal({ isOpen, onClose, videoUrl, title, libraryId 
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-zinc-800 rounded-[32px] sm:rounded-[32px] [&>button]:hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] w-[95vw] max-w-5xl p-0 overflow-hidden bg-black border-zinc-800 rounded-[32px] sm:rounded-[32px] [&>button]:hidden z-[10000]">
                 <DialogHeader className="p-6 pb-0 absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent">
                     <div className="flex items-center justify-between">
                         <DialogTitle className="text-white text-lg font-bold truncate pr-14">{title}</DialogTitle>

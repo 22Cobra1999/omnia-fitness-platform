@@ -111,20 +111,16 @@ export async function POST(request: NextRequest) {
     const activityIdRaw = body.activityId
     const exercisesPayload = body.exercises || body.plates || []
 
-    if (!activityIdRaw || exercisesPayload.length === 0) {
+    if (exercisesPayload.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'activityId y exercises son requeridos' },
+        { success: false, error: 'exercises son requeridos' },
         { status: 400 }
       )
     }
 
-    const activityId = typeof activityIdRaw === 'string' ? parseInt(activityIdRaw, 10) : activityIdRaw
-    if (!activityId || Number.isNaN(activityId)) {
-      return NextResponse.json(
-        { success: false, error: 'activityId inválido' },
-        { status: 400 }
-      )
-    }
+    const activityId = activityIdRaw !== undefined && activityIdRaw !== null 
+      ? (typeof activityIdRaw === 'string' ? parseInt(activityIdRaw, 10) : activityIdRaw)
+      : 0
 
     const supabaseService = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -139,6 +135,14 @@ export async function POST(request: NextRequest) {
       motivo: string
       detalles?: string
     }> = []
+
+    console.log(`📥 [API/Fitness] Receiving ${exercisesPayload.length} items. ActivityId: ${activityId}`)
+    if (exercisesPayload.length > 0) {
+      console.log(`📦 [API/Fitness] First item structure:`, {
+        keys: Object.keys(exercisesPayload[0]),
+        values: exercisesPayload[0]
+      })
+    }
 
     for (const exercise of exercisesPayload) {
       const {
@@ -174,6 +178,8 @@ export async function POST(request: NextRequest) {
         (exercise as any)['Nombre de la Actividad'] ||
         (exercise as any).title ||
         ''
+
+      console.log(`⚡ [API/Fitness] Processing exercise: "${normalizedName}"`)
 
       const rawTipo =
         tipo_ejercicio ||

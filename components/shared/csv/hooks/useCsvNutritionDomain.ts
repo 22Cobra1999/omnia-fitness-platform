@@ -19,6 +19,7 @@ interface UseCsvNutritionDomainProps {
     parentSetCsvData?: (data: any[]) => void
     parentCsvData?: any[]
     cancelEdit: () => void
+    setNewlyAddedIds: (updater: any) => void
 }
 
 export function useCsvNutritionDomain({
@@ -37,7 +38,8 @@ export function useCsvNutritionDomain({
     setCsvData,
     parentSetCsvData,
     parentCsvData,
-    cancelEdit
+    cancelEdit,
+    setNewlyAddedIds
 }: UseCsvNutritionDomainProps) {
 
     const handleEditExercise = useCallback((exercise: ExerciseData, index: number) => {
@@ -90,7 +92,18 @@ export function useCsvNutritionDomain({
     ])
 
     const addManualExercise = useCallback(() => {
+        console.log("🥘 [NutritionDomain] Starting addManualExercise - Form State:", {
+            nombre: manualForm.nombre,
+            tipo: manualForm.tipo,
+            calorias: manualForm.calorias,
+            macros: { p: manualForm.proteinas, c: manualForm.carbohidratos, g: manualForm.grasas },
+            ingredientesLen: manualForm.ingredientes?.length || 0,
+            porciones: manualForm.porciones,
+            minutos: manualForm.minutos
+        })
+
         if (!manualForm.nombre.trim()) {
+            console.warn("⚠️ [NutritionDomain] Aborting - Name is empty")
             updateErrorState(`Completa al menos el campo "Nombre del Plato"`)
             return
         }
@@ -159,10 +172,29 @@ export function useCsvNutritionDomain({
         }
         clearLimitWarningIfNeeded()
 
-        setCsvData((prev: any) => [...prev, item])
+        setCsvData((prev: any) => [item, ...prev])
         if (parentSetCsvData) {
-            parentSetCsvData([...(parentCsvData || []), item])
+            parentSetCsvData([item, ...(parentCsvData || [])])
         }
+
+        // --- NEW UX ENHANCEMENTS ---
+        const newItemIdentifier = item.id || item.tempRowId
+        setNewlyAddedIds((prev: Set<string | number>) => {
+            const next = new Set(prev)
+            next.add(newItemIdentifier)
+            return next
+        })
+
+        // Auto-scroll to table
+        setTimeout(() => {
+            const tableElement = document.getElementById('csv-table-scroll-target')
+            if (tableElement) {
+                tableElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+        }, 100)
+
+        console.log("🥘 [NutritionDomain] addManualExercise SUCCESS. Item ID:", newItemIdentifier)
+        return item
     }, [
         manualForm,
         editingExerciseIndex,
@@ -175,7 +207,8 @@ export function useCsvNutritionDomain({
         setLimitWarning,
         planLimits,
         clearLimitWarningIfNeeded,
-        updateErrorState
+        updateErrorState,
+        setNewlyAddedIds
     ])
 
     return {

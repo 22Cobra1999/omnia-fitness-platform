@@ -26,6 +26,7 @@ export function useCsvState(parentSelectedRows?: Set<number>) {
     const [mode, setMode] = useState<'manual' | 'csv' | 'existentes'>('existentes')
     const [editingExerciseIndex, setEditingExerciseIndex] = useState<number | null>(null)
     const [currentPage, setCurrentPage] = useState(1)
+    const [newlyAddedIds, setNewlyAddedIds] = useState<Set<string | number>>(new Set())
 
     const [recipeSteps, setRecipeSteps] = useState<string[]>([])
     const [bodyParts, setBodyParts] = useState<string[]>([])
@@ -94,6 +95,7 @@ export function useCsvState(parentSelectedRows?: Set<number>) {
         seriesList, setSeriesList,
         showAssignedVideoPreview, setShowAssignedVideoPreview,
         manualForm, setManualForm,
-        sortConfig, setSortConfig
+        sortConfig, setSortConfig,
+        newlyAddedIds, setNewlyAddedIds
     }
 }

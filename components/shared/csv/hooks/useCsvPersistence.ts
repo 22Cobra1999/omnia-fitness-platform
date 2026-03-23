@@ -197,10 +197,14 @@ export function useCsvPersistence({
         if (parentSetSelectedRows) parentSetSelectedRows(new Set())
     }, [allData, selectedRows, activityId, setCsvData, setExistingData, onItemsStatusChange, parentSetCsvData, parentCsvData, setSelectedRows, parentSetSelectedRows, updateErrorState])
 
-    const handleProcess = useCallback(async () => {
-        if (!csvData.length) return
-        if (!activityId || activityId <= 0) {
-            updateErrorState('Primero guarda el programa para obtener un ID y poder guardar ejercicios.')
+    const handleProcess = useCallback(async (overrideData?: any[]) => {
+        const dataToProcess = overrideData || csvData
+        if (!dataToProcess.length) {
+            console.warn("⚠️ [Persistence] No data to process.")
+            return
+        }
+        if (activityId === undefined || activityId === null) {
+            updateErrorState('No se pudo identificar la actividad o el coach para guardar.')
             return
         }
 
@@ -215,8 +219,10 @@ export function useCsvPersistence({
             const payload = {
                 activityId,
                 coachId,
-                [productCategory === 'nutricion' ? 'plates' : 'exercises']: csvData
+                [productCategory === 'nutricion' ? 'plates' : 'exercises']: dataToProcess
             }
+
+            console.log(`🔌 [Persistence] Sending ${dataToProcess.length} items to ${endpoint}...`, payload)
 
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -225,17 +231,33 @@ export function useCsvPersistence({
             })
 
             const result = await response.json()
+            console.log(`📡 [Persistence] API Response:`, result)
+            
+            if (result.failures && result.failures.length > 0) {
+                console.group("❌ [Persistence] Save Failures Detected")
+                result.failures.forEach((f: any, i: number) => {
+                    console.error(`Failure #${i+1}:`, {
+                        name: f.nombre,
+                        reason: f.motivo,
+                        details: f.detalles,
+                        record: f.record // Solo si la API lo envía
+                    })
+                })
+                console.groupEnd()
+            }
+
             if (!response.ok) throw new Error(result.error || 'Error al procesar los datos')
 
             setResult(result)
             await loadExistingData()
             if (onSuccess) onSuccess()
         } catch (error) {
+            console.error("❌ [Persistence] Error in handleProcess:", error)
             updateErrorState(error instanceof Error ? error.message : 'Error desconocido')
         } finally {
             setProcessing(false)
         }
-    }, [csvData, activityId, coachId, updateErrorState, setProcessing, setResult, loadExistingData, onSuccess])
+    }, [csvData, activityId, coachId, productCategory, updateErrorState, setProcessing, setResult, loadExistingData, onSuccess])
 
     const handleReset = useCallback(async () => {
         justDeletedRef.current = true
@@ -308,11 +330,75 @@ export function useCsvPersistence({
         hasUserInteractedRef
     ])
 
+    const handleDeleteRow = useCallback(async (index: number) => {
+        const item = allData[index]
+        if (!item) return
+
+        const confirmMessage = `¿Estás seguro de que deseas eliminar "${item.nombre || item.Nombre || 'esta fila'}"? Esta acción no se puede deshacer.`
+        if (!window.confirm(confirmMessage)) return
+
+        const idsToDelete = item.id ? [item.id] : []
+        const itemToRemove = getRowIdentifier(item, index)
+
+        if (idsToDelete.length > 0 && (activityId >= 0)) {
+            try {
+                const endpoint = productCategory === 'nutricion' ? '/api/delete-nutrition-items' : '/api/delete-exercise-items'
+                const response = await fetch(endpoint, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: idsToDelete, activityId })
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    updateErrorState(`Error al eliminar fila: ${errorData.error}`)
+                    return
+                }
+                justDeletedRef.current = true
+            } catch (error) {
+                updateErrorState('Error al eliminar fila de la base de datos')
+                return
+            }
+        }
+
+        const filterFn = (it: any, idx: number) => getRowIdentifier(it, idx) !== itemToRemove
+
+        setCsvData((prev: any) => prev.filter((it: any, idx: number) => filterFn(it, idx)))
+        setExistingData((prev: any) => prev.filter((it: any, idx: number) => filterFn(it, idx)))
+
+        if (parentSetCsvData) {
+            const filteredParent = (parentCsvData || []).filter((it: any, idx: number) => filterFn(it, idx))
+            parentSetCsvData(filteredParent)
+        }
+
+        const newSelectedRows = new Set(selectedRows)
+        newSelectedRows.delete(index)
+        setSelectedRows(newSelectedRows)
+        if (parentSetSelectedRows) parentSetSelectedRows(newSelectedRows)
+        
+        setLimitWarning(null)
+    }, [
+        allData,
+        activityId,
+        productCategory,
+        updateErrorState,
+        setCsvData,
+        setExistingData,
+        parentSetCsvData,
+        parentCsvData,
+        selectedRows,
+        setSelectedRows,
+        parentSetSelectedRows,
+        setLimitWarning,
+        justDeletedRef
+    ])
+
     return {
         handleDeleteSelected,
         handleRemoveSelected,
         handleReactivateSelected,
         handleProcess,
-        handleReset
+        handleReset,
+        handleDeleteRow
     }
 }

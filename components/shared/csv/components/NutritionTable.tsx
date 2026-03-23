@@ -1,5 +1,5 @@
 import React from 'react'
-import { Flame, Eye, Play } from 'lucide-react'
+import { Flame, Eye, Play, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExerciseData } from '../types'
 import { PreviewVideoModal } from '@/components/shared/ui/preview-video-modal'
@@ -12,6 +12,7 @@ interface NutritionTableProps {
     toggleSelectAll: () => void
     isAllSelected: boolean
     onEdit: (item: ExerciseData, index: number) => void
+    onDelete?: (index: number) => void
     activityId: number
     exerciseUsage?: Record<number, { activities: Array<{ id: number; name: string }> }>
     activityNamesMap?: Record<number, string>
@@ -21,9 +22,8 @@ interface NutritionTableProps {
     bunnyVideoTitles?: Record<string, string>
     sortConfig?: { key: string; direction: 'asc' | 'desc' } | null
     onSort?: (key: string) => void
+    newlyAddedIds?: Set<string | number>
 }
-
-import { ChevronUp, ChevronDown } from 'lucide-react'
 
 export function NutritionTable({
     data,
@@ -33,6 +33,7 @@ export function NutritionTable({
     toggleSelectAll,
     isAllSelected,
     onEdit,
+    onDelete,
     activityId,
     exerciseUsage = {},
     activityNamesMap = {},
@@ -41,7 +42,8 @@ export function NutritionTable({
     loadingExisting,
     bunnyVideoTitles = {},
     sortConfig,
-    onSort
+    onSort,
+    newlyAddedIds = new Set()
 }: NutritionTableProps) {
     const [previewVideo, setPreviewVideo] = React.useState<{ url: string; title: string; libraryId?: string | number } | null>(null)
 
@@ -71,16 +73,16 @@ export function NutritionTable({
                             <button
                                 onClick={toggleSelectAll}
                                 className="p-1 hover:bg-zinc-800 rounded transition-colors mx-auto"
+                                title="Seleccionar todos"
                             >
                                 <Flame className={`h-4 w-4 transition-colors ${isAllSelected ? 'text-[#FF7939]' : 'text-white'}`} />
                             </button>
                         </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-8"></th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-16">Acciones</th>
                         {activityId === 0 && (
                             <ThLink column="isExisting" label="Estado" className="w-12" />
                         )}
                         <ThLink column="nombre" label="Plato" className="w-48" />
-                        <ThLink column="tipo" label="Categoría" className="w-28" />
                         <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-64 uppercase tracking-widest">Receta</th>
                         <ThLink column="calorias" label="Kcal" className="w-20" />
                         <ThLink column="proteinas" label="Prot" className="w-20" />
@@ -95,7 +97,7 @@ export function NutritionTable({
                 <tbody>
                     {data.length === 0 ? (
                         <tr>
-                            <td colSpan={14 + (activityId === 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
+                            <td colSpan={13 + (activityId === 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
                                 {loadingExisting ? 'Cargando platos existentes...' : 'No hay platos para mostrar'}
                             </td>
                         </tr>
@@ -105,8 +107,11 @@ export function NutritionTable({
                             const exerciseName = item['Nombre'] || item.nombre || '-'
                             const isDuplicate = duplicateNames.includes(exerciseName)
 
+                            const newItemIdentifier = item.id || (item as any).tempRowId
+                            const isNew = newItemIdentifier && newlyAddedIds.has(newItemIdentifier)
+
                             return (
-                                <tr key={actualIndex} className="border-b border-gray-700 hover:bg-zinc-900/40">
+                                <tr key={actualIndex} className={`border-b border-gray-700 transition-all duration-1000 ${isNew ? 'bg-[#FF7939]/10 shadow-[inset_0_0_20px_rgba(255,121,57,0.05)] animate-pulse-subtle' : 'hover:bg-zinc-900/40'}`}>
                                     <td className="px-2 py-3 text-center w-8">
                                         <span className="text-[#FF7939] text-[10px] font-medium">{actualIndex + 1}</span>
                                     </td>
@@ -119,14 +124,26 @@ export function NutritionTable({
                                         </button>
                                     </td>
                                     <td className="px-2 py-3 text-center">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => onEdit(item, actualIndex)}
-                                            className="text-blue-400 hover:bg-blue-400/10 p-1 h-5 w-5"
-                                        >
-                                            <Eye className="h-3 w-3" />
-                                        </Button>
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onEdit(item, actualIndex)}
+                                                className="text-blue-400 hover:bg-blue-400/10 p-1 h-6 w-6"
+                                                title="Editar"
+                                            >
+                                                <Eye className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onDelete?.(actualIndex)}
+                                                className="text-red-400 hover:bg-red-400/10 p-1 h-6 w-6"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
                                     </td>
                                     {activityId === 0 && (
                                         <td className="px-3 py-3 text-[10px] text-white">
@@ -200,22 +217,6 @@ export function NutritionTable({
                                         <span className={isDuplicate ? 'text-red-400' : 'text-white'}>{exerciseName}</span>
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
-                                        {(() => {
-                                            const tipo = item['Tipo'] || item.tipo || '-'
-                                            if (tipo === '-') return '-'
-                                            const tags = tipo.split(';').map((p: string) => p.trim()).filter(Boolean)
-                                            return (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {tags.map((tag: string, idx: number) => (
-                                                        <span key={idx} className="bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded text-[10px] border border-white/5 whitespace-nowrap">
-                                                            {tag}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )
-                                        })()}
-                                    </td>
-                                    <td className="px-3 py-3 text-xs text-white">
                                         <div className="max-h-32 overflow-y-auto">
                                             {(() => {
                                                 const receta = item['Receta'] || item.receta || item['Descripción'] || item.descripcion || '-'
@@ -265,9 +266,9 @@ export function NutritionTable({
                                                     <div className="space-y-0.5 break-all">
                                                         {items.map((it: string, idx: number) => (
                                                             <div key={idx} className="text-white/90 flex items-start">
-                                                                <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
-                                                                <span className="break-words">{it}</span>
-                                                            </div>
+                                                                  <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
+                                                                  <span className="break-words">{it}</span>
+                                                              </div>
                                                         ))}
                                                     </div>
                                                 )
@@ -288,18 +289,8 @@ export function NutritionTable({
                                             const url = bunnyId || rawUrl || ''
                                             const libId = item.bunny_library_id || item.bunnyLibraryId
 
-                                            console.log('--- NutritionTable Video Item ---', {
-                                                nombre: item.nombre_plato,
-                                                video_file_name: item.video_file_name,
-                                                bunnyId,
-                                                rawUrl,
-                                                url,
-                                                libId
-                                            })
-
                                             let fileName = item.video_file_name || (bunnyId && bunnyVideoTitles ? bunnyVideoTitles[bunnyId] : null)
 
-                                            // Extract from URL if still missing
                                             if (!fileName && rawUrl && rawUrl.includes('/')) {
                                                 const parts = rawUrl.split('/')
                                                 const lastPart = parts[parts.length - 1]

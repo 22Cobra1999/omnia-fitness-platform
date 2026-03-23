@@ -51,6 +51,7 @@ interface UseCsvActionsProps {
     manualForm: ManualFormState
     editingExerciseIndex: number | null
     planLimits: { activitiesLimit: number } | null
+    setNewlyAddedIds: (updater: any) => void
 }
 
 export function useCsvActions(props: UseCsvActionsProps) {
@@ -191,7 +192,8 @@ export function useCsvActions(props: UseCsvActionsProps) {
         setCsvData: props.setCsvData,
         parentSetCsvData: props.parentSetCsvData,
         parentCsvData: props.parentCsvData,
-        cancelEdit
+        cancelEdit,
+        setNewlyAddedIds: props.setNewlyAddedIds
     })
 
     const nutritionDomain = useCsvNutritionDomain({
@@ -210,7 +212,8 @@ export function useCsvActions(props: UseCsvActionsProps) {
         setCsvData: props.setCsvData,
         parentSetCsvData: props.parentSetCsvData,
         parentCsvData: props.parentCsvData,
-        cancelEdit
+        cancelEdit,
+        setNewlyAddedIds: props.setNewlyAddedIds
     })
 
     const domainActions = useMemo(() => {
@@ -226,6 +229,27 @@ export function useCsvActions(props: UseCsvActionsProps) {
         }
     }, [productCategory, nutritionDomain, exerciseDomain])
 
+    const addManualExercise = useCallback(async () => {
+        console.log("📍 [useCsvActions] Triggering manual addition. ActivityId:", props.activityId)
+        const newItem = await domainActions.addManualExercise()
+        
+        if (!newItem) {
+            console.warn("⚠️ [useCsvActions] No item returned from domain action. Aborting sync.")
+            return
+        }
+
+        // Si estamos en modo librería, intentamos guardar automáticamente
+        if (props.activityId === 0) {
+            console.log("🧬 [useCsvActions] Library Mode detected. Auto-persisting changes to DB...")
+            // Importante: No esperar al estado de React. Enviamos los datos actuales + el nuevo item.
+            const latestData = [newItem, ...props.csvData]
+            console.log("📊 [useCsvActions] Syncing latest data array (length:", latestData.length, ")")
+            
+            // Disparamos el proceso con el override de datos frescos
+            await persistence.handleProcess(latestData)
+        }
+    }, [domainActions, props.activityId, props.csvData, persistence.handleProcess])
+
     return {
         handleRowSelection: selection.handleRowSelection,
         handleEditExercise: domainActions.handleEditExercise,
@@ -237,6 +261,7 @@ export function useCsvActions(props: UseCsvActionsProps) {
         handleRemoveVideoFromManualForm: video.handleRemoveVideoFromManualForm,
         handleProcess: persistence.handleProcess,
         handleReset: persistence.handleReset,
-        addManualExercise: domainActions.addManualExercise
+        handleDeleteRow: persistence.handleDeleteRow,
+        addManualExercise
     }
 }

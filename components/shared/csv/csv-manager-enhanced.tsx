@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react'
-import { CheckCircle, Video, Trash2, Power, PowerOff, Settings2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CheckCircle, Video, Trash2, Power, PowerOff, Settings2, ChevronLeft, ChevronRight, X, Minus, Flame, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { MediaSelectionModal } from '@/components/shared/ui/media-selection-modal'
 import { ConditionalRulesPanel } from '@/components/shared/products/conditional-rules-panel'
 import type { ConditionalRule } from '@/components/shared/products/conditional-rules-data'
@@ -57,7 +58,7 @@ export function CSVManagerEnhanced({
   setCsvData: parentSetCsvData,
   selectedRows: parentSelectedRows,
   setSelectedRows: parentSetSelectedRows,
-  productCategory = 'fitness',
+  productCategory: initialProductCategory = 'fitness',
   onItemsStatusChange,
   onVideoCleared,
   planLimits: planLimitsProp = null,
@@ -89,6 +90,12 @@ export function CSVManagerEnhanced({
     currentPage, setCurrentPage,
     manualForm, setManualForm
   } = state
+
+  const [productCategory, setProductCategory] = React.useState<'fitness' | 'nutricion'>(initialProductCategory)
+
+  useEffect(() => {
+    setProductCategory(initialProductCategory)
+  }, [initialProductCategory])
 
   const videoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -193,6 +200,7 @@ export function CSVManagerEnhanced({
     handleRemoveVideoFromManualForm,
     handleProcess,
     handleReset,
+    handleDeleteRow,
     addManualExercise
   } = useCsvActions({
     activityId,
@@ -238,7 +246,8 @@ export function CSVManagerEnhanced({
     equipoList: state.equipoList,
     manualForm,
     editingExerciseIndex,
-    planLimits
+    planLimits,
+    setNewlyAddedIds: state.setNewlyAddedIds
   })
 
   // Duplicate logic removal and sync effects
@@ -311,24 +320,26 @@ export function CSVManagerEnhanced({
 
   return (
     <div className="text-white p-2 w-full max-w-none pb-24">
-      {/* Selector de modo */}
-      <div className="mb-4 flex justify-center">
-        <div className="inline-flex items-center bg-zinc-900/40 border border-zinc-800/50 rounded-full p-1 gap-1">
-          {([
-            { key: 'manual', label: 'Carga Manual' },
-            { key: 'csv', label: 'Importar CSV' }
-          ] as const).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setMode(tab.key)}
-              className={`px-5 py-1.5 text-xs rounded-full transition-all ${mode === tab.key
-                ? 'bg-zinc-100 text-black font-medium shadow-sm'
-                : 'text-zinc-500 hover:text-white hover:bg-zinc-800/50'
-                }`}
+      {/* Centralized Action Trigger - Compact Spacing */}
+      <div className="mb-4 flex flex-col items-center justify-center">
+        {/* Action Trigger - Smaller Orange Outline Plus/Minus */}
+        <div className="relative">
+          {/* Dynamic Alignment Container - Positioned under active category icon */}
+          <div className={`flex transition-all duration-500 w-40 justify-center ${productCategory === 'nutricion' ? 'translate-x-[24px]' : '-translate-x-[24px]'}`}>
+            <button 
+              onClick={() => setMode(mode === 'existentes' ? 'manual' : 'existentes')}
+              className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[1.5px] border-[#FF7939] bg-transparent text-[#FF7939] transition-all duration-300 active:scale-90 hover:shadow-[0_0_10px_rgba(255,121,57,0.3)] group`}
             >
-              {tab.label}
+              {mode === 'existentes' ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              ) : (
+                <Minus className="w-5 h-5" strokeWidth={4} />
+              )}
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
@@ -360,6 +371,7 @@ export function CSVManagerEnhanced({
           csvData={allData}
           onVideoSelect={() => setShowMediaSourceModal(true)}
           onRemoveVideo={handleRemoveVideoFromManualForm}
+          planLimits={planLimits}
         />
       )}
 
@@ -375,13 +387,44 @@ export function CSVManagerEnhanced({
         updateErrorState={updateErrorState}
       />
 
-      <CsvLimitBar
-        allDataLength={allData.length}
-        newExercisesCount={allData.filter(i => !i.isExisting).length}
-        existingCount={allData.filter(i => i.isExisting).length}
-        planLimits={planLimits}
-        productCategory={productCategory}
-      />
+      {allData.length > 0 && (
+        <div className="flex flex-col gap-2 mt-8">
+
+          <CsvLimitBar
+            allDataLength={allData.length}
+            newExercisesCount={allData.filter(i => !i.isExisting).length}
+            existingCount={allData.filter(i => i.isExisting).length}
+            planLimits={planLimits}
+            productCategory={productCategory}
+          />
+
+          {/* Action Instructions Bar - Compact Row Version */}
+          <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 mt-2 px-2 py-2">
+            
+            <div className="flex items-center gap-6 shrink-0 ml-auto">
+              <button 
+                onClick={() => { if (selectedRows.size > 0) setShowMediaSourceModal(true) }} 
+                disabled={selectedRows.size === 0}
+                className="flex items-center gap-2 text-zinc-400 hover:text-[#FF7939] disabled:opacity-20 transition-all group"
+              >
+                <Video className="h-4 w-4" />
+                <span className="text-[9px] font-black uppercase tracking-widest">Agregar videos</span>
+              </button>
+
+              <div className="w-px h-3 bg-white/10" />
+
+              <button 
+                onClick={handleDeleteSelected} 
+                disabled={selectedRows.size === 0}
+                className="flex items-center gap-2 text-zinc-400 hover:text-red-400 disabled:opacity-20 transition-all group"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="text-[9px] font-black uppercase tracking-widest">Eliminar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {
         limitWarning && (
@@ -407,35 +450,7 @@ export function CSVManagerEnhanced({
         )
       }
 
-      {result && <div className="text-green-500 mb-6 bg-green-900/20 border border-green-500/50 rounded-lg p-4 flex items-center gap-2"><CheckCircle className="h-5 w-5" /> {result.message}</div>}
 
-      {
-        allData.length > 0 && (
-          <div className="flex items-center justify-end gap-4 mb-4">
-            <button onClick={() => setShowRulesPanel(true)} className="flex items-center gap-2 text-[#FF7939]">
-              <Settings2 className="h-5 w-5" /> Condicionar
-              {rulesCount > 0 && <span className="bg-[#FF7939] text-white text-[8px] px-1 rounded-full w-4 h-4 flex items-center justify-center">{rulesCount}</span>}
-            </button>
-
-            <button onClick={() => { if (selectedRows.size > 0) setShowMediaSourceModal(true) }} disabled={selectedRows.size === 0} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]">
-              <Video className="h-5 w-5" />
-            </button>
-
-            <button onClick={handleDeleteSelected} disabled={selectedRows.size === 0} className="text-red-400 disabled:text-gray-500 hover:text-red-300">
-              <Trash2 className="h-5 w-5" />
-            </button>
-
-            {(() => {
-              const selectedItems = Array.from(selectedRows).map(index => allData[index])
-              const allInactive = selectedItems.length > 0 && selectedItems.every(item => item?.is_active === false)
-              if (allInactive) {
-                return <button onClick={handleReactivateSelected} disabled={selectedRows.size === 0} className="text-green-400 disabled:text-gray-500 hover:text-green-300"><Power className="h-5 w-5" /></button>
-              }
-              return <button onClick={handleDeleteSelected} disabled={selectedRows.size === 0} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><PowerOff className="h-5 w-5" /></button>
-            })()}
-          </div>
-        )
-      }
 
       <CsvTable
         data={paginatedData as any[]}
@@ -468,6 +483,9 @@ export function CSVManagerEnhanced({
         duplicateNames={duplicateNames}
         loadingExisting={loadingExisting}
         bunnyVideoTitles={bunnyVideoTitles}
+        sortConfig={sortConfig}
+        onSort={handleSort}
+        onDelete={handleDeleteRow}
       />
 
       {
@@ -500,6 +518,6 @@ export function CSVManagerEnhanced({
           return []
         })()}
       />
-    </div >
+    </div>
   )
 }

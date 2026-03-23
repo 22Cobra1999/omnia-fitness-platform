@@ -52,7 +52,7 @@ export function ProductPreviewCard({
     <motion.div
       whileHover={{ scale: isPreview ? 1 : 1.03 }}
       transition={{ duration: 0.2 }}
-      className="w-full max-w-sm"
+      className="w-full max-w-[460px]"
     >
       <Card className="bg-[#1E1E1E] border-none overflow-hidden shadow-lg">
         <CardContent className="p-0">

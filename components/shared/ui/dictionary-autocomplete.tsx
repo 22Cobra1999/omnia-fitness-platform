@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge'
 interface DictionaryAutocompleteProps {
     value: string
     onChange: (newValue: string) => void
-    categoria: 'equipo_fitness' | 'parte_cuerpo' | 'nutricion'
+    categoria: 'equipo_fitness' | 'parte_cuerpo' | 'nutricion' | 'ingrediente'
     placeholder?: string
     label?: string
 }
@@ -54,11 +54,13 @@ export function DictionaryAutocomplete({
     }, [categoria])
 
     useEffect(() => {
-        const timeout = setTimeout(() => {
-            fetchSuggestions(query)
-        }, 300)
-        return () => clearTimeout(timeout)
-    }, [query, fetchSuggestions])
+        if (open || query) {
+            const timeout = setTimeout(() => {
+                fetchSuggestions(query)
+            }, 300)
+            return () => clearTimeout(timeout)
+        }
+    }, [query, open, fetchSuggestions])
 
     const handleSelect = (item: string) => {
         if (!selectedItems.includes(item)) {

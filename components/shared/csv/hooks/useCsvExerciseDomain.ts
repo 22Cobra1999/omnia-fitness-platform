@@ -26,6 +26,7 @@ interface UseCsvExerciseDomainProps {
     parentSetCsvData?: (data: any[]) => void
     parentCsvData?: any[]
     cancelEdit: () => void
+    setNewlyAddedIds: (updater: any) => void
 }
 
 export function useCsvExerciseDomain({
@@ -50,7 +51,8 @@ export function useCsvExerciseDomain({
     setCsvData,
     parentSetCsvData,
     parentCsvData,
-    cancelEdit
+    cancelEdit,
+    setNewlyAddedIds
 }: UseCsvExerciseDomainProps) {
 
     const handleEditExercise = useCallback((exercise: ExerciseData, index: number) => {
@@ -109,7 +111,18 @@ export function useCsvExerciseDomain({
     ])
 
     const addManualExercise = useCallback(() => {
+        console.log("🛠️ [FitnessDomain] Starting addManualExercise - Form State:", {
+            nombre: manualForm.nombre,
+            descripcion: manualForm.descripcion,
+            duracion: manualForm.duracion_min,
+            tipo: manualForm.tipo_ejercicio || 'NOT_SET',
+            intensidad: manualForm.nivel_intensidad,
+            calorias: manualForm.calorias,
+            segundos: manualForm.segundos
+        })
+
         if (!manualForm.nombre.trim()) {
+            console.warn("⚠️ [FitnessDomain] Aborting - Name is empty")
             updateErrorState(`Completa al menos el campo "Nombre de la Actividad"`)
             return
         }
@@ -118,6 +131,12 @@ export function useCsvExerciseDomain({
         const detalleSeriesStr = seriesList.length ? seriesList.map(s => `(${s.peso || 0}-${s.repeticiones || 0}-${s.series || 0}-${s.segundos || 0})`).join(';') : manualForm.detalle_series
         const partesCuerpoStr = bodyParts.length ? bodyParts.join(';') : manualForm.partes_cuerpo
         const equipoNecesarioStr = equipoList.length ? equipoList.join(', ') : manualForm.equipo_necesario
+
+        console.log("📊 [FitnessDomain] Prepared Variables:", {
+            detalleSeries: detalleSeriesStr,
+            partesCuerpo: partesCuerpoStr,
+            equipoNecesario: equipoNecesarioStr
+        })
 
         let item: any = {
             'Nombre de la Actividad': manualForm.nombre,
@@ -179,10 +198,29 @@ export function useCsvExerciseDomain({
         }
         clearLimitWarningIfNeeded()
 
-        setCsvData((prev: any) => [...prev, item])
+        setCsvData((prev: any) => [item, ...prev])
         if (parentSetCsvData) {
-            parentSetCsvData([...(parentCsvData || []), item])
+            parentSetCsvData([item, ...(parentCsvData || [])])
         }
+
+        // --- NEW UX ENHANCEMENTS ---
+        const newItemIdentifier = item.id || item.tempRowId
+        setNewlyAddedIds((prev: Set<string | number>) => {
+            const next = new Set(prev)
+            next.add(newItemIdentifier)
+            return next
+        })
+
+        // Auto-scroll to table
+        setTimeout(() => {
+            const tableElement = document.getElementById('csv-table-scroll-target')
+            if (tableElement) {
+                tableElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+        }, 100)
+
+        console.log("✅ [FitnessDomain] addManualExercise SUCCESS. Item ID:", newItemIdentifier)
+        return item
     }, [
         manualForm,
         seriesList,
@@ -198,7 +236,8 @@ export function useCsvExerciseDomain({
         setLimitWarning,
         planLimits,
         clearLimitWarningIfNeeded,
-        updateErrorState
+        updateErrorState,
+        setNewlyAddedIds
     ])
 
     return {
