@@ -74,10 +74,10 @@ export function CsvManualForm({
         <div className="flex flex-col h-full bg-[#050505] text-white overflow-hidden selection:bg-[#FF7939]/30 relative">
 
             {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto no-scrollbar pb-10 p-4 md:p-8">
+            <div className="flex-1 overflow-y-auto no-scrollbar pb-10 p-0 lg:p-8">
                 
                 {/* Mobile View Switcher - Top Position */}
-                <div className="flex xl:hidden mb-8 bg-zinc-950/60 rounded-2xl p-1 border border-white/5 w-fit mx-auto shadow-2xl backdrop-blur-xl">
+                <div className="flex lg:hidden mb-8 bg-zinc-950/60 rounded-2xl p-1 border border-white/5 w-fit mx-auto shadow-2xl backdrop-blur-xl">
                     <button 
                         onClick={() => setMobileView('editor')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all duration-300 ${mobileView === 'editor' ? 'bg-[#FF7939] text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
@@ -97,10 +97,10 @@ export function CsvManualForm({
                 <div className="max-w-[1200px] mx-auto space-y-12">
                     
                     {/* Upper Section: iPhone View + Editor Section */}
-                    <div className="flex flex-col xl:flex-row gap-8 items-start justify-center">
+                    <div className="flex flex-col lg:flex-row gap-0 lg:gap-8 items-start justify-center">
                         
                         {/* iPhone Preview (Left on Desktop) */}
-                        <div className={`${mobileView === 'preview' ? 'flex' : 'hidden'} xl:flex flex-col items-center justify-start w-full xl:w-[320px] shrink-0 transform scale-90 md:scale-100 origin-top transition-all duration-500`}>
+                        <div className={`${mobileView === 'preview' ? 'flex' : 'hidden'} lg:flex flex-col items-center justify-start w-full lg:w-[300px] shrink-0 transform scale-90 lg:scale-[0.85] xl:scale-100 origin-top transition-all duration-500`}>
                             {isNutrition ? (
                                 <NutritionPreviewMobile 
                                     formState={formState}
@@ -129,8 +129,8 @@ export function CsvManualForm({
                         </div>
 
                         {/* Editor Section (Right/Center on Desktop) - Ultra-Compact Area */}
-                        <div className={`${mobileView === 'editor' ? 'flex' : 'hidden'} xl:flex flex-col flex-1 min-w-0 md:max-w-[720px] gap-4 w-full`}>
-                            <div className="bg-zinc-950/40 p-4 md:p-4 rounded-[2.5rem] border border-white/5 shadow-2xl backdrop-blur-md h-[460px] flex flex-col shrink-0 overflow-hidden">
+                        <div className={`${mobileView === 'editor' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 lg:max-w-[640px] xl:max-w-[720px] gap-4 w-full`}>
+                            <div className="bg-transparent lg:bg-zinc-950/40 p-0 lg:p-4 rounded-none lg:rounded-[2.5rem] border-none lg:border border-white/5 lg:shadow-2xl lg:backdrop-blur-md h-[480px] lg:h-[460px] flex flex-col shrink-0 overflow-hidden">
                                 <div className="flex gap-4 flex-1 overflow-hidden">
                                     {/* Left Icon Menu */}
                                     <div className="flex flex-col gap-2 p-1.5 bg-zinc-950/80 rounded-[1.5rem] border border-white/5 shadow-inner shrink-0 h-fit">

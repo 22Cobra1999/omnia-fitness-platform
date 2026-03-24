@@ -162,7 +162,8 @@ export function useCsvNutritionDomain({
                 parentSetCsvData(updater(parentCsvData || []))
             }
             cancelEdit()
-            return
+            console.log("🥘 [NutritionDomain] Edit SUCCESS. Item ID:", item.id || item.tempRowId)
+            return item
         }
 
         const { allowed } = evaluateAvailableSlots(1)

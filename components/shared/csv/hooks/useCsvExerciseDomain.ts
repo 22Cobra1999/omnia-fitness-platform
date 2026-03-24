@@ -128,7 +128,15 @@ export function useCsvExerciseDomain({
         }
         updateErrorState(null)
 
-        const detalleSeriesStr = seriesList.length ? seriesList.map(s => `(${s.peso || 0}-${s.repeticiones || 0}-${s.series || 0}-${s.segundos || 0})`).join(';') : manualForm.detalle_series
+        const detalleSeriesStr = seriesList.length 
+            ? seriesList.map(s => {
+                const p = (s.peso === undefined || s.peso === null || s.peso === '') ? '' : s.peso
+                const r = (s.repeticiones === undefined || s.repeticiones === null || s.repeticiones === '') ? '' : s.repeticiones
+                const se = (s.series === undefined || s.series === null || s.series === '') ? '' : s.series
+                const seg = (s.segundos === undefined || s.segundos === null || s.segundos === '') ? '' : s.segundos
+                return `(${p}-${r}-${se}-${seg})`
+            }).join(';') 
+            : manualForm.detalle_series
         const partesCuerpoStr = bodyParts.length ? bodyParts.join(';') : manualForm.partes_cuerpo
         const equipoNecesarioStr = equipoList.length ? equipoList.join(', ') : manualForm.equipo_necesario
 
@@ -188,7 +196,8 @@ export function useCsvExerciseDomain({
                 parentSetCsvData(updater(parentCsvData || []))
             }
             cancelEdit()
-            return
+            console.log("✅ [FitnessDomain] Edit SUCCESS. Item ID:", item.id || item.tempRowId)
+            return item
         }
 
         const { allowed } = evaluateAvailableSlots(1)

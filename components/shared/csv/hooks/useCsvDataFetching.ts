@@ -58,13 +58,19 @@ export function useCsvDataFetching({
         // Fetch Rule Count from DB
         if (coachId) {
             try {
-                const { data: rulesData } = await supabase
+                const { data: rulesData, error: rulesError } = await supabase
                     .from("product_conditional_rules")
                     .select("id")
                     .eq("coach_id", coachId)
-                if (rulesData) setRulesCount(rulesData.length)
+                
+                if (rulesError) {
+                    console.error('❌ [useCsvDataFetching] Error fetching rules count from Supabase:', rulesError)
+                } else if (rulesData) {
+                    console.log('📊 [useCsvDataFetching] Rules count fetched:', rulesData.length)
+                    setRulesCount(rulesData.length)
+                }
             } catch (err) {
-                console.warn('⚠️ Error fetching rules count:', err)
+                console.error('⚠️ [useCsvDataFetching] Unexpected error fetching rules count:', err)
             }
         }
 
@@ -108,6 +114,8 @@ export function useCsvDataFetching({
                 const catalogResponse = await fetch(`/api/coach/exercises?category=${category}${activeParam}`)
 
                 if (!catalogResponse.ok) {
+                    const errorText = await catalogResponse.text().catch(() => 'No error text available')
+                    console.error(`❌ [useCsvDataFetching] Fetch Catalog Failed (${category}) - Status: ${catalogResponse.status}`, errorText)
                     setLoadingExisting(false)
                     isLoadingDataRef.current = false
                     return
@@ -144,10 +152,10 @@ export function useCsvDataFetching({
                                 }
                             }
 
-                            const proteinas = getNumberValue(item.proteinas ?? item.protein ?? item.proteins ?? item['Proteínas'] ?? item['Proteínas (g)'])
-                            const carbohidratos = getNumberValue(item.carbohidratos ?? item.carbs ?? item.carbohydrates ?? item['Carbohidratos'] ?? item['Carbohidratos (g)'])
-                            const grasas = getNumberValue(item.grasas ?? item.fat ?? item.fats ?? item['Grasas'] ?? item['Grasas (g)'])
-                            const calorias = getNumberValue(item.calorias ?? item.calories ?? item.kcal ?? item['Calorías'] ?? item.calorías)
+                            const proteinas = getNumberValue(item.proteinas ?? item.protein ?? item['proteínas'] ?? item['Proteínas'] ?? item['Proteínas (g)'])
+                            const carbohidratos = getNumberValue(item.carbohidratos ?? item.carbs ?? item['carbohidratos'] ?? item['Carbohidratos'] ?? item['Carbohidratos (g)'])
+                            const grasas = getNumberValue(item.grasas ?? item.fat ?? item['grasas'] ?? item['Grasas'] ?? item['Grasas (g)'])
+                            const calorias = getNumberValue(item.calorias ?? item.calories ?? item.kcal ?? item['calorías'] ?? item['Calorías'])
 
                             return {
                                 ...item,
@@ -195,17 +203,17 @@ export function useCsvDataFetching({
                             'Nombre de la Actividad': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
                             tipo: item.tipo || '',
                             'Receta': item.receta || item.descripcion || '',
-                            'Calorías': item.calorias || 0,
-                            'Proteínas (g)': item.proteinas || 0,
-                            'Carbohidratos (g)': item.carbohidratos || 0,
-                            'Grasas (g)': item.grasas || 0,
-                            'Ingredientes': item.ingredientes || '',
-                            'Porciones': item.porciones || '',
-                            'Minutos': item.minutos || 0,
-                            'Descripción': item.descripcion || item.receta || '',
-                            'Duración (min)': item.duracion_min || 0,
-                            'Tipo de Ejercicio': item.tipo || '',
-                            'Equipo Necesario': item.equipo || '',
+                            'Calorías': item.calorias ?? item.calorías ?? '-',
+                            'Proteínas (g)': item.proteinas ?? item.proteínas ?? '-',
+                            'Carbohidratos (g)': item.carbohidratos ?? '-',
+                            'Grasas (g)': item.grasas ?? '-',
+                            'Ingredientes': item.ingredientes ?? '',
+                            'Porciones': item.porciones ?? '',
+                            'Minutos': item.minutos || '-',
+                            'Descripción': item.descripcion || item.receta || '-',
+                            'Duración (min)': item.duracion_min || item.duración || '-',
+                            'Tipo de Ejercicio': item.tipo || '-',
+                            'Equipo Necesario': item.equipo || '-',
                             'Detalle de Series (peso-repeticiones-series)': item.detalle_series || '',
                             'Partes del Cuerpo': item.body_parts || '',
                             'Nivel de Intensidad': item.intensidad || '',
@@ -267,10 +275,11 @@ export function useCsvDataFetching({
                     }, 500)
                 } else {
                     const errorMessage = catalogJson?.error || `Error ${catalogResponse.status}`
+                    console.error(`❌ [useCsvDataFetching] Catalog JSON Error:`, catalogJson)
                     updateErrorState(`Error al cargar ${category === 'nutricion' ? 'platos' : 'ejercicios'}: ${errorMessage}`)
                 }
             } catch (error) {
-                console.error('❌ Error cargando datos modo genérico:', error)
+                console.error('❌ [useCsvDataFetching] Critical Error in Generic Load:', error)
             } finally {
                 setLoadingExisting(false)
                 isLoadingDataRef.current = false
@@ -297,15 +306,17 @@ export function useCsvDataFetching({
             const result = await response.json().catch(() => null)
 
             if (response.ok && result && result.success) {
+                console.log(`📡 [useCsvDataFetching] Specific Load Success (${activityId}) - Rows fetched:`, result.data?.length)
                 if (activityId > 0) {
                     try {
                         const savedRules = sessionStorage.getItem(`conditional_rules_${activityId}`)
                         if (savedRules) {
                             const parsed = JSON.parse(savedRules)
+                            console.log(`📊 [useCsvDataFetching] Loaded ${parsed.length} rules from session for activity ${activityId}`)
                             setRulesCount(parsed.length)
                         }
                     } catch (err) {
-                        console.error('Error loading rules from session:', err)
+                        console.error('❌ [useCsvDataFetching] Error loading rules from session:', err)
                     }
                 }
 
@@ -478,8 +489,12 @@ export function useCsvDataFetching({
                         setCsvData(transformedExistingData)
                     }
                 }
-            } else if (result?.error) {
-                updateErrorState(`No se pudieron cargar los ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes (${response.status}): ${result.error}`)
+            } else {
+                const errorLog = result?.error || `HTTP ${response.status}`
+                console.error(`❌ [useCsvDataFetching] Load Detail Failed (Activity: ${activityId})`, { status: response.status, error: errorLog })
+                if (result?.error) {
+                    updateErrorState(`No se pudieron cargar los ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes (${response.status}): ${result.error}`)
+                }
             }
         } catch (error) {
             console.error('❌ Error cargando datos existentes:', error)

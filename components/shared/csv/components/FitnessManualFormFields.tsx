@@ -132,7 +132,7 @@ export function FitnessManualFormFields({ formState, onChange, activeSection, on
                                 const r = pesoParts[1] || '0'
                                 const s = pesoParts[2] || '1'
                                 const t = formState.segundos || '0'
-                                const newSerie = `${p}-${r}-${s}-${t}`
+                                const newSerie = `(${p}-${r}-${s}-${t})`
                                 const currentSeries = (formState.detalle_series || '').split(';').filter(Boolean)
                                 onChange('detalle_series', [...currentSeries, newSerie].join(';'))
                             }}

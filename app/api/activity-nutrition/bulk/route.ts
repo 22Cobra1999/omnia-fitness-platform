@@ -21,6 +21,8 @@ type IncomingPlato = {
   bunny_library_id?: number | string | null
   video_thumbnail_url?: string | null
   ingredientes?: string | any[] | null
+  porciones?: string | number | null
+  minutos?: string | number | null
 }
 
 type BulkRequest = {
@@ -31,7 +33,11 @@ type BulkRequest = {
 
 const NORMALIZE_NUMBER = (value: string | number | null | undefined) => {
   if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  
+  // Clean string from units (g, kcal, ml, etc)
+  const cleaned = value.toString().replace(/[a-zA-Z\s]/g, '').replace(',', '.')
+  const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : null
 }
 
@@ -174,7 +180,10 @@ export async function POST(request: NextRequest) {
         video_file_name,
         bunny_video_id,
         bunny_library_id,
-        video_thumbnail_url
+        video_thumbnail_url,
+        ingredientes,
+        porciones,
+        minutos
       } = plato
 
       console.log(`🥘 [API/Nutrition] Processing plate: "${nombre}"`)
@@ -266,12 +275,20 @@ export async function POST(request: NextRequest) {
         receta_id = recetaInserted?.id ?? null
       }
 
+      const caloriasVal = calorias || (plato as any)['Calorías'] || (plato as any).calorias
+      const proteinasVal = proteinas || (plato as any)['Proteínas (g)'] || (plato as any)['Proteínas'] || (plato as any).proteinas || (plato as any).protein
+      const carbohidratosVal = carbohidratos || (plato as any)['Carbohidratos (g)'] || (plato as any)['Carbohidratos'] || (plato as any).carbohidratos || (plato as any).carbs
+      const grasasVal = grasas || (plato as any)['Grasas (g)'] || (plato as any)['Grasas'] || (plato as any).grasas || (plato as any).fats
+      const ingredientesVal = ingredientes || (plato as any)['Ingredientes'] || (plato as any).ingredientes
+      const porcionesVal = (plato as any).porciones !== undefined ? (plato as any).porciones : (plato as any)['Porciones']
+      const minutosVal = (plato as any).minutos !== undefined ? (plato as any).minutos : (plato as any)['Minutos']
+
       const record: any = {
         nombre: sanitizedName,
-        calorias: NORMALIZE_NUMBER(calorias || (plato as any)['Calorías'] || (plato as any).calorias),
-        proteinas: NORMALIZE_NUMBER(proteinas || (plato as any)['Proteínas'] || (plato as any).proteinas),
-        carbohidratos: NORMALIZE_NUMBER(carbohidratos || (plato as any)['Carbohidratos'] || (plato as any).carbohidratos),
-        grasas: NORMALIZE_NUMBER(grasas || (plato as any)['Grasas'] || (plato as any).grasas),
+        calorias: NORMALIZE_NUMBER(caloriasVal),
+        proteinas: NORMALIZE_NUMBER(proteinasVal),
+        carbohidratos: NORMALIZE_NUMBER(carbohidratosVal),
+        grasas: NORMALIZE_NUMBER(grasasVal),
         dificultad: dificultad,
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
         video_file_name: coerceTextNullable(video_file_name),
@@ -287,32 +304,34 @@ export async function POST(request: NextRequest) {
       }
 
       // Agregar campos opcionales si existen
-      if ((plato as any).ingredientes !== undefined && (plato as any).ingredientes !== null) {
-        // Si ingredientes es un string, intentar parsearlo como JSON
-        if (typeof (plato as any).ingredientes === 'string') {
-          try {
-            record.ingredientes = JSON.parse((plato as any).ingredientes)
-          } catch {
-            // Si no es JSON válido, guardarlo como array con el string
-            record.ingredientes = [(plato as any).ingredientes]
+      if (ingredientesVal !== undefined && ingredientesVal !== null) {
+        // Si ingredientes es un string, intentar parsearlo como JSON si parece JSON
+        if (typeof ingredientesVal === 'string') {
+          const trimmed = ingredientesVal.trim()
+          if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+            try {
+              record.ingredientes = JSON.parse(trimmed)
+            } catch {
+              record.ingredientes = [trimmed]
+            }
+          } else {
+            // Es una lista separada por comas o punto y coma
+            const list = trimmed.split(/[;,\n]/).map(i => i.trim()).filter(Boolean)
+            record.ingredientes = list.length > 0 ? list : [trimmed]
           }
         } else {
-          record.ingredientes = (plato as any).ingredientes
+          record.ingredientes = ingredientesVal
         }
       }
 
-      if ((plato as any).porciones !== undefined && (plato as any).porciones !== null) {
-        const porcionesNum = NORMALIZE_NUMBER((plato as any).porciones)
-        if (porcionesNum !== null) {
-          record.porciones = Math.floor(porcionesNum)
-        }
+      if (porcionesVal !== undefined && porcionesVal !== null) {
+        const porcionesNum = NORMALIZE_NUMBER(porcionesVal)
+        if (porcionesNum !== null) record.porciones = Math.floor(porcionesNum)
       }
 
-      if ((plato as any).minutos !== undefined && (plato as any).minutos !== null) {
-        const minutosNum = NORMALIZE_NUMBER((plato as any).minutos)
-        if (minutosNum !== null) {
-          record.minutos = Math.floor(minutosNum)
-        }
+      if (minutosVal !== undefined && minutosVal !== null) {
+        const minutosNum = NORMALIZE_NUMBER(minutosVal)
+        if (minutosNum !== null) record.minutos = Math.floor(minutosNum)
       }
 
       // ✅ Intentar agregar activity_id_new solo si existe la columna (opcional)

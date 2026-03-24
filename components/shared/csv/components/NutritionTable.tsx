@@ -3,6 +3,12 @@ import { Flame, Eye, Play, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExerciseData } from '../types'
 import { PreviewVideoModal } from '@/components/shared/ui/preview-video-modal'
+ 
+const StepCircle = ({ number }: { number: number }) => (
+    <div className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#FF7939]/15 border border-[#FF7939]/30 mr-1.5 shrink-0 shadow-sm shadow-[#FF7939]/10">
+        <span className="text-[#FF7939] text-[8px] font-black leading-none">{number}</span>
+    </div>
+)
 
 interface NutritionTableProps {
     data: ExerciseData[]
@@ -124,7 +130,7 @@ export function NutritionTable({
                                         </button>
                                     </td>
                                     <td className="px-2 py-3 text-center">
-                                        <div className="flex items-center justify-center gap-1.5">
+                                        <div className="flex items-center justify-center">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -133,15 +139,6 @@ export function NutritionTable({
                                                 title="Editar"
                                             >
                                                 <Eye className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onDelete?.(actualIndex)}
-                                                className="text-red-400 hover:bg-red-400/10 p-1 h-6 w-6"
-                                                title="Eliminar"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     </td>
@@ -196,15 +193,9 @@ export function NutritionTable({
                                                                         {imageUrl ? (
                                                                             <img src={imageUrl} alt={act.name} className="w-full h-full object-cover" />
                                                                         ) : (
-                                                                            <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
-                                                                                <span className="text-xs font-bold text-white">{act.name.charAt(0).toUpperCase()}</span>
-                                                                            </div>
+                                                                            <div className="w-full h-full flex items-center justify-center" />
                                                                         )}
                                                                     </div>
-                                                                    <div
-                                                                        className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${act.activo ? 'bg-green-500' : 'bg-red-500'}`}
-                                                                        title={act.activo ? 'Activo en esta actividad' : 'Inactivo en esta actividad'}
-                                                                    />
                                                                 </div>
                                                             )
                                                         })}
@@ -217,14 +208,22 @@ export function NutritionTable({
                                         <span className={isDuplicate ? 'text-red-400' : 'text-white'}>{exerciseName}</span>
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
-                                        <div className="max-h-32 overflow-y-auto">
+                                        <div className="pr-2">
                                             {(() => {
                                                 const receta = item['Receta'] || item.receta || item['Descripción'] || item.descripcion || '-'
                                                 if (receta === '-') return <span>-</span>
                                                 const pasos = receta.split(';').map((p: string) => p.trim()).filter(Boolean)
                                                 return (
-                                                    <div className="space-y-1 break-words">
-                                                        {pasos.map((paso: string, idx: number) => <div key={idx} className="text-white/90">{paso}</div>)}
+                                                    <div className="text-white/90 break-words leading-relaxed text-xs">
+                                                        {pasos.map((paso: string, idx: number) => {
+                                                            const cleanPaso = paso.replace(/^\d+\.\s*/, '').trim()
+                                                            return (
+                                                                <span key={idx} className="inline-flex items-center align-baseline mr-2">
+                                                                    <StepCircle number={idx + 1} />
+                                                                    <span>{cleanPaso}</span>
+                                                                </span>
+                                                            )
+                                                        })}
                                                     </div>
                                                 )
                                             })()}
@@ -233,53 +232,68 @@ export function NutritionTable({
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
                                             const val = item['Calorías'] ?? item.calorias
-                                            return val !== undefined && val !== null ? val : '-'
+                                            return (val !== undefined && val !== null && Number(val) > 0) ? val : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
                                             const val = item['Proteínas (g)'] ?? item['Proteínas'] ?? item.proteinas
-                                            return val !== undefined && val !== null ? `${val}g` : '-'
+                                            return (val !== undefined && val !== null && Number(val) > 0) ? `${val}g` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
                                             const val = item['Carbohidratos (g)'] ?? item['Carbohidratos'] ?? item.carbohidratos
-                                            return val !== undefined && val !== null ? `${val}g` : '-'
+                                            return (val !== undefined && val !== null && Number(val) > 0) ? `${val}g` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
                                             const val = item['Grasas (g)'] ?? item['Grasas'] ?? item.grasas
-                                            return val !== undefined && val !== null ? `${val}g` : '-'
+                                            return (val !== undefined && val !== null && Number(val) > 0) ? `${val}g` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
-                                        <div className="max-h-32 overflow-y-auto overflow-x-hidden">
+                                        <div className="flex flex-wrap gap-1 pr-2">
                                             {(() => {
-                                                let ing = item['Ingredientes'] || item.ingredientes
-                                                if (Array.isArray(ing)) ing = ing.join('; ')
-                                                else if (typeof ing === 'object' && ing !== null) ing = JSON.stringify(ing)
-                                                if (!ing || ing === '-') return '-'
-                                                const items = ing.split(/[;,]/).map((i: string) => i.trim()).filter(Boolean)
-                                                return (
-                                                    <div className="space-y-0.5 break-all">
-                                                        {items.map((it: string, idx: number) => (
-                                                            <div key={idx} className="text-white/90 flex items-start">
-                                                                  <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
-                                                                  <span className="break-words">{it}</span>
-                                                              </div>
-                                                        ))}
-                                                    </div>
-                                                )
+                                                const rawIng = item['Ingredientes'] || item.ingredientes
+                                                if (!rawIng || (Array.isArray(rawIng) && rawIng.length === 0)) return <span>-</span>
+                                                
+                                                let list: string[] = []
+                                                if (Array.isArray(rawIng)) {
+                                                    list = rawIng.map(String)
+                                                } else if (typeof rawIng === 'string') {
+                                                    if (rawIng.trim().startsWith('[')) {
+                                                        try {
+                                                            const p = JSON.parse(rawIng)
+                                                            list = Array.isArray(p) ? p.map(String) : [rawIng]
+                                                        } catch {
+                                                            list = [rawIng]
+                                                        }
+                                                    } else {
+                                                        list = rawIng.split(/[;,\n]/).map(i => i.trim()).filter(Boolean)
+                                                    }
+                                                }
+                                                
+                                                if (list.length === 0) return <span>-</span>
+                                                return list.map((ing, i) => (
+                                                    <span key={i} className="px-1.5 py-0.5 bg-white/5 rounded border border-white/5 text-[10px]">
+                                                        {ing}
+                                                    </span>
+                                                ))
                                             })()}
                                         </div>
                                     </td>
-                                    <td className="px-3 py-3 text-xs text-white">{item['Porciones'] ?? item.porciones ?? '-'}</td>
+                                    <td className="px-3 py-3 text-xs text-white">
+                                        {(() => {
+                                            const por = item['Porciones'] ?? item.porciones
+                                            return (por !== undefined && por !== null && Number(por) > 0) ? por : '-'
+                                        })()}
+                                    </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
                                             const min = item['Minutos'] ?? item.minutos
-                                            return min !== undefined && min !== null ? `${min} min` : '-'
+                                            return (min !== undefined && min !== null && Number(min) > 0) ? `${min} min` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white break-words">

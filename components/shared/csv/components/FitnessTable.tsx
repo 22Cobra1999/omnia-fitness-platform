@@ -3,6 +3,12 @@ import { Flame, Eye, Power, Play, Trash2, ChevronUp, ChevronDown } from 'lucide-
 import { Button } from '@/components/ui/button'
 import { ExerciseData } from '../types'
 import { PreviewVideoModal } from '@/components/shared/ui/preview-video-modal'
+ 
+const StepCircle = ({ number }: { number: number }) => (
+    <div className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#FF7939]/15 border border-[#FF7939]/30 mr-1.5 shrink-0 shadow-sm shadow-[#FF7939]/10">
+        <span className="text-[#FF7939] text-[8px] font-black leading-none">{number}</span>
+    </div>
+)
 
 const normalizeExerciseType = (type: string): string => {
     const t = (type || '').toString().toLowerCase().trim()
@@ -183,7 +189,7 @@ export function FitnessTable({
                                         </button>
                                     </td>
                                     <td className="px-2 py-3 text-center">
-                                        <div className="flex items-center justify-center gap-1.5">
+                                        <div className="flex items-center justify-center">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -192,15 +198,6 @@ export function FitnessTable({
                                                 title="Editar"
                                             >
                                                 <Eye className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onDelete?.(actualIndex)}
-                                                className="text-red-400 hover:bg-red-400/10 p-1 h-6 w-6"
-                                                title="Eliminar"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     </td>
@@ -255,12 +252,9 @@ export function FitnessTable({
                                                                         {imageUrl ? (
                                                                             <img src={imageUrl} alt={act.name} className="w-full h-full object-cover" />
                                                                         ) : (
-                                                                            <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
-                                                                                <span className="text-xs font-bold text-white">{act.name.charAt(0).toUpperCase()}</span>
-                                                                            </div>
+                                                                            <div className="w-full h-full flex items-center justify-center" />
                                                                         )}
                                                                     </div>
-                                                                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${act.activo ? 'bg-green-500' : 'bg-red-500'}`} />
                                                                 </div>
                                                             )
                                                         })}
@@ -273,12 +267,25 @@ export function FitnessTable({
                                         <span className={isDuplicate ? 'text-red-400' : 'text-white'}>{getExerciseName(item) || '-'}</span>
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
-                                        <div className="max-h-32 overflow-y-auto">
-                                            <span className="break-words">{item['Descripción'] || item.descripcion || item.Descripción || '-'}</span>
+                                        <div className="space-y-2">
+                                            {(() => {
+                                                const desc = item['Descripción'] || item.descripcion || item.Descripción || '-'
+                                                if (desc === '-') return <span>-</span>
+                                                const pasos = desc.split(';').map((p: string) => p.trim()).filter(Boolean)
+                                                if (pasos.length <= 1) return <span className="break-words">{desc}</span>
+                                                return pasos.map((paso: string, idx: number) => (
+                                                    <div key={idx} className="flex items-start">
+                                                        <StepCircle number={idx + 1} />
+                                                        <span className="break-words">{paso}</span>
+                                                    </div>
+                                                ))
+                                            })()}
                                         </div>
                                     </td>
-                                    <td className="px-3 py-3 text-xs text-white">
-                                        {item['Duración (min)'] || item.duracion_min || item.Duración || '-'} min
+                                    <td className="px-3 py-3 text-xs text-zinc-400 text-white">
+                                        {(item['Duración (min)'] || item.duracion_min || item.Duración) && Number(item['Duración (min)'] || item.duracion_min || item.Duración) > 0 ? (
+                                            `${item['Duración (min)'] || item.duracion_min || item.Duración} min`
+                                        ) : '-'}
                                     </td>
                                     <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasEquipmentIssue ? 'text-red-400' : 'text-white'}`}>
                                         {item['Equipo Necesario'] || item.equipo_necesario || '-'}
@@ -286,15 +293,53 @@ export function FitnessTable({
                                     <td className="px-3 py-3 text-xs text-white whitespace-pre break-normal">
                                         {(() => {
                                             const row = item['Detalle de Series (peso-repeticiones-series)'] || item['Detalle de Series'] || item['P-R-S'] || item.detalle_series
-                                            if (typeof row === 'string') return row.split(/;|\n/).map(s => s.trim()).filter(Boolean).map(s => s.endsWith(';') ? s : `${s};`).join('\n') || '-'
-                                            if (Array.isArray(row)) return row.map((s: any) => `(${s.peso}-${s.repeticiones}-${s.series});`).join('\n') || '-'
+                                            if (typeof row === 'string') {
+                                                const parts = row.split(/;|\n/).map(s => s.trim()).filter(Boolean)
+                                                return parts.map(s => {
+                                                    // Handle (p-r-se-seg) where some can be empty
+                                                    const inner = s.replace(/^\((.*)\)$/, '$1')
+                                                    const segments = inner.split('-')
+                                                    if (segments.length >= 3) {
+                                                        const [p, r, se, seg] = segments
+                                                        const displayParts = []
+                                                        if (p !== '') displayParts.push(`${p}kg`)
+                                                        if (r !== '') displayParts.push(`${r}r`)
+                                                        if (se !== '') displayParts.push(`${se}s`)
+                                                        if (seg && seg !== '') displayParts.push(`${seg}''`)
+                                                        
+                                                        if (displayParts.length === 0) return null
+                                                        return `(${displayParts.join('-')});`
+                                                    }
+                                                    // Fallback for simple strings
+                                                    if (s.includes('0') && !s.match(/[1-9]/)) return null
+                                                    return s.endsWith(';') ? s : `${s};`
+                                                }).filter(Boolean).join('\n') || '-'
+                                            }
+                                            if (Array.isArray(row)) {
+                                                const formatted = row.map((s: any) => {
+                                                    const p = parseFloat(s.peso) || 0
+                                                    const r = parseInt(s.repeticiones) || 0
+                                                    const se = parseInt(s.series) || 0
+                                                    if (p === 0 && r === 0 && se === 0) return null
+                                                    
+                                                    const parts = []
+                                                    if (p > 0) parts.push(p)
+                                                    if (r > 0) parts.push(r)
+                                                    if (se > 0) parts.push(se)
+                                                    
+                                                    return `(${parts.join('-')});`
+                                                }).filter(Boolean)
+                                                return formatted.join('\n') || '-'
+                                            }
                                             return '-'
                                         })()}
                                     </td>
                                     <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasBodyPartsIssue ? 'text-red-400' : 'text-white'}`}>
                                         {(item['Partes del Cuerpo'] || item.body_parts || '').toString().split(/;|,/).filter(Boolean).map((p: string) => p.trim()).join('\n') || '-'}
                                     </td>
-                                    <td className="px-3 py-3 text-xs text-white">{item.Calorías || item.calorias || '-'}</td>
+                                    <td className="px-3 py-3 text-xs text-white">
+                                        {(item.Calorías || item.calorias) && Number(item.Calorías || item.calorias) > 0 ? (item.Calorías || item.calorias) : '-'}
+                                    </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${hasIntensityIssue ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
                                             (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('alto') ? 'bg-red-100 text-red-800' :

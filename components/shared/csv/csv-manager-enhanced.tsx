@@ -398,31 +398,6 @@ export function CSVManagerEnhanced({
             productCategory={productCategory}
           />
 
-          {/* Action Instructions Bar - Compact Row Version */}
-          <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 mt-2 px-2 py-2">
-            
-            <div className="flex items-center gap-6 shrink-0 ml-auto">
-              <button 
-                onClick={() => { if (selectedRows.size > 0) setShowMediaSourceModal(true) }} 
-                disabled={selectedRows.size === 0}
-                className="flex items-center gap-2 text-zinc-400 hover:text-[#FF7939] disabled:opacity-20 transition-all group"
-              >
-                <Video className="h-4 w-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Agregar videos</span>
-              </button>
-
-              <div className="w-px h-3 bg-white/10" />
-
-              <button 
-                onClick={handleDeleteSelected} 
-                disabled={selectedRows.size === 0}
-                className="flex items-center gap-2 text-zinc-400 hover:text-red-400 disabled:opacity-20 transition-all group"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Eliminar</span>
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -486,6 +461,8 @@ export function CSVManagerEnhanced({
         sortConfig={sortConfig}
         onSort={handleSort}
         onDelete={handleDeleteRow}
+        onDeleteSelected={handleDeleteSelected}
+        onAddVideosToSelected={() => { if (selectedRows.size > 0) setShowMediaSourceModal(true) }}
       />
 
       {

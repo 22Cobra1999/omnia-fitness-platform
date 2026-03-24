@@ -27,7 +27,11 @@ type BulkRequest = {
 
 const NORMALIZE_NUMBER = (value: string | number | null | undefined) => {
   if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+
+  // Clean string from units (kcal, min, etc)
+  const cleaned = value.toString().replace(/[a-zA-Z\s]/g, '').replace(',', '.')
+  const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : null
 }
 
@@ -209,8 +213,8 @@ export async function POST(request: NextRequest) {
           detalle_series ||
           (exercise as any)['Detalle de Series (peso-repeticiones-series)'] ||
           null,
-        duracion_min: NORMALIZE_NUMBER(duracion_min ?? (exercise as any)['Duración (min)']),
-        calorias: NORMALIZE_NUMBER(calorias),
+        duracion_min: NORMALIZE_NUMBER(duracion_min || (exercise as any)['Duración (min)'] || (exercise as any)['Duración'] || (exercise as any).Duración),
+        calorias: NORMALIZE_NUMBER(calorias || (exercise as any).Calorías || (exercise as any)['Calorías'] || (exercise as any).calories),
         intensidad: normalizeIntensity(rawIntensity),
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
         video_file_name: sanitizeNullable((exercise as any).video_file_name),
