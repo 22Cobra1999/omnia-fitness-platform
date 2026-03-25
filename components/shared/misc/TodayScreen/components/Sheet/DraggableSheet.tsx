@@ -71,7 +71,7 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const TOP_SNAP = 200; // Lowered
+    const TOP_SNAP = 140; // Raised
     const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.28; // Match Layout
     const collapsedY = vh - COLLAPSED_H;
 

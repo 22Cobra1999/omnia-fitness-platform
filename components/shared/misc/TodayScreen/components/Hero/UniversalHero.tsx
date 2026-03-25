@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { CalendarClock, ChevronLeft, Calendar, FileText, Star } from 'lucide-react';
+import { ChevronLeft, Calendar, FileText, Star } from 'lucide-react';
 
 interface UniversalHeroProps {
     programInfo: any;
@@ -26,25 +26,20 @@ export function UniversalHero({
 }: UniversalHeroProps) {
     const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
 
-    // Helper para objetivos 
-    const objetivos = React.useMemo(() => {
-        const src: any = enrollment?.activity || programInfo || null
-        let list: any = src?.objetivos
-        if (!list || !Array.isArray(list)) list = []
-        return (Array.isArray(list) ? list : [])
-            .map((o: any) => String(o ?? '').trim())
-            .filter((o: string) => o && o.length > 2);
-    }, [enrollment?.activity, programInfo]);
-
-    // Calcular fecha real del plan (no de expiración de suscripción)
+    // Calcular fecha real del plan 
     const programEndDate = React.useMemo(() => {
         if (!enrollment?.start_date) return null;
         const totalWeeks = programInfo?.semanas_totales || programInfo?.duration_weeks || 4;
-        const startDate = new Date(enrollment.start_date + 'T12:00:00'); // Use mid-day to avoid TZ shifts
+        const startDate = new Date(enrollment.start_date + 'T12:00:00'); 
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + (totalWeeks * 7));
         return endDate;
     }, [enrollment?.start_date, programInfo]);
+
+    const isPlanFinished = React.useMemo(() => {
+        if (!programEndDate) return false;
+        return programEndDate < new Date();
+    }, [programEndDate]);
 
     return (
         <div style={{
@@ -82,19 +77,16 @@ export function UniversalHero({
                 ) : <div />}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {isExpired ? (
-                        <>
-                            {!hasUserSubmittedSurvey && (
-                                <button onClick={onOpenSurvey} style={{ padding: '4px 12px', background: 'rgba(255, 106, 0, 0.2)', border: '1px solid #FF6A00', borderRadius: 12, color: '#FF6A00', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
-                                    <Star size={12} fill="#FF6A00" className="inline mr-1" /> Calificar
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        <div style={{ padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
-                            PLAN: {programEndDate ? programEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
-                        </div>
+                    {!hasUserSubmittedSurvey && isPlanFinished && (
+                        <button onClick={onOpenSurvey} style={{ padding: '4px 12px', background: 'rgba(255, 121, 57, 0.2)', border: '1px solid #FF7939', borderRadius: 12, color: '#FF7939', fontSize: 10, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase' }}>
+                            <Star size={10} fill="#FF7939" className="inline mr-1" /> Calificar
+                        </button>
                     )}
+                    
+                    <div style={{ padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, color: isPlanFinished ? '#FF7939' : 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                        {isPlanFinished ? 'EXPIRA: ' : 'FINALIZA: '}
+                        {programEndDate ? programEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
+                    </div>
                 </div>
             </div>
 
@@ -107,13 +99,14 @@ export function UniversalHero({
                 marginBottom: 10
             }}>
                 <h1 style={{
-                    margin: '0',
+                    margin: '0 auto',
                     fontSize: isMobile ? 18 : 22,
                     fontWeight: 700,
                     color: '#fff',
                     lineHeight: 1.1,
                     textTransform: 'uppercase',
-                    letterSpacing: '0.02em',
+                    letterSpacing: '0.04em',
+                    maxWidth: isMobile ? '100%' : '55%', // Limited width on web for the two-row effect
                     textShadow: '0 4px 8px rgba(0,0,0,0.3)'
                 }}>
                     {programInfo?.title || 'Actividad'}
@@ -121,7 +114,7 @@ export function UniversalHero({
                 
                 {programInfo?.description && (
                     <p style={{
-                        margin: '4px 0 0 0',
+                        margin: '6px auto 0',
                         fontSize: isMobile ? 11 : 12,
                         fontWeight: 400,
                         color: 'rgba(255, 255, 255, 0.4)',
@@ -130,7 +123,7 @@ export function UniversalHero({
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        maxWidth: '85%'
+                        maxWidth: isMobile ? '100%' : '80%'
                     }}>
                         {programInfo.description}
                     </p>
@@ -146,13 +139,14 @@ export function UniversalHero({
                 )}
             </div>
 
-            {/* Tags Row */}
+            {/* Centered Tags Row */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                justifyContent: isMobile ? 'center' : 'flex-start',
-                flexWrap: 'wrap'
+                justifyContent: 'center', // Centered for all views
+                flexWrap: 'wrap',
+                marginTop: 4
             }}>
                 {(() => {
                     const type = (programInfo?.type || programInfo?.categoria || '').toLowerCase();
@@ -161,32 +155,51 @@ export function UniversalHero({
 
                     let label = 'Programa';
                     let icon = null;
-                    let color = '#FFDAB9';
-                    let border = '1px solid rgba(255, 180, 130, 0.2)';
+                    let color = '#fff';
+                    let border = 'rgba(255, 255, 255, 0.1)';
 
                     if (isWorkshop) {
                         label = 'Taller';
                         icon = <Calendar size={10} className="mr-1 inline" />;
                         color = '#FF7939';
-                        border = '1px solid #FF7939';
+                        border = '#FF7939';
                     } else if (isDoc) {
                         label = 'Documento';
                         icon = <FileText size={10} className="mr-1 inline" />;
                         color = '#38BDF8';
-                        border = '1px solid #38BDF8';
+                        border = '#38BDF8';
                     }
 
                     return (
-                        <span style={{ display: 'flex', alignItems: 'center', padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: border, color: color, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: `1px solid ${border}`, color: color, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             {icon}{label}
                         </span>
                     );
                 })()}
 
                 {programInfo?.difficulty && (
-                    <span style={{ padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
-                        {programInfo.difficulty}
-                    </span>
+                    (() => {
+                        const diff = (programInfo?.difficulty || '').toLowerCase();
+                        let dColor = 'rgba(255, 255, 255, 0.6)';
+                        let dBorder = 'rgba(255, 255, 255, 0.1)';
+
+                        if (diff.includes('adv')) {
+                            dColor = '#EF4444'; // Red for Advanced
+                            dBorder = '#EF4444';
+                        } else if (diff.includes('med') || diff.includes('int')) {
+                            dColor = '#FF7939'; // Orange for Intermediate
+                            dBorder = '#FF7939';
+                        } else if (diff.includes('bas')) {
+                            dColor = '#FFE4B5'; // Pastel Yellow for Basic
+                            dBorder = '#FFE4B5';
+                        }
+
+                        return (
+                            <span style={{ padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: `1px solid ${dBorder}`, color: dColor, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                                {programInfo.difficulty}
+                            </span>
+                        );
+                    })()
                 )}
             </div>
         </div>

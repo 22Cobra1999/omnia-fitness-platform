@@ -25,9 +25,9 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic - Responsive
-    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.28; // 12% on mobile (slightly hidden), 28% on desktop (visible)
+    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.28; 
     const collapsedY = vh - COLLAPSED_H;
-    const TOP_SNAP = 200; // Lowered to 200px to ensure it clears the "omnia" logo header
+    const TOP_SNAP = 140; // Raised snap (closer to top) for more workspace
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect
