@@ -12,6 +12,7 @@ interface ScreenLayoutProps {
     sheetContent: (props: { y: any, dragControls: DragControls }) => React.ReactNode;
     backgroundImage?: string;
     vh: number;
+    isMobile?: boolean;
     isSpecialView?: boolean;
 }
 
@@ -20,10 +21,11 @@ export function ScreenLayout({
     sheetContent,
     backgroundImage,
     vh,
+    isMobile,
     isSpecialView
 }: ScreenLayoutProps) {
-    // Unified collapsed height logic
-    const COLLAPSED_H = vh * 0.06; // Lower peek
+    // Unified collapsed height logic - Responsive
+    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.22; // 12% on mobile (slightly hidden), 22% on desktop (visible)
     const collapsedY = vh - COLLAPSED_H;
     const TOP_SNAP = 200; // Lowered to 200px to ensure it clears the "omnia" logo header
 

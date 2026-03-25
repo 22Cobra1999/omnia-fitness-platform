@@ -26,6 +26,14 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
     const { user } = useAuth();
     const router = useRouter();
 
+    const [isMobile, setIsMobile] = React.useState(false);
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 768);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
+
     // Use the monolithic hook
     const { state, actions, helpers } = useTodayScreenLogic({ activityId, enrollmentId, onBack });
 
@@ -59,6 +67,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
         <div className="relative min-h-screen">
             <ScreenLayout
                 vh={state.vh}
+                isMobile={isMobile}
                 backgroundImage={state.backgroundImage}
                 isSpecialView={isSpecialType}
                 hero={
@@ -132,6 +141,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                         <DraggableSheet
                             {...sheetProps}
                             vh={state.vh}
+                            isMobile={isMobile}
                             activities={state.activities}
                             selectedDate={state.selectedDate}
                             programInfo={state.programInfo}

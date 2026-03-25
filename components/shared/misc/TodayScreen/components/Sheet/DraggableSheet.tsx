@@ -14,6 +14,7 @@ interface DraggableSheetProps {
     y: any;
     dragControls: DragControls;
     vh: number;
+    isMobile?: boolean;
 
     // Data & Actions from Logic (Optional for reuse)
     activities?: any[];
@@ -59,7 +60,7 @@ interface DraggableSheetProps {
 }
 
 export function DraggableSheet({
-    y, dragControls, vh,
+    y, dragControls, vh, isMobile,
     activities = [], selectedDate = new Date(), programInfo, enrollment,
     isDayLoading = false, nextAvailableActivity, isExpired = false, isRated = false,
     goToToday, goToNextActivity, handlePrevDay, handleNextDay, handleOpenSurveyModal,
@@ -71,7 +72,7 @@ export function DraggableSheet({
 }: DraggableSheetProps) {
 
     const TOP_SNAP = 200; // Lowered
-    const COLLAPSED_H = vh * 0.06; // Match layout
+    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.22; // Match Layout
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
