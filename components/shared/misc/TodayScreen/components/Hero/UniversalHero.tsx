@@ -47,10 +47,11 @@ export function UniversalHero({
         const words = title.split(' ');
         if (words.length <= 1) return { row1: title, row2: '', row3: '' };
         
+        // Row 1 should be wider (more words)
         return {
-            row1: words.slice(0, 2).join(' '),
-            row2: words.slice(2, 5).join(' '),
-            row3: words.slice(5).join(' ')
+            row1: words.slice(0, 4).join(' '),
+            row2: words.slice(4, 7).join(' '),
+            row3: words.slice(7).join(' ')
         };
     }, [programInfo?.title]);
 
@@ -62,10 +63,10 @@ export function UniversalHero({
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: isMobile ? '12px 20px 16px' : '20px 32px 20px',
+            padding: isMobile ? '12px 20px 16px' : '16px 32px 20px', // Reduced top padding on web
             minHeight: '18vh', 
             marginBottom: 6,
-            marginTop: -44,
+            marginTop: isMobile ? -44 : -56, // Shifted up more in web
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
@@ -75,9 +76,9 @@ export function UniversalHero({
             justifyContent: 'center',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         }}>
-            {/* Header row: Back / Badge / Rate (Button REMOVED per request) */}
+            {/* Header row */}
             <div style={{
-                marginBottom: 12,
+                marginBottom: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -105,7 +106,7 @@ export function UniversalHero({
                 textAlign: 'center',
                 marginBottom: 10
             }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '60%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '75%' }}>
                     <span style={{
                         fontSize: isMobile ? 22 : 28,
                         fontWeight: 900,
@@ -115,6 +116,7 @@ export function UniversalHero({
                         textTransform: 'uppercase',
                         letterSpacing: '-0.04em',
                         display: 'block',
+                        maxWidth: '95%', // Wider row 1
                         marginBottom: 1
                     }}>
                         {titleRows.row1}
@@ -128,6 +130,7 @@ export function UniversalHero({
                             textTransform: 'uppercase',
                             letterSpacing: '-0.02em',
                             display: 'block',
+                            maxWidth: '75%', // Narrower row 2
                             marginBottom: 2
                         }}>
                             {titleRows.row2}
@@ -141,7 +144,8 @@ export function UniversalHero({
                             lineHeight: 1.1,
                             textTransform: 'uppercase',
                             letterSpacing: '0.02em',
-                            display: 'block'
+                            display: 'block',
+                            maxWidth: '60%' // Narrowest row 3
                         }}>
                             {titleRows.row3}
                         </span>
@@ -153,7 +157,7 @@ export function UniversalHero({
                         margin: '12px auto 0',
                         fontSize: isMobile ? 12 : 13,
                         fontWeight: 400,
-                        color: 'rgba(255, 255, 255, 0.35)', // Finer and clearer secondary text
+                        color: 'rgba(255, 255, 255, 0.35)', 
                         lineHeight: 1.4,
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
@@ -175,7 +179,7 @@ export function UniversalHero({
                 )}
             </div>
 
-            {/* Centered Tags Row - MORE GLASSMORPHISM */}
+            {/* Centered Tags Row */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
