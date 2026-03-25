@@ -98,39 +98,39 @@ export function UniversalHero({
                 </div>
             </div>
 
-            {/* Compct Content Row: Two line style like Activity Cards */}
+            {/* Compact Header: Title + Subtitle style */}
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: isMobile ? 'center' : 'flex-start',
-                textAlign: isMobile ? 'center' : 'left',
-                marginBottom: 14
+                alignItems: 'center',
+                textAlign: 'center',
+                marginBottom: 10
             }}>
                 <h1 style={{
                     margin: '0',
-                    fontSize: isMobile ? 24 : 32,
-                    fontWeight: 900,
+                    fontSize: isMobile ? 18 : 22,
+                    fontWeight: 700,
                     color: '#fff',
-                    lineHeight: 1,
+                    lineHeight: 1.1,
                     textTransform: 'uppercase',
-                    letterSpacing: '-0.04em',
-                    textShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                    letterSpacing: '0.02em',
+                    textShadow: '0 4px 8px rgba(0,0,0,0.3)'
                 }}>
                     {programInfo?.title || 'Actividad'}
                 </h1>
                 
                 {programInfo?.description && (
                     <p style={{
-                        margin: '6px 0 0 0',
-                        fontSize: isMobile ? 12 : 15,
-                        fontWeight: 600,
-                        color: 'rgba(255, 255, 255, 0.45)', // Lighter and thinner like activity card subtitl
-                        lineHeight: 1.3,
+                        margin: '4px 0 0 0',
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: 400,
+                        color: 'rgba(255, 255, 255, 0.4)',
+                        lineHeight: 1.4,
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        maxWidth: isMobile ? '100%' : '85%'
+                        maxWidth: '85%'
                     }}>
                         {programInfo.description}
                     </p>
