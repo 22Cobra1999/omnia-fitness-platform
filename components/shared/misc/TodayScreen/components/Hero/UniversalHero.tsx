@@ -41,6 +41,19 @@ export function UniversalHero({
         return programEndDate < new Date();
     }, [programEndDate]);
 
+    // Split title into hierarchy like ActivityCard
+    const titleRows = React.useMemo(() => {
+        const title = programInfo?.title || 'Actividad';
+        const words = title.split(' ');
+        if (words.length <= 1) return { row1: title, row2: '', row3: '' };
+        
+        return {
+            row1: words.slice(0, 2).join(' '),
+            row2: words.slice(2, 5).join(' '),
+            row3: words.slice(5).join(' ')
+        };
+    }, [programInfo?.title]);
+
     return (
         <div style={{
             background: 'rgba(255, 255, 255, 0.04)',
@@ -62,7 +75,7 @@ export function UniversalHero({
             justifyContent: 'center',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         }}>
-            {/* Header row: Back / Badge / Rate */}
+            {/* Header row: Back / Badge / Rate (Button REMOVED per request) */}
             <div style={{
                 marginBottom: 12,
                 display: 'flex',
@@ -77,12 +90,6 @@ export function UniversalHero({
                 ) : <div />}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {!hasUserSubmittedSurvey && isPlanFinished && (
-                        <button onClick={onOpenSurvey} style={{ padding: '4px 12px', background: 'rgba(255, 121, 57, 0.2)', border: '1px solid #FF7939', borderRadius: 12, color: '#FF7939', fontSize: 10, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase' }}>
-                            <Star size={10} fill="#FF7939" className="inline mr-1" /> Calificar
-                        </button>
-                    )}
-                    
                     <div style={{ padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, color: isPlanFinished ? '#FF7939' : 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
                         {isPlanFinished ? 'EXPIRA: ' : 'FINALIZA: '}
                         {programEndDate ? programEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
@@ -90,7 +97,7 @@ export function UniversalHero({
                 </div>
             </div>
 
-            {/* Compact Header: Title + Subtitle style */}
+            {/* Content Row: SAME Hierarchy as Activity Cards */}
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -98,32 +105,61 @@ export function UniversalHero({
                 textAlign: 'center',
                 marginBottom: 10
             }}>
-                <h1 style={{
-                    margin: '0 auto',
-                    fontSize: isMobile ? 18 : 22,
-                    fontWeight: 700,
-                    color: '#fff',
-                    lineHeight: 1.1,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    maxWidth: isMobile ? '100%' : '55%', // Limited width on web for the two-row effect
-                    textShadow: '0 4px 8px rgba(0,0,0,0.3)'
-                }}>
-                    {programInfo?.title || 'Actividad'}
-                </h1>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '60%' }}>
+                    <span style={{
+                        fontSize: isMobile ? 22 : 28,
+                        fontWeight: 900,
+                        color: '#fff',
+                        opacity: 0.9,
+                        lineHeight: 1.1,
+                        textTransform: 'uppercase',
+                        letterSpacing: '-0.04em',
+                        display: 'block',
+                        marginBottom: 1
+                    }}>
+                        {titleRows.row1}
+                    </span>
+                    {titleRows.row2 && (
+                        <span style={{
+                            fontSize: isMobile ? 16 : 20,
+                            fontWeight: 600,
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            lineHeight: 1.1,
+                            textTransform: 'uppercase',
+                            letterSpacing: '-0.02em',
+                            display: 'block',
+                            marginBottom: 2
+                        }}>
+                            {titleRows.row2}
+                        </span>
+                    )}
+                    {titleRows.row3 && (
+                        <span style={{
+                            fontSize: isMobile ? 12 : 14,
+                            fontWeight: 300,
+                            color: 'rgba(255, 255, 255, 0.4)',
+                            lineHeight: 1.1,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.02em',
+                            display: 'block'
+                        }}>
+                            {titleRows.row3}
+                        </span>
+                    )}
+                </div>
                 
                 {programInfo?.description && (
                     <p style={{
-                        margin: '6px auto 0',
-                        fontSize: isMobile ? 11 : 12,
+                        margin: '12px auto 0',
+                        fontSize: isMobile ? 12 : 13,
                         fontWeight: 400,
-                        color: 'rgba(255, 255, 255, 0.4)',
+                        color: 'rgba(255, 255, 255, 0.35)', // Finer and clearer secondary text
                         lineHeight: 1.4,
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        maxWidth: isMobile ? '100%' : '80%'
+                        maxWidth: '85%'
                     }}>
                         {programInfo.description}
                     </p>
@@ -139,14 +175,14 @@ export function UniversalHero({
                 )}
             </div>
 
-            {/* Centered Tags Row */}
+            {/* Centered Tags Row - MORE GLASSMORPHISM */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                justifyContent: 'center', // Centered for all views
+                justifyContent: 'center', 
                 flexWrap: 'wrap',
-                marginTop: 4
+                marginTop: 6
             }}>
                 {(() => {
                     const type = (programInfo?.type || programInfo?.categoria || '').toLowerCase();
@@ -156,50 +192,54 @@ export function UniversalHero({
                     let label = 'Programa';
                     let icon = null;
                     let color = '#fff';
-                    let border = 'rgba(255, 255, 255, 0.1)';
+                    let border = 'rgba(255, 255, 255, 0.15)';
 
                     if (isWorkshop) {
                         label = 'Taller';
                         icon = <Calendar size={10} className="mr-1 inline" />;
                         color = '#FF7939';
-                        border = '#FF7939';
+                        border = 'rgba(255, 121, 57, 0.4)';
                     } else if (isDoc) {
                         label = 'Documento';
                         icon = <FileText size={10} className="mr-1 inline" />;
                         color = '#38BDF8';
-                        border = '#38BDF8';
+                        border = 'rgba(56, 189, 248, 0.4)';
                     }
 
                     return (
-                        <span style={{ display: 'flex', alignItems: 'center', padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: `1px solid ${border}`, color: color, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span style={{ 
+                            display: 'flex', alignItems: 'center', padding: '4px 12px', 
+                            background: 'rgba(255,255,255,0.03)', 
+                            backdropFilter: 'blur(12px) saturate(180%)',
+                            WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+                            borderRadius: 20, border: `1px solid ${border}`, 
+                            color: color, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' 
+                        }}>
                             {icon}{label}
                         </span>
                     );
                 })()}
 
                 {programInfo?.difficulty && (
-                    (() => {
-                        const diff = (programInfo?.difficulty || '').toLowerCase();
-                        let dColor = 'rgba(255, 255, 255, 0.6)';
-                        let dBorder = 'rgba(255, 255, 255, 0.1)';
-
-                        if (diff.includes('adv')) {
-                            dColor = '#EF4444'; // Red for Advanced
-                            dBorder = '#EF4444';
-                        } else if (diff.includes('med') || diff.includes('int')) {
-                            dColor = '#FF7939'; // Orange for Intermediate
-                            dBorder = '#FF7939';
-                        } else if (diff.includes('bas')) {
-                            dColor = '#FFE4B5'; // Pastel Yellow for Basic
-                            dBorder = '#FFE4B5';
-                        }
-
-                        return (
-                            <span style={{ padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: `1px solid ${dBorder}`, color: dColor, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
-                                {programInfo.difficulty}
-                            </span>
-                        );
-                    })()
+                    <span style={{ 
+                        padding: '4px 12px', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        backdropFilter: 'blur(12px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+                        borderRadius: 20, 
+                        border: `1px solid ${
+                            programInfo.difficulty.toLowerCase().includes('adv') ? 'rgba(239, 68, 68, 0.4)' : 
+                            programInfo.difficulty.toLowerCase().includes('med') || programInfo.difficulty.toLowerCase().includes('int') ? 'rgba(255, 121, 57, 0.4)' : 
+                            'rgba(255, 228, 181, 0.4)'
+                        }`, 
+                        color: 
+                            programInfo.difficulty.toLowerCase().includes('adv') ? '#EF4444' : 
+                            programInfo.difficulty.toLowerCase().includes('med') || programInfo.difficulty.toLowerCase().includes('int') ? '#FF7939' : 
+                            '#FFE4B5',
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase' 
+                    }}>
+                        {programInfo.difficulty}
+                    </span>
                 )}
             </div>
         </div>
