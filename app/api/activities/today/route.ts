@@ -159,9 +159,50 @@ export async function GET(request: NextRequest) {
     // Si hay error o no hay registros, intentar fallback a la planificación (PROXIMAMENTE: crear registro auto)
     if (progressError || !progressRecords || progressRecords.length === 0) {
       console.log('ℹ️ No existe registro de progreso real para fecha:', today, '. Intentando fallback a planificación...');
-      
+
       if (dia) {
-        return await getActivitiesFromPlanning(supabase, activityId, dia, actividadInfo);
+        // Calcular en qué semana estamos para el fallback
+        let targetWeek = 1;
+        const userEnrollment = enrollment && enrollment.length > 0 ? enrollment[0] : null;
+
+        if (userEnrollment && userEnrollment.start_date) {
+          const { data: activity } = await supabase
+            .from('activities')
+            .select('semanas_totales, duration_weeks')
+            .eq('id', activityId)
+            .single();
+          
+          const limitWeeks = activity?.semanas_totales || activity?.duration_weeks || 999;
+
+          const { data: allPlan } = await supabase
+            .from('planificacion_ejercicios')
+            .select('numero_semana')
+            .eq('actividad_id', activityId)
+            .order('numero_semana', { ascending: false })
+            .limit(1);
+
+          const maxSemanas = allPlan?.[0]?.numero_semana || 1;
+
+          const start = new Date(userEnrollment.start_date);
+          const current = new Date(today);
+          const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+          const totalWeekNumber = Math.max(1, Math.floor(diffDays / 7) + 1);
+
+          // Si el entrenamiento ya terminó, no mostrar actividades (a menos que el coach diga lo contrario)
+          if (totalWeekNumber > limitWeeks) {
+            console.log(`ℹ️ [API Today Fallback] Program finished (Week ${totalWeekNumber} > ${limitWeeks})`);
+            return NextResponse.json({
+              success: true,
+              data: { activities: [], count: 0, date: today, message: '¡Has completado tu programa!' }
+            });
+          }
+
+          // Si el programa acabó y no queremos que repita (opcional, pero por ahora lo dejamos en loop por consistencia)
+          targetWeek = ((totalWeekNumber - 1) % maxSemanas) + 1;
+          console.log(`🔍 [API Today Fallback] Week calculation: diff=${diffDays}, totalWeek=${totalWeekNumber}, targetWeek=${targetWeek}`);
+        }
+
+        return await getActivitiesFromPlanning(supabase, activityId, dia, actividadInfo, targetWeek);
       }
 
       return NextResponse.json({

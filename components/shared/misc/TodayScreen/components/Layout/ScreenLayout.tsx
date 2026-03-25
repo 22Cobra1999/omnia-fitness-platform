@@ -25,7 +25,7 @@ export function ScreenLayout({
     // Unified collapsed height logic
     const COLLAPSED_H = vh * 0.20; // Increased to 20% to make it "higher" as requested
     const collapsedY = vh - COLLAPSED_H;
-    const TOP_SNAP = 100; // Increased to 100 to ensure it clears the dynamic header on mobile
+    const TOP_SNAP = 160; // Increased to 160 to avoid collisions with the "omnia" header icons
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect
