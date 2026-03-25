@@ -9,6 +9,7 @@ interface EmptyStateProps {
     snapToCollapsed: () => void;
     handleOpenSurveyModal: () => void;
     isExpired?: boolean;
+    isRated?: boolean;
 }
 
 export function EmptyState({
@@ -18,7 +19,8 @@ export function EmptyState({
     goToNextActivity,
     snapToCollapsed,
     handleOpenSurveyModal,
-    isExpired = false
+    isExpired = false,
+    isRated = false
 }: EmptyStateProps) {
     if (isDayLoading) {
         if (activities.length > 0) return <div style={{ position: 'absolute', top: 10, right: 20, zIndex: 10 }}><Flame size={20} className="animate-pulse text-[#FF7939]" /></div>;
@@ -66,7 +68,7 @@ export function EmptyState({
                     <h3 style={{ color: '#fff', fontSize: 22, fontWeight: 900, margin: '0 0 12px 0', textTransform: 'uppercase' }}>
                         {isExpired ? 'Programa finalizado' : 'No hay actividades hoy'}
                     </h3>
-                    {isExpired && (
+                    {isExpired && !isRated && (
                         <button
                             onClick={() => { snapToCollapsed(); handleOpenSurveyModal(); }}
                             style={{
