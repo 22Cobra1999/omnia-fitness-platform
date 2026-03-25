@@ -100,44 +100,55 @@ export function useStorageLogic(planProp?: PlanType) {
     const loadStorageUsage = useCallback(async () => {
         setLoading(true)
         setError(null)
+        console.log('📡 [useStorageLogic] Iniciando carga de storage usage...')
 
         try {
             const usageResponse = await fetch('/api/coach/storage-usage', { credentials: 'include' })
 
             if (!usageResponse.ok) {
+                console.error(`❌ [useStorageLogic] Error en API usage: ${usageResponse.status}`)
                 throw new Error(`HTTP error! status: ${usageResponse.status}`)
             }
 
             const usageResult = await usageResponse.json()
+            console.log('📊 [useStorageLogic] Resultado de usage:', usageResult)
 
             if (usageResult.success && usageResult.storage) {
+                console.log(`✅ [useStorageLogic] Storage data cargado: ${usageResult.storage.total} GB TOTAL`)
                 setStorageData(usageResult.storage)
             } else {
+                console.warn('⚠️ [useStorageLogic] Resultado success false o sin data:', usageResult)
                 setError(usageResult.error || 'Error al cargar datos de almacenamiento')
                 setStorageData(null)
             }
 
             // Cargar archivos detallados
             setLoadingFiles(true)
+            console.log('📡 [useStorageLogic] Iniciando carga de storage-files...')
             try {
                 const filesRes = await fetch('/api/coach/storage-files', { credentials: 'include' })
                 if (filesRes.ok) {
                     const filesJson = await filesRes.json()
+                    console.log(`📂 [useStorageLogic] ${filesJson.files?.length || 0} archivos cargados`)
+                    if (filesJson.debug) {
+                        console.log('🔍 [useStorageLogic] Debug Info de Bunny:', filesJson.debug)
+                    }
                     if (filesJson.success && Array.isArray(filesJson.files)) {
                         setStorageFiles(filesJson.files as StorageFile[])
                     } else {
                         setStorageFiles([])
                     }
                 } else {
+                    console.error('❌ [useStorageLogic] Error en API files:', filesRes.status)
                     setStorageFiles([])
                 }
             } catch (filesErr) {
-                console.error('Error cargando archivos detallados:', filesErr)
+                console.error('❌ [useStorageLogic] Error cargando archivos detallados:', filesErr)
             } finally {
                 setLoadingFiles(false)
             }
         } catch (err) {
-            console.error('Error cargando storage usage:', err)
+            console.error('❌ [useStorageLogic] Error fatal en loadStorageUsage:', err)
             setError(err instanceof Error ? err.message : 'Error de conexión')
             setStorageData(null)
         } finally {

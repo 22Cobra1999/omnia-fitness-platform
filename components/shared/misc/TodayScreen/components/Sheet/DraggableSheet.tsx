@@ -71,7 +71,7 @@ export function DraggableSheet({
 }: DraggableSheetProps) {
 
     const TOP_SNAP = 100; // Match layout
-    const COLLAPSED_H = vh * 0.20; // 20% peek as requested
+    const COLLAPSED_H = vh * 0.08; // Hide it more (peek 8%) as requested
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
@@ -161,7 +161,7 @@ export function DraggableSheet({
                         title={title}
                     />
 
-                    <div className="orange-glass-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 200px', minHeight: 0 }}>
+                    <div className="orange-glass-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px 0px 200px', minHeight: 0 }}>
                         {children ? children : (
                             <>
                                 <EmptyState

@@ -87,42 +87,42 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                             <div className="flex gap-2 h-6 w-full">
                                 {pProgs > 0 && (
                                     <div
-                                        className="bg-[#FF7939] rounded-full flex items-center justify-center text-white text-[9px] font-black italic shadow-[0_0_15px_-3px_rgba(255,121,57,0.4)]"
+                                        className="bg-[#FF7939] rounded-full flex items-center justify-center text-black text-[11px] font-black italic shadow-[0_0_15px_-3px_rgba(255,121,57,0.4)]"
                                         style={{ width: `${pProgs}%` }}
                                     >
-                                        {pProgs > 15 && `${Math.round(salesData.programs / 1000)}k`}
+                                        {`${Math.round(salesData.programs / 1000)}k`}
                                     </div>
                                 )}
                                 {pTalleres > 0 && (
                                     <div
-                                        className="bg-[#FFD1A6] rounded-full flex items-center justify-center text-[#121212] text-[9px] font-black italic"
+                                        className="bg-[#FFD1A6] rounded-full flex items-center justify-center text-black text-[11px] font-black italic"
                                         style={{ width: `${pTalleres}%` }}
                                     >
-                                        {pTalleres > 15 && `${Math.round(salesData.workshops / 1000)}k`}
+                                        {`${Math.round(salesData.workshops / 1000)}k`}
                                     </div>
                                 )}
                                 {pDocs > 0 && (
                                     <div
-                                        className="bg-[#FF9FC4] rounded-full flex items-center justify-center text-white text-[9px] font-black italic shadow-[0_0_15px_-3px_rgba(255,159,196,0.3)]"
+                                        className="bg-[#FF9FC4] rounded-full flex items-center justify-center text-black text-[11px] font-black italic shadow-[0_0_15px_-3px_rgba(255,159,196,0.3)]"
                                         style={{ width: `${pDocs}%` }}
                                     >
-                                        {pDocs > 15 && `${Math.round(salesData.documents / 1000)}k`}
+                                        {`${Math.round(salesData.documents / 1000)}k`}
                                     </div>
                                 )}
                                 {pConsul > 0 && (
                                     <div
-                                        className="bg-white rounded-full flex items-center justify-center text-[#121212] text-[9px] font-black italic shadow-[0_0_15px_-3px_rgba(255,255,255,0.2)]"
+                                        className="bg-white rounded-full flex items-center justify-center text-black text-[11px] font-black italic shadow-[0_0_15px_-3px_rgba(255,255,255,0.2)]"
                                         style={{ width: `${pConsul}%` }}
                                     >
-                                        {pConsul > 15 && `${Math.round(salesData.consultations / 1000)}k`}
+                                        {`${Math.round(salesData.consultations / 1000)}k`}
                                     </div>
                                 )}
                                 {pOthers > 0 && (
                                     <div
-                                        className="bg-[#5A5A5A] rounded-full flex items-center justify-center text-white text-[9px] font-black italic"
+                                        className="bg-[#5A5A5A] rounded-full flex items-center justify-center text-white text-[11px] font-black italic"
                                         style={{ width: `${pOthers}%` }}
                                     >
-                                        {pOthers > 15 && `${Math.round(salesData.others / 1000)}k`}
+                                        {`${Math.round(salesData.others / 1000)}k`}
                                     </div>
                                 )}
                             </div>
@@ -131,21 +131,21 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 px-2">
-                    <div className="flex flex-col items-center gap-3">
-                        <BookOpen className="h-6 w-6 text-[#FF7939]/40" strokeWidth={1.5} />
-                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">PROGS</span>
+                    <div className="flex flex-col items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-[#FF7939]/40" strokeWidth={1.5} />
+                        <span className="text-[7.5px] font-black text-white/30 uppercase tracking-[0.3em]">PROGS</span>
                     </div>
-                    <div className="flex flex-col items-center gap-3">
-                        <Users className="h-6 w-6 text-[#FFD1A6]/40" strokeWidth={1.5} />
-                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">TALLERES</span>
+                    <div className="flex flex-col items-center gap-2">
+                        <Users className="h-4 w-4 text-[#FFD1A6]/40" strokeWidth={1.5} />
+                        <span className="text-[7.5px] font-black text-white/30 uppercase tracking-[0.3em]">TALLERES</span>
                     </div>
-                    <div className="flex flex-col items-center gap-3">
-                        <DocumentIcon className="h-6 w-6 text-[#FF9FC4]/40" strokeWidth={1.5} />
-                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">DOCS</span>
+                    <div className="flex flex-col items-center gap-2">
+                        <DocumentIcon className="h-4 w-4 text-[#FF9FC4]/40" strokeWidth={1.5} />
+                        <span className="text-[7.5px] font-black text-white/30 uppercase tracking-[0.3em]">DOCS</span>
                     </div>
-                    <div className="flex flex-col items-center gap-3">
-                        <MessageCircle className="h-6 w-6 text-white/40" strokeWidth={1.5} />
-                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">CONSUL</span>
+                    <div className="flex flex-col items-center gap-2">
+                        <MessageCircle className="h-4 w-4 text-white/40" strokeWidth={1.5} />
+                        <span className="text-[7.5px] font-black text-white/30 uppercase tracking-[0.3em]">CONSUL</span>
                     </div>
                 </div>
             </div>

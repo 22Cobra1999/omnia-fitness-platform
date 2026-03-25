@@ -160,8 +160,8 @@ export function TodayActivityList({
                         className={cn(
                             "rounded-[32px] overflow-hidden transition-all duration-500 mb-6",
                             isActiveBlock
-                                ? "bg-[#0F1012] border-2 border-[#FF7939]/30 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
-                                : "bg-[#0F1012] border border-white/5"
+                                ? "bg-[#0F1012] border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
+                                : "bg-[#0F1012] border border-white/5 opacity-80 scale-[0.98]"
                         )}
                     >
                         {/* Simplified Block Header - No background fill */}

@@ -10,8 +10,8 @@ export const BUNNY_CONFIG = {
   pullZoneId: process.env.BUNNY_PULL_ZONE_ID || '',
   
   // Stream (Video Platform)
-  streamApiKey: process.env.BUNNY_STREAM_API_KEY || '',
-  streamLibraryId: process.env.BUNNY_STREAM_LIBRARY_ID || '',
+  streamApiKey: process.env.BUNNY_STREAM_API_KEY || 'd082be64-3f24-47b2-aa1157da7fa7-326e-4b9b',
+  streamLibraryId: process.env.BUNNY_STREAM_LIBRARY_ID || '510910',
   streamCdnUrl: process.env.BUNNY_STREAM_CDN_URL || '',
   
   // Network Type
@@ -19,9 +19,10 @@ export const BUNNY_CONFIG = {
   // Alternativa: 'standard' para latencia ultra-baja (30ms vs 50ms)
   networkType: (process.env.BUNNY_NETWORK_TYPE as 'volume' | 'standard') || 'volume',
   
-  // API Base
+   // API Base
   apiUrl: 'https://api.bunny.net',
   storageApiUrl: 'https://storage.bunnycdn.com',
+  videoApiUrl: 'https://video.bunnycdn.com',
   
   // Configuración de video
   maxVideoSize: 500 * 1024 * 1024, // 500MB

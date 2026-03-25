@@ -62,11 +62,11 @@ export function UniversalVideoPlayer({
     if (bunnyVideoId) {
       if (useIframeForBunny) {
         // URL de Bunny.net usando el video ID
-        return `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '337618'}/${bunnyVideoId}?autoplay=${autoPlay ? 'true' : 'false'}&loop=${loop ? 'true' : 'false'}&muted=${isMuted ? 'true' : 'false'}&preload=true&controls=false`
+        return `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '510910'}/${bunnyVideoId}?autoplay=${autoPlay ? 'true' : 'false'}&loop=${loop ? 'true' : 'false'}&muted=${isMuted ? 'true' : 'false'}&preload=true&controls=false`
       }
 
       // DEV: usar HLS directo (evita scripts dentro del iframe)
-      const libId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '337618'
+      const libId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '510910'
       const cdnBase = `https://vz-${libId}.b-cdn.net`
       return `${cdnBase}/${bunnyVideoId}/playlist.m3u8`
     }
@@ -94,7 +94,7 @@ export function UniversalVideoPlayer({
       const match = videoUrl.match(/https?:\/\/vz-(\d+)\.b-cdn\.net\//)
       if (match?.[1]) return match[1]
     }
-    return '337618'
+    return '510910'
   }
 
   const handleError = (error: any) => {

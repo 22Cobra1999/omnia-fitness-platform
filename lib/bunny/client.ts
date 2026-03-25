@@ -146,16 +146,18 @@ export class BunnyClient {
 
   async listVideos(page = 1, itemsPerPage = 100): Promise<BunnyVideoInfo[]> {
     try {
-      const url = `${BUNNY_CONFIG.apiUrl}/library/${this.libraryId}/videos?page=${page}&itemsPerPage=${itemsPerPage}`
-      console.log(`📹 [BunnyClient.listVideos] Llamando a: ${url.replace(/AccessKey=[^&]+/, 'AccessKey=***')}`)
+      const url = `${BUNNY_CONFIG.videoApiUrl}/library/${this.libraryId}/videos?page=${page}&itemsPerPage=${itemsPerPage}`
+      console.log(`📹 [BunnyClient] SOLICITUD A: ${url}`)
+      console.log(`📹 [BunnyClient] USANDO API KEY: ${this.streamApiKey.substring(0, 5)}...`)
       
       const response = await fetch(url, {
         headers: {
           'AccessKey': this.streamApiKey,
         },
+        cache: 'no-store'
       })
 
-      console.log(`📹 [BunnyClient.listVideos] Respuesta HTTP: ${response.status} ${response.statusText}`)
+      console.log(`📹 [BunnyClient] RESPUESTA HTTP: ${response.status}`)
 
       if (!response.ok) {
         const errorText = await response.text()

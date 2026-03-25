@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
@@ -23,9 +26,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Agregar activities info
-    const videoRow = storageUsage?.find(s => s.concept === 'video')
-    const imageRow = storageUsage?.find(s => s.concept === 'image')
-    const pdfRow = storageUsage?.find(s => s.concept === 'pdf')
+    const videoRow = storageUsage?.find((s: any) => s.concept === 'video')
+    const imageRow = storageUsage?.find((s: any) => s.concept === 'image')
+    const pdfRow = storageUsage?.find((s: any) => s.concept === 'pdf')
 
     const total = (videoRow?.gb_usage || 0) + (imageRow?.gb_usage || 0) + (pdfRow?.gb_usage || 0)
 

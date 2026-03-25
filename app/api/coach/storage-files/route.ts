@@ -14,6 +14,9 @@ interface StorageFile {
   libraryId?: string // Bunny Library ID
 }
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(_request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
@@ -274,12 +277,15 @@ export async function GET(_request: NextRequest) {
         })
       }
     }
-
     // MEJORA: Obtener todos los videos de Bunny de una vez para obtener pesos y títulos reales
     let bunnyVideosList: any[] = []
     try {
       const { getAllCoachVideosFromBunny } = await import('@/lib/bunny/storage-calculator')
       bunnyVideosList = await getAllCoachVideosFromBunny()
+      console.log(`[storage-files] Obtained ${bunnyVideosList.length} videos from Bunny.`)
+      if (bunnyVideosList.length > 0) {
+        console.log(`[storage-files] Sample video properties:`, Object.keys(bunnyVideosList[0]))
+      }
     } catch (e) {
       console.error('[storage-files] Error loading all bunny videos:', e)
     }
@@ -644,7 +650,17 @@ export async function GET(_request: NextRequest) {
       })
     })
 
-    return NextResponse.json({ success: true, files })
+    return NextResponse.json({
+      success: true,
+      files: files,
+      debug: {
+        bunnyVideosFound: bunnyVideosList.length,
+        matchedVideos: Array.from(videoMap.values()).filter((v: any) => (v.sizeBytes || 0) > 0).length,
+        totalBytesFound: Array.from(bunnyWeights.values()).reduce((a: number, b: number) => a + b, 0),
+        sampleBunnyId: bunnyVideosList.length > 0 ? bunnyVideosList[0].guid : null,
+        sampleWeightMapSize: bunnyWeights.size
+      }
+    })
   } catch (error) {
     console.error('Error en GET /api/coach/storage-files:', error)
     return NextResponse.json({
