@@ -48,32 +48,32 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                     <Printer className="w-5 h-5 text-white/40" />
                 </button>
 
-                <div className="mb-8">
+                <div className="mb-6">
                     <div className="text-center">
-                        <p className="text-[52px] font-black text-[#FF7939] leading-none mb-4 tracking-tighter italic">
+                        <p className="text-[52px] font-black text-[#FF7939] leading-none mb-3 tracking-tighter italic">
                             ${earningsData.earnings.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </p>
-                        <div className="space-y-1">
-                            <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] italic">
+                        <div className="space-y-0">
+                            <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-tight">
                                 BRUTA: ${earningsData.totalIncome.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                             </p>
-                            <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] italic">
+                            <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-tight">
                                 SUSCRIPCIÓN: -${earningsData.planFee.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <div className="h-px bg-white/5 mb-8"></div>
+                <div className="h-px bg-white/5 mb-6"></div>
 
-                <div className="mb-10">
+                <div className="mb-8">
                     {(() => {
                         const values = Object.values(salesData || {}) as any[]
                         const total = values.reduce((a, b) => a + (Number(b) || 0), 0)
                         const denom = Math.max(total, 1)
 
                         if (total <= 0) {
-                            return <div className="flex rounded-full overflow-hidden h-3 bg-white/5" />
+                            return <div className="flex rounded-full overflow-hidden h-6 bg-white/5" />
                         }
 
                         // Calcular porcentajes reales considerando gaps
@@ -84,10 +84,10 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                         const pOthers = ((Number(salesData.others) || 0) / denom) * 100
 
                         return (
-                            <div className="flex gap-2 h-4 w-full">
+                            <div className="flex gap-2 h-6 w-full">
                                 {pProgs > 0 && (
                                     <div
-                                        className="bg-[#FF7939] rounded-full flex items-center justify-center text-white text-[8px] font-black italic shadow-[0_0_15px_-3px_rgba(255,121,57,0.4)]"
+                                        className="bg-[#FF7939] rounded-full flex items-center justify-center text-white text-[9px] font-black italic shadow-[0_0_15px_-3px_rgba(255,121,57,0.4)]"
                                         style={{ width: `${pProgs}%` }}
                                     >
                                         {pProgs > 15 && `${Math.round(salesData.programs / 1000)}k`}
@@ -95,7 +95,7 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                                 )}
                                 {pTalleres > 0 && (
                                     <div
-                                        className="bg-[#FFD1A6] rounded-full flex items-center justify-center text-[#121212] text-[8px] font-black italic"
+                                        className="bg-[#FFD1A6] rounded-full flex items-center justify-center text-[#121212] text-[9px] font-black italic"
                                         style={{ width: `${pTalleres}%` }}
                                     >
                                         {pTalleres > 15 && `${Math.round(salesData.workshops / 1000)}k`}
@@ -103,7 +103,7 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                                 )}
                                 {pDocs > 0 && (
                                     <div
-                                        className="bg-[#FF9FC4] rounded-full flex items-center justify-center text-white text-[8px] font-black italic shadow-[0_0_15px_-3px_rgba(255,159,196,0.3)]"
+                                        className="bg-[#FF9FC4] rounded-full flex items-center justify-center text-white text-[9px] font-black italic shadow-[0_0_15px_-3px_rgba(255,159,196,0.3)]"
                                         style={{ width: `${pDocs}%` }}
                                     >
                                         {pDocs > 15 && `${Math.round(salesData.documents / 1000)}k`}
@@ -111,7 +111,7 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                                 )}
                                 {pConsul > 0 && (
                                     <div
-                                        className="bg-white rounded-full flex items-center justify-center text-[#121212] text-[8px] font-black italic shadow-[0_0_15px_-3px_rgba(255,255,255,0.2)]"
+                                        className="bg-white rounded-full flex items-center justify-center text-[#121212] text-[9px] font-black italic shadow-[0_0_15px_-3px_rgba(255,255,255,0.2)]"
                                         style={{ width: `${pConsul}%` }}
                                     >
                                         {pConsul > 15 && `${Math.round(salesData.consultations / 1000)}k`}
@@ -119,7 +119,7 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                                 )}
                                 {pOthers > 0 && (
                                     <div
-                                        className="bg-[#5A5A5A] rounded-full flex items-center justify-center text-white text-[8px] font-black italic"
+                                        className="bg-[#5A5A5A] rounded-full flex items-center justify-center text-white text-[9px] font-black italic"
                                         style={{ width: `${pOthers}%` }}
                                     >
                                         {pOthers > 15 && `${Math.round(salesData.others / 1000)}k`}
