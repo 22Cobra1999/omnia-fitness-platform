@@ -10,6 +10,7 @@ interface UniversalHeroProps {
     onOpenSurvey: () => void;
     onBack?: () => void;
     isExpired?: boolean;
+    isMobile?: boolean;
 }
 
 export function UniversalHero({
@@ -20,29 +21,30 @@ export function UniversalHero({
     onScheduleMeet,
     onOpenSurvey,
     onBack,
-    isExpired = false
+    isExpired = false,
+    isMobile = false
 }: UniversalHeroProps) {
     const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
 
-    // Helper para objetivos (logic moved to hook/component in original, keeping simple here or use prop)
+    // Helper para objetivos 
     const objetivos = React.useMemo(() => {
         const src: any = enrollment?.activity || programInfo || null
         let list: any = src?.objetivos
-
-        if (!list || !Array.isArray(list)) {
-            list = []
-            const ws = src?.workshop_type
-            if (ws) {
-                // Logic for workshop parsing from original line 180+
-                // Kept simplified for now
-            }
-        }
-        const valid = (Array.isArray(list) ? list : [])
+        if (!list || !Array.isArray(list)) list = []
+        return (Array.isArray(list) ? list : [])
             .map((o: any) => String(o ?? '').trim())
-            .filter((o: string) => o && o !== 'Enel' && o !== 'Ene' && o.length > 2);
-
-        return valid;
+            .filter((o: string) => o && o.length > 2);
     }, [enrollment?.activity, programInfo]);
+
+    // Calcular fecha real del plan (no de expiración de suscripción)
+    const programEndDate = React.useMemo(() => {
+        if (!enrollment?.start_date) return null;
+        const totalWeeks = programInfo?.semanas_totales || programInfo?.duration_weeks || 4;
+        const startDate = new Date(enrollment.start_date + 'T12:00:00'); // Use mid-day to avoid TZ shifts
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + (totalWeeks * 7));
+        return endDate;
+    }, [enrollment?.start_date, programInfo]);
 
     return (
         <div style={{
@@ -50,13 +52,11 @@ export function UniversalHero({
             backdropFilter: 'blur(10px) saturate(150%)',
             WebkitBackdropFilter: 'blur(10px) saturate(150%)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderTopLeftRadius: 0,
-            borderTopRightRadius: 0,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: '12px 24px 8px', // Added top padding to lower icons from header
-            minHeight: '22vh', 
-            marginBottom: 6, // Reduced from 12 to bring calendar closer
+            padding: isMobile ? '12px 20px 16px' : '20px 32px 20px',
+            minHeight: '18vh', 
+            marginBottom: 6,
             marginTop: -44,
             marginLeft: '-24px',
             marginRight: '-24px',
@@ -66,34 +66,18 @@ export function UniversalHero({
             flexDirection: 'column',
             justifyContent: 'center',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-            filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
         }}>
-            {/* Flecha de retorno y botón de calificación al mismo nivel */}
+            {/* Header row: Back / Badge / Rate */}
             <div style={{
-                marginBottom: 8,
+                marginBottom: 12,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 width: '100%'
             }}>
                 {onBack ? (
-                    <button
-                        onClick={onBack}
-                        style={{
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '50%',
-                            width: 36,
-                            height: 36,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            color: '#fff',
-                            transition: 'all 0.2s ease'
-                        }}
-                    >
-                        <ChevronLeft size={22} />
+                    <button onClick={onBack} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+                        <ChevronLeft size={20} />
                     </button>
                 ) : <div />}
 
@@ -101,258 +85,110 @@ export function UniversalHero({
                     {isExpired ? (
                         <>
                             {!hasUserSubmittedSurvey && (
-                                <button
-                                    onClick={onOpenSurvey}
-                                    style={{
-                                        padding: '4px 10px',
-                                        height: 24,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        justifyContent: 'center',
-                                        background: 'rgba(255, 106, 0, 0.1)',
-                                        border: '1px solid rgba(255, 106, 0, 0.3)',
-                                        borderRadius: 12,
-                                        color: '#FF6A00',
-                                        fontSize: 11,
-                                        fontWeight: 500,
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    <Star size={12} fill="#FF6A00" />
-                                    Calificar
+                                <button onClick={onOpenSurvey} style={{ padding: '4px 12px', background: 'rgba(255, 106, 0, 0.2)', border: '1px solid #FF6A00', borderRadius: 12, color: '#FF6A00', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
+                                    <Star size={12} fill="#FF6A00" className="inline mr-1" /> Calificar
                                 </button>
-                            )}
-                            {hasUserSubmittedSurvey && (
-                                <div
-                                    style={{
-                                        padding: '4px 10px',
-                                        height: 24,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        background: 'rgba(34, 197, 94, 0.1)',
-                                        border: '1px solid rgba(34, 197, 94, 0.3)',
-                                        borderRadius: 12,
-                                        color: '#22C55E',
-                                        fontSize: 11,
-                                        fontWeight: 500,
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    ✓ Calificado
-                                </div>
                             )}
                         </>
                     ) : (
-                        <div style={{
-                            padding: '4px 12px',
-                            height: 24,
-                            display: 'flex',
-                            alignItems: 'center',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: 12,
-                            color: 'rgba(255, 255, 255, 0.5)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em'
-                        }}>
-                            Finaliza: {enrollment?.expiration_date ? new Date(enrollment.expiration_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
+                        <div style={{ padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                            PLAN: {programEndDate ? programEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Título centrado y grande */}
+            {/* Compct Content Row: Two line style like Activity Cards */}
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                marginBottom: 16,
-                gap: 12
+                alignItems: isMobile ? 'center' : 'flex-start',
+                textAlign: isMobile ? 'center' : 'left',
+                marginBottom: 14
             }}>
                 <h1 style={{
                     margin: '0',
-                    fontSize: 22, // Reduced from 24
-                    lineHeight: 1.1,
+                    fontSize: isMobile ? 24 : 32,
                     fontWeight: 900,
                     color: '#fff',
-                    textAlign: 'center',
-                    width: '100%',
-                    textShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-                    letterSpacing: '-0.02em'
+                    lineHeight: 1,
+                    textTransform: 'uppercase',
+                    letterSpacing: '-0.04em',
+                    textShadow: '0 4px 12px rgba(0,0,0,0.5)'
                 }}>
                     {programInfo?.title || 'Actividad'}
                 </h1>
-
-                {isExpired && (
-                    <div style={{
-                        marginTop: -4,
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: 12,
-                        padding: '2px 10px',
-                        color: '#EF4444',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase'
-                    }}>
-                        Programa Expirado
-                    </div>
-                )}
-
-                {/* Categoría y Tags */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    justifyContent: 'center',
-                    width: '100%',
-                    flexWrap: 'wrap'
-                }}>
-                    {(() => {
-                        const type = (programInfo?.type || programInfo?.categoria || '').toLowerCase();
-                        const isWorkshop = type.includes('workshop') || type.includes('taller');
-                        const isDoc = type.includes('document');
-                        const isNutri = type.includes('nutricion');
-
-                        let label = 'Programa';
-                        let icon = null;
-                        let color = '#FFDAB9';
-                        let bg = 'rgba(255, 180, 130, 0.08)';
-                        let border = '1px solid rgba(255, 180, 130, 0.15)';
-
-                        if (isWorkshop) {
-                            label = 'Taller';
-                            icon = <Calendar size={10} className="mr-1" />;
-                            color = '#FF7939';
-                            bg = 'rgba(255, 121, 57, 0.1)';
-                            border = '1px solid rgba(255, 121, 57, 0.2)';
-                        } else if (isDoc) {
-                            label = 'Documento';
-                            icon = <FileText size={10} className="mr-1" />;
-                            color = '#38BDF8';
-                            bg = 'rgba(56, 189, 248, 0.1)';
-                            border = '1px solid rgba(56, 189, 248, 0.2)';
-                        } else if (isNutri) {
-                            label = 'Nutrición';
-                            color = '#FFE4B5';
-                            bg = 'rgba(255, 230, 150, 0.08)';
-                            border = '1px solid rgba(255, 230, 150, 0.15)';
-                        }
-
-                        return (
-                            <span style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                padding: '4px 10px',
-                                background: bg,
-                                borderRadius: 12,
-                                border: border,
-                                color: color,
-                                fontSize: 10,
-                                fontWeight: 700,
-                                backdropFilter: 'blur(8px)',
-                                WebkitBackdropFilter: 'blur(8px)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.08em'
-                            }}>
-                                {icon}
-                                {label}
-                            </span>
-                        );
-                    })()}
-
-                    {programInfo?.difficulty && (
-                        <span style={{
-                            padding: '4px 10px',
-                            background: (programInfo?.difficulty || '').toLowerCase().includes('adv') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                            borderRadius: 12,
-                            border: (programInfo?.difficulty || '').toLowerCase().includes('adv') ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(255, 255, 255, 0.1)',
-                            color: (programInfo?.difficulty || '').toLowerCase().includes('adv') ? '#EF4444' : 'rgba(255, 255, 255, 0.6)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            backdropFilter: 'blur(8px)',
-                            WebkitBackdropFilter: 'blur(8px)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em'
-                        }}>
-                            {programInfo?.difficulty}
-                        </span>
-                    )}
-                </div>
-
-                {/* Objetivos */}
-                {objetivos.length > 0 && (
-                    <div style={{
-                        display: 'flex',
-                        gap: 8,
-                        overflowX: 'auto',
-                        width: '100%',
-                        padding: '4px 0',
-                        justifyContent: 'center',
-                        flexWrap: 'wrap'
-                    }}>
-                        {objetivos.map((objetivo: string, idx: number) => (
-                            <span key={`${objetivo}-${idx}`} style={{
-                                background: 'rgba(255, 255, 255, 0.04)',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                color: 'rgba(255, 255, 255, 0.5)',
-                                fontSize: 11,
-                                fontWeight: 500,
-                                padding: '4px 12px',
-                                borderRadius: 999,
-                                transition: 'all 0.2s ease'
-                            }}>
-                                {objetivo}
-                            </span>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {programInfo?.description && (
-                <div style={{ marginTop: 8, marginBottom: 4 }}>
+                
+                {programInfo?.description && (
                     <p style={{
-                        margin: 0,
-                        fontSize: 13, // Slightly smaller description
-                        lineHeight: 1.4,
-                        color: 'rgba(255, 255, 255, 0.9)',
+                        margin: '6px 0 0 0',
+                        fontSize: isMobile ? 12 : 15,
+                        fontWeight: 600,
+                        color: 'rgba(255, 255, 255, 0.45)', // Lighter and thinner like activity card subtitl
+                        lineHeight: 1.3,
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        textAlign: 'center'
+                        maxWidth: isMobile ? '100%' : '85%'
                     }}>
                         {programInfo.description}
                     </p>
-                    {programInfo.description.length > 100 && (
-                        <button
-                            onClick={() => setDescriptionExpanded(!descriptionExpanded)}
-                            style={{
-                                marginTop: 8,
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#FF6A00',
-                                fontSize: 13,
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                padding: 0,
-                                textAlign: 'right',
-                                width: '100%',
-                                display: 'block'
-                            }}
-                        >
-                            {descriptionExpanded ? 'Ver menos' : 'Ver más >'}
-                        </button>
-                    )}
-                </div>
-            )}
+                )}
+
+                {programInfo?.description && programInfo.description.length > 80 && (
+                    <button
+                        onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                        style={{ background: 'transparent', border: 'none', color: '#FF6A00', fontSize: 11, fontWeight: 800, cursor: 'pointer', padding: '4px 0', textTransform: 'uppercase' }}
+                    >
+                        {descriptionExpanded ? 'Ver menos' : 'Ver más'}
+                    </button>
+                )}
+            </div>
+
+            {/* Tags Row */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                justifyContent: isMobile ? 'center' : 'flex-start',
+                flexWrap: 'wrap'
+            }}>
+                {(() => {
+                    const type = (programInfo?.type || programInfo?.categoria || '').toLowerCase();
+                    const isWorkshop = type.includes('workshop') || type.includes('taller');
+                    const isDoc = type.includes('document');
+
+                    let label = 'Programa';
+                    let icon = null;
+                    let color = '#FFDAB9';
+                    let border = '1px solid rgba(255, 180, 130, 0.2)';
+
+                    if (isWorkshop) {
+                        label = 'Taller';
+                        icon = <Calendar size={10} className="mr-1 inline" />;
+                        color = '#FF7939';
+                        border = '1px solid #FF7939';
+                    } else if (isDoc) {
+                        label = 'Documento';
+                        icon = <FileText size={10} className="mr-1 inline" />;
+                        color = '#38BDF8';
+                        border = '1px solid #38BDF8';
+                    }
+
+                    return (
+                        <span style={{ display: 'flex', alignItems: 'center', padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: border, color: color, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {icon}{label}
+                        </span>
+                    );
+                })()}
+
+                {programInfo?.difficulty && (
+                    <span style={{ padding: '3px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                        {programInfo.difficulty}
+                    </span>
+                )}
+            </div>
         </div>
     );
 }
