@@ -23,9 +23,9 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = vh * 0.20; // Increased to 20% to make it "higher" as requested
+    const COLLAPSED_H = vh * 0.06; // Lower peek
     const collapsedY = vh - COLLAPSED_H;
-    const TOP_SNAP = 160; // Increased to 160 to avoid collisions with the "omnia" header icons
+    const TOP_SNAP = 200; // Lowered to 200px to ensure it clears the "omnia" logo header
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect

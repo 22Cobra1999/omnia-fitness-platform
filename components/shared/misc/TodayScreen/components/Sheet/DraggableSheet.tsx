@@ -70,8 +70,8 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const TOP_SNAP = 160; // Match layout
-    const COLLAPSED_H = vh * 0.08; // Hide it more (peek 8%) as requested
+    const TOP_SNAP = 200; // Lowered
+    const COLLAPSED_H = vh * 0.06; // Match layout
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
