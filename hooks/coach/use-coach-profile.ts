@@ -27,6 +27,7 @@ interface SalesData {
   workshops: number
   documents: number
   consultations: number
+  others: number
 }
 
 interface RecentActivity {
@@ -52,7 +53,8 @@ export function useCoachProfile() {
     programs: 0,
     workshops: 0,
     documents: 0,
-    consultations: 0
+    consultations: 0,
+    others: 0
   })
   const [earningsData, setEarningsData] = useState<EarningsData>({
     totalIncome: 0,
@@ -168,7 +170,7 @@ export function useCoachProfile() {
         // Obtener actividades recientes desde el endpoint de billing
         let activities: RecentActivity[] = []
         try {
-          const billingResponse = await fetch(`/api/coach/billing?days=30`)
+          const billingResponse = await fetch(`/api/coach/billing?days=all`)
           if (billingResponse.ok) {
             const billingData = await billingResponse.json()
             setEarningsData({
@@ -184,6 +186,7 @@ export function useCoachProfile() {
               workshops: Number(breakdown.workshops || 0),
               documents: Number(breakdown.documents || 0),
               consultations: Number(breakdown.consultations || 0),
+              others: Number(breakdown.others || 0),
             })
 
             const totalSalesRaw = Number((billingData as any)?.totalSales)

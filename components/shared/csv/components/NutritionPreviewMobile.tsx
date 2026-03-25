@@ -25,57 +25,54 @@ export function NutritionPreviewMobile({ formState, onChange, onVideoSelect, act
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto px-4 pt-12 pb-5 scrollbar-hide bg-black">
                 
-                {/* Header */}
-                <div className="flex flex-col items-center mb-5">
-                    <span className="text-[7px] font-black tracking-[0.4em] text-zinc-500 uppercase mb-1.5 opacity-80">NUTRICIÓN PREVIEW</span>
+                {/* Header - ENHANCED VISIBILITY */}
+                <div className="flex flex-col items-center mb-3">
+                    <span className="text-[7px] font-black tracking-[0.4em] text-zinc-600 uppercase mb-1 opacity-80">PREVIEW VIVO</span>
                     <h1 className="w-full text-center text-white font-[1000] text-[15px] leading-tight tracking-tighter uppercase italic px-1 truncate drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
                         {formState.nombre || 'NUEVA COMIDA...'}
                     </h1>
                 </div>
 
-                {/* Video/Image Area */}
-                <div onClick={onVideoSelect} className="relative aspect-video bg-zinc-950 rounded-[1rem] overflow-hidden mb-4 border border-white/10 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] cursor-pointer group">
+                {/* Video - Centered & Clean (No Frame) */}
+                <div onClick={onVideoSelect} className="relative aspect-video mb-5 cursor-pointer group transition-all mx-auto w-full overflow-hidden rounded-xl bg-zinc-950/50">
                     {formState.video_url || formState.bunny_video_id ? (
-                        <UniversalVideoPlayer 
-                            videoUrl={formState.video_url} 
-                            bunnyVideoId={formState.bunny_video_id}
-                            thumbnailUrl={formState.video_thumbnail_url}
-                            className="w-full h-full object-cover"
-                        />
+                        <div className="w-full h-full scale-[0.85] transform-gpu">
+                            <UniversalVideoPlayer 
+                                videoUrl={formState.video_url} 
+                                bunnyVideoId={formState.bunny_video_id}
+                                thumbnailUrl={formState.video_thumbnail_url}
+                                className="w-full h-full object-cover rounded-lg"
+                            />
+                        </div>
                     ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-transparent text-zinc-600 transition-colors group-hover:bg-zinc-900/50">
-                             <Play className="h-5 w-5 fill-zinc-800 text-zinc-800 mb-1 opacity-60 group-hover:text-[#FF7939]" />
-                             <span className="text-[6px] uppercase font-black tracking-widest text-zinc-700">GALERIA / RECETA</span>
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900/40 backdrop-blur-sm text-zinc-600 transition-colors group-hover:bg-[#FF7939]/5">
+                             <div className="p-3 bg-zinc-950/50 rounded-full border border-white/5 mb-2 group-hover:scale-110 transition-all">
+                                <Play className="h-5 w-5 fill-[#FF7939] text-[#FF7939] drop-shadow-[0_0_8px_rgba(255,121,57,0.4)]" />
+                             </div>
+                             <span className="text-[6px] uppercase font-black tracking-[0.2em] text-zinc-500 group-hover:text-white transition-colors italic">Seleccionar Video</span>
                         </div>
                     )}
                 </div>
 
-                {/* Metrics */}
-                <div className="grid grid-cols-2 gap-1.5 mb-5">
-                    <div className="flex flex-col bg-zinc-900/60 rounded-lg px-2.5 py-1.5 border border-white/10 shadow-inner">
-                        <div className="flex items-center gap-1.5">
-                            <Clock className="h-3 w-3 text-zinc-400" />
-                            <span className="text-xs font-black text-white">{formState.minutos || 0} min</span>
-                        </div>
-                        <span className="text-[6px] font-black text-zinc-400 uppercase tracking-tighter">PREPARACIÓN</span>
-                    </div>
-                    <div className="flex flex-col bg-zinc-900/60 rounded-lg px-2.5 py-1.5 border border-white/10 shadow-inner">
-                        <div className="flex items-center gap-1.5">
-                            <Flame className="h-3 w-3 text-zinc-400" />
-                            <span className="text-xs font-black text-white">{formState.calorias || 0}</span>
-                        </div>
-                        <span className="text-[6px] font-black text-zinc-400 uppercase tracking-widest">CALORÍAS</span>
+                {/* Metrics Pill - Centered & Clean */}
+                <div className="flex items-center justify-center bg-zinc-950/80 p-2.5 rounded-full border border-white/10 mb-5 shadow-2xl overflow-hidden">
+                    <div className="flex items-center gap-6 px-2">
+                         <div className="flex items-center gap-1.5 transition-transform hover:scale-105">
+                            <Clock className="h-3 w-3 text-zinc-500" />
+                            <span className="text-[10px] font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
+                                {formState.minutos || 0} MIN
+                            </span>
+                         </div>
+                         <div className="w-px h-3 bg-white/10" />
+                         <div className="flex items-center gap-1.5 transition-transform hover:scale-105">
+                            <Flame className="h-3 w-3 text-[#FF7939]" />
+                            <span className="text-[10px] font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
+                                ~{formState.calorias || 0}
+                            </span>
+                         </div>
                     </div>
                 </div>
 
-                {/* Categories row */}
-                <div className="flex gap-1 overflow-x-auto pb-3 scrollbar-hide no-scrollbar -mx-4 px-4">
-                    {(formState.tipo || '').split(';').filter(Boolean).map((cat, idx) => (
-                        <div key={idx} className="shrink-0 px-2.5 py-1 bg-zinc-800 rounded-full border border-white/20">
-                            <span className="text-[7px] font-black text-zinc-200 uppercase italic tracking-wider">{cat}</span>
-                        </div>
-                    ))}
-                </div>
 
                 {/* Tabs */}
                 <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 mb-3 shadow-inner">
@@ -87,25 +84,56 @@ export function NutritionPreviewMobile({ formState, onChange, onVideoSelect, act
                 {/* Content */}
                 <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
                     {activeTab === 'macros' ? (
-                        <div className="grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-1">
-                             <div className="bg-zinc-900/80 p-2 rounded-xl border border-white/5 text-center">
-                                 <span className="block text-red-500 font-black text-[12px] italic">{formState.proteinas || 0}g</span>
-                                 <span className="text-[6px] text-zinc-500 font-bold uppercase tracking-widest italic">PROT</span>
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-1 bg-zinc-900/40 p-4 rounded-3xl border border-white/5 shadow-2xl">
+                             <div className="flex justify-between items-center px-1">
+                                <span className="text-[12px] font-[1000] italic uppercase tracking-tighter text-white">Macros</span>
+                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-zinc-500 italic">
+                                    {Number(formState.proteinas || 0) > 30 ? 'ALTO EN PROT' : 'BALANCEADO'}
+                                </span>
                              </div>
-                             <div className="bg-zinc-900/80 p-2 rounded-xl border border-white/5 text-center">
-                                 <span className="block text-yellow-500 font-black text-[12px] italic">{formState.carbohidratos || 0}g</span>
-                                 <span className="text-[6px] text-zinc-500 font-bold uppercase tracking-widest italic">CARB</span>
+
+                             {/* Macro Bars */}
+                             <div className="flex gap-1 h-2 w-full px-1">
+                                <div className="flex-1 bg-[#FF7939] rounded-full shadow-[0_0_10px_rgba(255,121,57,0.3)]" />
+                                <div className="flex-1 bg-[#F5D5AE] rounded-full shadow-[0_0_10px_rgba(245,213,174,0.2)]" />
+                                <div className="flex-1 bg-[#93C5FD] rounded-full shadow-[0_0_10px_rgba(147,197,253,0.2)]" />
                              </div>
-                             <div className="bg-zinc-900/80 p-2 rounded-xl border border-white/5 text-center">
-                                 <span className="block text-blue-400 font-black text-[12px] italic">{formState.grasas || 0}g</span>
-                                 <span className="text-[6px] text-zinc-500 font-bold uppercase tracking-widest italic">GRAS</span>
+
+                             {/* Macro Values */}
+                             <div className="flex justify-between px-1 pt-1">
+                                 <div className="text-center">
+                                     <span className="block text-white font-[1000] text-[15px] italic leading-none">{formState.proteinas || 0}g</span>
+                                     <span className="text-[8px] text-[#FF7939] font-black uppercase tracking-widest mt-1 block">Prot</span>
+                                 </div>
+                                 <div className="text-center">
+                                     <span className="block text-white font-[1000] text-[15px] italic leading-none">{formState.grasas || 0}g</span>
+                                     <span className="text-[8px] text-[#F5D5AE] font-black uppercase tracking-widest mt-1 block">Fats</span>
+                                 </div>
+                                 <div className="text-center">
+                                     <span className="block text-white font-[1000] text-[15px] italic leading-none">{formState.carbohidratos || 0}g</span>
+                                     <span className="text-[8px] text-[#93C5FD] font-black uppercase tracking-widest mt-1 block">Carbs</span>
+                                 </div>
                              </div>
                         </div>
                     ) : activeTab === 'receta' ? (
-                        <div className="p-3.5 bg-zinc-900/50 rounded-xl border border-white/10">
-                             <p className="text-[9px] text-zinc-300 leading-normal font-medium italic whitespace-pre-wrap">
-                                {formState.receta || 'Sin instrucciones de preparación...'}
-                             </p>
+                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-1">
+                             {(() => {
+                                 const receta = formState.receta || ''
+                                 if (!receta) return <p className="text-[9px] text-zinc-600 italic text-center py-4">Sin instrucciones...</p>
+                                 const pasos = receta.split(';').map(p => p.trim()).filter(Boolean)
+                                 return (
+                                     <div className="bg-zinc-900/40 p-4 rounded-2xl border border-white/5 text-[9px] text-zinc-200 leading-relaxed font-bold italic shadow-inner">
+                                         {pasos.map((paso, idx) => (
+                                             <span key={idx} className="inline">
+                                                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 text-[8px] font-black italic mr-1.5 align-middle mb-0.5">
+                                                     {idx + 1}
+                                                 </span>
+                                                 {paso}{idx < pasos.length - 1 ? " " : ""}
+                                             </span>
+                                         ))}
+                                     </div>
+                                 )
+                             })()}
                         </div>
                     ) : (
                         <div className="space-y-1.5 animate-in fade-in">

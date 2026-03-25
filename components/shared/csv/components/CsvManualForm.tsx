@@ -76,8 +76,8 @@ export function CsvManualForm({
             {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto no-scrollbar pb-10 p-0 lg:p-8">
                 
-                {/* Mobile View Switcher - Top Position */}
-                <div className="flex lg:hidden mb-8 bg-zinc-950/60 rounded-2xl p-1 border border-white/5 w-fit mx-auto shadow-2xl backdrop-blur-xl">
+                {/* Mobile View Switcher - Shows only on smaller screens */}
+                <div className="flex md:hidden mb-8 bg-zinc-950/60 rounded-2xl p-1 border border-white/5 w-fit mx-auto shadow-2xl backdrop-blur-xl">
                     <button 
                         onClick={() => setMobileView('editor')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all duration-300 ${mobileView === 'editor' ? 'bg-[#FF7939] text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
@@ -97,20 +97,20 @@ export function CsvManualForm({
                 <div className="max-w-[1200px] mx-auto space-y-12">
                     
                     {/* Upper Section: iPhone View + Editor Section */}
-                    <div className="flex flex-col lg:flex-row gap-0 lg:gap-8 items-start justify-center">
+                    <div className="flex flex-col md:flex-row gap-8 lg:gap-20 xl:gap-28 items-start justify-center">
                         
                         {/* iPhone Preview (Left on Desktop) */}
-                        <div className={`${mobileView === 'preview' ? 'flex' : 'hidden'} lg:flex flex-col items-center justify-start w-full lg:w-[300px] shrink-0 transform scale-90 lg:scale-[0.85] xl:scale-100 origin-top transition-all duration-500`}>
+                        <div className={`${mobileView === 'preview' ? 'flex' : 'hidden'} md:flex flex-col items-center justify-start w-full md:w-[280px] lg:w-[320px] shrink-0 transform scale-[0.75] md:scale-[0.8] lg:scale-95 origin-top transition-all duration-500`}>
                             {isNutrition ? (
                                 <NutritionPreviewMobile 
                                     formState={formState}
                                     onChange={onChange}
                                     onVideoSelect={() => setPreviewTab('video')}
-                                    activeTab={(previewTab === 'info' ? 'receta' : previewTab === 'variables' ? 'macros' : 'ingredientes') as any}
+                                    activeTab={(previewTab === 'receta' ? 'receta' : previewTab === 'ingredientes' ? 'ingredientes' : 'macros') as any}
                                     onTabChange={(tab: any) => {
-                                        if (tab === 'macros') setPreviewTab('variables');
-                                        else if (tab === 'receta') setPreviewTab('info');
-                                        else setPreviewTab('variables');
+                                        if (tab === 'macros') setPreviewTab('info');
+                                        else if (tab === 'receta') setPreviewTab('receta');
+                                        else setPreviewTab('ingredientes');
                                     }}
                                 />
                             ) : (
@@ -129,59 +129,60 @@ export function CsvManualForm({
                         </div>
 
                         {/* Editor Section (Right/Center on Desktop) - Ultra-Compact Area */}
-                        <div className={`${mobileView === 'editor' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 lg:max-w-[640px] xl:max-w-[720px] gap-4 w-full`}>
-                            <div className="bg-transparent lg:bg-zinc-950/40 p-0 lg:p-4 rounded-none lg:rounded-[2.5rem] border-none lg:border border-white/5 lg:shadow-2xl lg:backdrop-blur-md h-[480px] lg:h-[460px] flex flex-col shrink-0 overflow-hidden">
-                                <div className="flex gap-4 flex-1 overflow-hidden">
-                                    {/* Left Icon Menu */}
-                                    <div className="flex flex-col gap-2 p-1.5 bg-zinc-950/80 rounded-[1.5rem] border border-white/5 shadow-inner shrink-0 h-fit">
-                                        {menuItems.map((item) => {
-                                            const completed = isSectionCompleted(item.id)
-                                            const active = previewTab === item.id
+                        <div className={`${mobileView === 'editor' ? 'flex' : 'hidden'} md:flex flex-col flex-1 min-w-0 md:max-w-[480px] lg:max-w-[640px] xl:max-w-[720px] gap-4 w-full`}>
+                            <div className="bg-transparent lg:bg-zinc-950/40 p-0 lg:p-6 rounded-none lg:rounded-[2.5rem] border-none lg:border border-white/5 lg:shadow-2xl lg:backdrop-blur-md h-[480px] lg:h-[460px] flex flex-col shrink-0 overflow-hidden">
+                                
+                                {/* Top Icon Menu - REDESIGNED */}
+                                <div className="flex flex-row items-center justify-center gap-2 p-1.5 bg-zinc-950/80 rounded-[1.5rem] border border-white/5 shadow-inner mb-6 w-fit mx-auto shrink-0 transition-all">
+                                    {menuItems.map((item) => {
+                                        const completed = isSectionCompleted(item.id)
+                                        const active = previewTab === item.id
+                                        const Icon = item.icon
 
-                                            return (
-                                                <button
-                                                    key={item.id}
-                                                    onClick={() => setPreviewTab(item.id as any)}
-                                                    className={`w-12 h-12 md:w-14 md:h-14 rounded-[1.2rem] transition-all group flex flex-col items-center justify-center gap-0.5 relative ${active ? 'bg-[#FF7939] text-white shadow-[0_0_25px_rgba(255,121,57,0.4)]' : 'text-zinc-600 hover:text-zinc-300 hover:bg-white/5'}`}
-                                                    title={item.label}
-                                                >
-                                                    <item.icon className={`h-5 w-5 md:h-6 md:w-6 transition-all ${active ? 'fill-white/20' : completed ? 'text-[#FF7939] drop-shadow-[0_0_8px_rgba(255,121,57,0.5)]' : 'group-hover:scale-110'}`} />
-                                                    <span className={`text-[6px] md:text-[7px] font-[1000] uppercase tracking-tighter ${active ? 'text-white' : completed ? 'text-[#FF7939]/80' : 'text-zinc-600 group-hover:text-zinc-400'}`}>{item.label}</span>
-                                                    
-                                                    {completed && !active && (
-                                                        <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#FF7939] rounded-full shadow-[0_0_10px_rgba(255,121,57,0.8)]" />
-                                                    )}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-
-                                    {/* Forms Section */}
-                                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pt-2">
-                                        {isNutrition ? (
-                                            <NutritionManualFormFields 
-                                                formState={formState} 
-                                                onChange={onChange}
-                                                activeSection={previewTab as any}
-                                                onVideoSelect={onVideoSelect}
-                                            />
-                                        ) : (
-                                            <FitnessManualFormFields 
-                                                formState={formState} 
-                                                onChange={onChange}
-                                                activeSection={previewTab as any}
-                                                onVideoSelect={() => setPreviewTab('video')}
-                                            />
-                                        )}
-                                    </div>
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => setPreviewTab(item.id as any)}
+                                                className={`px-3 md:px-5 h-8 md:h-9 rounded-[0.8rem] transition-all group flex items-center justify-center gap-2 relative ${active ? 'bg-[#FF7939] text-white shadow-[0_0_15px_rgba(255,121,57,0.3)]' : 'text-zinc-600 hover:text-zinc-300 hover:bg-white/5'}`}
+                                                title={item.label}
+                                            >
+                                                <Icon className={`h-3.5 w-3.5 md:h-4 md:w-4 transition-all ${active ? 'fill-white/20' : completed ? 'text-[#FF7939] drop-shadow-[0_0_8px_rgba(255,121,57,0.5)]' : 'group-hover:scale-110'}`} />
+                                                <span className={`text-[6.5px] md:text-[7.5px] font-[1000] uppercase tracking-widest ${active ? 'text-white' : completed ? 'text-[#FF7939]/80' : 'text-zinc-600 group-hover:text-zinc-400'}`}>{item.label}</span>
+                                                
+                                                {completed && !active && (
+                                                    <div className="absolute top-0.5 right-1.5 w-1 h-1 bg-[#FF7939] rounded-full shadow-[0_0_8px_rgba(255,121,57,0.6)]" />
+                                                )}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
-                                <div className="flex items-center gap-3 mt-4 pt-2 border-t border-white/5">
+
+                                {/* Forms Section */}
+                                <div className="flex-1 overflow-y-auto no-scrollbar pr-1">
+                                    {isNutrition ? (
+                                        <NutritionManualFormFields 
+                                            formState={formState} 
+                                            onChange={onChange}
+                                            activeSection={previewTab as any}
+                                            onVideoSelect={onVideoSelect}
+                                        />
+                                    ) : (
+                                        <FitnessManualFormFields 
+                                            formState={formState} 
+                                            onChange={onChange}
+                                            activeSection={previewTab as any}
+                                            onVideoSelect={() => setPreviewTab('video')}
+                                        />
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/5">
                                     <Button variant="ghost" onClick={onCancel} className="text-zinc-500 hover:text-white uppercase font-black text-[8px] tracking-widest px-2 h-7">
                                         Descartar
                                     </Button>
                                     <Button 
                                         onClick={onSubmit} 
-                                        className="flex-1 bg-[#FF7939] hover:bg-[#FF6B35] text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest h-9 rounded-xl shadow-lg transition-all active:scale-95 italic"
+                                        className="flex-1 bg-[#FF7939] hover:bg-[#FF6B35] text-white font-black uppercase text-[8px] md:text-[9px] tracking-widest h-8 rounded-lg shadow-lg transition-all active:scale-95 italic"
                                     >
                                         {isEditing ? 'Guardar Cambios' : isNutrition ? 'Continuar' : 'Continuar'}
                                     </Button>

@@ -38,98 +38,123 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                 streakCount={6}
             />
 
-            {/* Barra segmentada de tipos de ventas */}
-            <div className="bg-[#1A1C1F] rounded-2xl p-4 relative">
+            {/* Barra segmentada de tipos de ventas (Diseño de Pastillas Separadas) */}
+            <div className="bg-black border border-white/5 rounded-[40px] p-8 relative">
                 <button
                     onClick={handleDownloadInvoice}
-                    className="absolute top-4 right-4 flex items-center justify-center hover:opacity-80 transition-opacity"
+                    className="absolute top-8 right-8 flex items-center justify-center hover:opacity-80 transition-opacity"
                     title="Descargar factura"
                 >
-                    <Printer className="w-4 h-4 text-[#FF7939]" />
+                    <Printer className="w-5 h-5 text-white/40" />
                 </button>
 
-                <div className="mb-4">
+                <div className="mb-8">
                     <div className="text-center">
-                        <p className="text-3xl font-semibold text-[#FF7939] mb-1">
+                        <p className="text-[52px] font-black text-[#FF7939] leading-none mb-4 tracking-tighter italic">
                             ${earningsData.earnings.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </p>
-                        <p className="text-xs text-gray-500">
-                            Ganancia Bruta: ${earningsData.totalIncome.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                            Suscripción: -${earningsData.planFee.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </p>
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] italic">
+                                BRUTA: ${earningsData.totalIncome.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </p>
+                            <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] italic">
+                                SUSCRIPCIÓN: -${earningsData.planFee.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="h-px bg-[#2A2C2E] mb-4"></div>
+                <div className="h-px bg-white/5 mb-8"></div>
 
-                <div className="mb-3">
+                <div className="mb-10">
                     {(() => {
                         const values = Object.values(salesData || {}) as any[]
                         const total = values.reduce((a, b) => a + (Number(b) || 0), 0)
                         const denom = Math.max(total, 1)
 
                         if (total <= 0) {
-                            return <div className="flex rounded-xl overflow-hidden h-8 bg-white/10" />
+                            return <div className="flex rounded-full overflow-hidden h-3 bg-white/5" />
                         }
 
+                        // Calcular porcentajes reales considerando gaps
+                        const pProgs = ((Number(salesData.programs) || 0) / denom) * 100
+                        const pTalleres = ((Number(salesData.workshops) || 0) / denom) * 100
+                        const pDocs = ((Number(salesData.documents) || 0) / denom) * 100
+                        const pConsul = ((Number(salesData.consultations) || 0) / denom) * 100
+                        const pOthers = ((Number(salesData.others) || 0) / denom) * 100
+
                         return (
-                            <div className="flex rounded-xl overflow-hidden h-8">
-                                <div
-                                    className="bg-[#FF6A00] flex items-center justify-center text-white text-xs font-medium"
-                                    style={{ width: `${((Number(salesData.programs) || 0) / denom) * 100}%` }}
-                                >
-                                    {salesData.programs > 0 && `${Math.round(salesData.programs / 1000)}k`}
-                                </div>
-                                <div
-                                    className="bg-[#FFD1A6] flex items-center justify-center text-[#121212] text-xs font-medium"
-                                    style={{ width: `${((Number(salesData.workshops) || 0) / denom) * 100}%` }}
-                                >
-                                    {salesData.workshops > 0 && `${Math.round(salesData.workshops / 1000)}k`}
-                                </div>
-                                <div
-                                    className="bg-[#FF9FC4] flex items-center justify-center text-white text-xs font-medium"
-                                    style={{ width: `${((Number(salesData.documents) || 0) / denom) * 100}%` }}
-                                >
-                                    {salesData.documents > 0 && `${Math.round(salesData.documents / 1000)}k`}
-                                </div>
-                                <div
-                                    className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
-                                    style={{ width: `${((Number(salesData.consultations) || 0) / denom) * 100}%` }}
-                                >
-                                    {salesData.consultations > 0 && `${Math.round(salesData.consultations / 1000)}k`}
-                                </div>
+                            <div className="flex gap-2 h-4 w-full">
+                                {pProgs > 0 && (
+                                    <div
+                                        className="bg-[#FF7939] rounded-full flex items-center justify-center text-white text-[8px] font-black italic shadow-[0_0_15px_-3px_rgba(255,121,57,0.4)]"
+                                        style={{ width: `${pProgs}%` }}
+                                    >
+                                        {pProgs > 15 && `${Math.round(salesData.programs / 1000)}k`}
+                                    </div>
+                                )}
+                                {pTalleres > 0 && (
+                                    <div
+                                        className="bg-[#FFD1A6] rounded-full flex items-center justify-center text-[#121212] text-[8px] font-black italic"
+                                        style={{ width: `${pTalleres}%` }}
+                                    >
+                                        {pTalleres > 15 && `${Math.round(salesData.workshops / 1000)}k`}
+                                    </div>
+                                )}
+                                {pDocs > 0 && (
+                                    <div
+                                        className="bg-[#FF9FC4] rounded-full flex items-center justify-center text-white text-[8px] font-black italic shadow-[0_0_15px_-3px_rgba(255,159,196,0.3)]"
+                                        style={{ width: `${pDocs}%` }}
+                                    >
+                                        {pDocs > 15 && `${Math.round(salesData.documents / 1000)}k`}
+                                    </div>
+                                )}
+                                {pConsul > 0 && (
+                                    <div
+                                        className="bg-white rounded-full flex items-center justify-center text-[#121212] text-[8px] font-black italic shadow-[0_0_15px_-3px_rgba(255,255,255,0.2)]"
+                                        style={{ width: `${pConsul}%` }}
+                                    >
+                                        {pConsul > 15 && `${Math.round(salesData.consultations / 1000)}k`}
+                                    </div>
+                                )}
+                                {pOthers > 0 && (
+                                    <div
+                                        className="bg-[#5A5A5A] rounded-full flex items-center justify-center text-white text-[8px] font-black italic"
+                                        style={{ width: `${pOthers}%` }}
+                                    >
+                                        {pOthers > 15 && `${Math.round(salesData.others / 1000)}k`}
+                                    </div>
+                                )}
                             </div>
                         )
                     })()}
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                    <div className="flex flex-col items-center">
-                        <BookOpen className="h-4 w-4 text-[#FF6A00] mb-1" />
-                        <span className="text-gray-400 text-center">Programas</span>
+                <div className="grid grid-cols-4 gap-4 px-2">
+                    <div className="flex flex-col items-center gap-3">
+                        <BookOpen className="h-6 w-6 text-[#FF7939]/40" strokeWidth={1.5} />
+                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">PROGS</span>
                     </div>
-                    <div className="flex flex-col items-center">
-                        <Users className="h-4 w-4 text-[#FFD1A6] mb-1" />
-                        <span className="text-gray-400 text-center">Talleres</span>
+                    <div className="flex flex-col items-center gap-3">
+                        <Users className="h-6 w-6 text-[#FFD1A6]/40" strokeWidth={1.5} />
+                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">TALLERES</span>
                     </div>
-                    <div className="flex flex-col items-center">
-                        <DocumentIcon className="h-4 w-4 text-[#FF9FC4] mb-1" />
-                        <span className="text-gray-400 text-center">Documentos</span>
+                    <div className="flex flex-col items-center gap-3">
+                        <DocumentIcon className="h-6 w-6 text-[#FF9FC4]/40" strokeWidth={1.5} />
+                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">DOCS</span>
                     </div>
-                    <div className="flex flex-col items-center">
-                        <MessageCircle className="h-4 w-4 text-white mb-1" />
-                        <span className="text-gray-400 text-center">Consultas</span>
+                    <div className="flex flex-col items-center gap-3">
+                        <MessageCircle className="h-6 w-6 text-white/40" strokeWidth={1.5} />
+                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">CONSUL</span>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-[#1A1C1F] rounded-2xl p-4">
+            <div className="bg-black border border-white/5 rounded-2xl p-4">
                 <CoachStats />
             </div>
 
-            <div className="bg-[#1A1C1F] rounded-2xl p-4">
+            <div className="bg-black border border-white/5 rounded-2xl p-4">
                 <h3 className="text-lg font-semibold mb-4">Movimientos Recientes</h3>
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                     {recentActivities.length > 0 ? (

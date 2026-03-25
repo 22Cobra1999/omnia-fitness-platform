@@ -288,10 +288,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'small': return 'w-40 md:w-52 h-auto flex flex-col'
-      case 'medium': return 'w-64 md:w-80 h-auto flex flex-col'
+      case 'small': return 'w-48 md:w-56 h-auto flex flex-col'
+      case 'medium': return 'w-72 md:w-80 h-auto flex flex-col'
       case 'large': return 'w-80 md:w-96 h-auto flex flex-col'
-      default: return 'w-64 h-auto flex flex-col'
+      default: return 'w-72 h-auto flex flex-col'
     }
   }
 
@@ -310,7 +310,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     <div
       className={cn(
         getSizeClasses(),
-        "cursor-pointer group relative mx-auto flex-shrink-0 bg-[#121212] overflow-hidden rounded-[2.8rem]"
+        "cursor-pointer group relative flex-shrink-0 bg-[#121212] overflow-hidden rounded-[2.8rem]"
       )}
       onClick={() => onClick?.(activity)}
     >
@@ -368,13 +368,29 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           </div>
 
           {/* Centered Title and Coach Info Overlay */}
-          <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center px-4 pb-0">
-            <div className="h-24 flex items-start justify-center mb-6">
+          <div className="absolute inset-x-0 bottom-[2%] z-20 flex flex-col items-center text-center px-0 pb-0 overflow-visible">
+            <div className="h-20 flex items-start justify-center mb-0 w-full overflow-visible space-y-1">
               <h3 className={cn(
-                "text-white font-bold leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] tracking-tight opacity-75 text-center px-4",
-                size === "small" ? "text-sm md:text-base" : "text-base md:text-lg"
+                "text-white leading-[1.05] drop-shadow-[0_4px_12px_rgba(0,0,0,1)] tracking-tight opacity-90 text-center font-serif italic w-[95%] mx-auto overflow-visible px-0"
               )}>
-                {activity.title && activity.title.length > 55 ? `${activity.title.substring(0, 55)}...` : activity.title || 'Sin título'}
+                {(() => {
+                  const title = activity.title || 'Sin título';
+                  const words = title.split(' ');
+                  if (words.length <= 1) return <span className="text-[1.3rem] font-black opacity-70 underline decoration-orange-500/20 underline-offset-4 truncate block">{title}</span>;
+                  
+                  // Heuristically split for the requested hierarchy
+                  const row1 = words.slice(0, 2).join(' ');
+                  const row2 = words.slice(2, 5).join(' ');
+                  const row3 = words.slice(5).join(' ');
+
+                  return (
+                    <div className="flex flex-col items-center w-full overflow-visible">
+                      <span className="text-[1.3rem] font-black block mb-0 opacity-70 whitespace-nowrap overflow-hidden truncate w-full">{row1}</span>
+                      {row2 && <span className="text-[1.05rem] font-medium opacity-60 block mb-0 whitespace-nowrap overflow-hidden truncate w-full">{row2}</span>}
+                      {row3 && <span className="text-[0.8rem] font-light opacity-45 block whitespace-nowrap overflow-hidden truncate w-full">{row3}</span>}
+                    </div>
+                  );
+                })()}
               </h3>
             </div>
 

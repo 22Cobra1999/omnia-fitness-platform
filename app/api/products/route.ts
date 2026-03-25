@@ -872,7 +872,9 @@ export async function GET(request: NextRequest) {
           borrada: product.borrada || false,
           limpieza_completada: product.limpieza_completada || false,
           is_active: product.is_active ?? true,
-          sales: salesCount || 0
+          sales: salesCount || 0,
+          // ✅ NUEVO: Adaptive Rules para identificar productos condicionados
+          adaptive_rule_ids: (product as any).adaptive_rule_ids || []
         }
 
         // Debug: Log para verificar que taller_activo se está devolviendo correctamente

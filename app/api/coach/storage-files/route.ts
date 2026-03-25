@@ -275,46 +275,60 @@ export async function GET(_request: NextRequest) {
       }
     }
 
-    // Obtener tamaños de videos de Bunny
-    for (const [bunnyId, video] of videoMap.entries()) {
-      try {
-        const videoInfo = await bunnyClient.getVideoInfo(bunnyId)
-        if (videoInfo) {
-          const bunnyTitleRaw = (videoInfo as any).title
-          const bunnyTitle = typeof bunnyTitleRaw === 'string' ? bunnyTitleRaw.trim() : ''
-          if (bunnyTitle) {
-            // El objetivo del tab de Almacenamiento es mostrar el nombre oficial del video en Bunny.
-            video.fileName = bunnyTitle.slice(0, 255)
-          }
-
-          // El storageSize puede venir en bytes
-          // Bunny API puede devolverlo como storageSize, storage_size, o en metadata
-          const sizeBytes = videoInfo.storageSize ||
-            (videoInfo as any).storage_size ||
-            (videoInfo as any).sizeBytes ||
-            (videoInfo as any).metadata?.storageSize ||
-            0
-
-          if (sizeBytes > 0) {
-            video.sizeBytes = sizeBytes
-          } else {
-            console.warn(`⚠️ Video ${bunnyId} tiene tamaño 0 o no disponible. Info:`, {
-              hasStorageSize: !!videoInfo.storageSize,
-              keys: Object.keys(videoInfo),
-              status: (videoInfo as any).status
-            })
-            // Si el video existe pero no tiene tamaño, asignar 0 (será visible pero con 0KB)
-            video.sizeBytes = 0
-          }
-        } else {
-          console.warn(`⚠️ No se pudo obtener información del video ${bunnyId} desde Bunny`)
-          video.sizeBytes = 0
-        }
-      } catch (error: any) {
-        console.error(`❌ Error obteniendo tamaño de video ${bunnyId}:`, error?.message || error)
-        video.sizeBytes = 0
-      }
+    // MEJORA: Obtener todos los videos de Bunny de una vez para obtener pesos y títulos reales
+    let bunnyVideosList: any[] = []
+    try {
+      const { getAllCoachVideosFromBunny } = await import('@/lib/bunny/storage-calculator')
+      bunnyVideosList = await getAllCoachVideosFromBunny()
+    } catch (e) {
+      console.error('[storage-files] Error loading all bunny videos:', e)
     }
+
+    const bunnyWeights = new Map<string, number>()
+    const bunnyTitles = new Map<string, string>()
+    
+    bunnyVideosList.forEach(bv => {
+      // Intentar obtener el tamaño de múltiples propiedades conocidas
+      const sBytes = (bv as any).storageSize ?? 
+                    (bv as any).StorageSize ?? 
+                    (bv as any).storage_size ?? 
+                    (bv as any).size ?? 
+                    0
+      
+      let finalBytes = Number(sBytes)
+      
+      // FALLBACK: Si el peso es 0 pero tenemos duración (length), estimar basado en bitrate promedio
+      // Estimación conservadora: 1MB por minuto (aprox 16KB/s)
+      if (finalBytes <= 0 && bv.length && bv.length > 0) {
+        finalBytes = Math.round(bv.length * 16384) // 16KB por segundo de video
+        console.log(`[storage-files] FALLBACK Weight for ${bv.guid}: ${finalBytes} bytes (based on ${bv.length}s duration).`)
+      }
+
+      bunnyWeights.set(bv.guid, finalBytes)
+      bunnyTitles.set(bv.guid, bv.title || '')
+    })
+
+    // Enriquecer videos asociados
+    for (const [bunnyId, video] of videoMap.entries()) {
+      video.sizeBytes = bunnyWeights.get(bunnyId) || 0
+      const officialTitle = bunnyTitles.get(bunnyId)
+      if (officialTitle) video.fileName = officialTitle
+    }
+
+    // Agregar videos existentes en Bunny que NO están asociados
+    bunnyVideosList.forEach(bv => {
+      if (!videoMap.has(bv.guid)) {
+        const sBytes = (bv as any).storageSize ?? (bv as any).StorageSize ?? (bv as any).size ?? 0
+        videoMap.set(bv.guid, {
+          bunny_video_id: bv.guid,
+          libraryId: String(bv.libraryId || ''),
+          fileName: bv.title || 'video.mp4',
+          activities: new Set(),
+          sizeBytes: Number(sBytes),
+          url: `https://video.bunnycdn.com/library/${bv.libraryId}/videos/${bv.guid}`
+        })
+      }
+    })
 
     // Convertir videos a StorageFile
     videoMap.forEach((video, bunnyId) => {
@@ -458,7 +472,8 @@ export async function GET(_request: NextRequest) {
             return // Excluir esta imagen, es un avatar
           }
 
-          const sizeBytes = parseInt(file.metadata?.size || (file as any).size || '0')
+          const sBytes = (file as any).metadata?.size || (file as any).size || (file as any).sizeBytes || 0
+          const sizeBytes = Number(sBytes)
 
           if (!imageMap.has(fileName)) {
             imageMap.set(fileName, {
@@ -580,7 +595,8 @@ export async function GET(_request: NextRequest) {
 
         validPdfs.forEach((file: { name: string; metadata?: any; size?: any }) => {
           const fileName = file.name
-          const sizeBytes = parseInt(file.metadata?.size || (file as any).size || '0')
+          const sBytes = (file as any).metadata?.size || (file as any).size || (file as any).sizeBytes || 0
+          const sizeBytes = Number(sBytes)
 
           if (!pdfMap.has(fileName)) {
             pdfMap.set(fileName, {

@@ -63,6 +63,9 @@ export function useStorageLogic(planProp?: PlanType) {
     const [editingFileName, setEditingFileName] = useState<string | null>(null)
     const [newFileName, setNewFileName] = useState<string>('')
     const [viewingFile, setViewingFile] = useState<StorageFile | null>(null)
+    const [showReplaceChoice, setShowReplaceChoice] = useState(false)
+    const [fileToReplace, setFileToReplace] = useState<StorageFile | null>(null)
+    const [showGallery, setShowGallery] = useState(false)
 
     // -- Plan Loading --
     useEffect(() => {
@@ -279,6 +282,78 @@ export function useStorageLogic(planProp?: PlanType) {
         setViewingFile(file)
     }
 
+    const handleReplaceFile = (file: StorageFile) => {
+        setFileToReplace(file)
+        setShowReplaceChoice(true)
+    }
+
+    const performReplace = async (file: StorageFile, newFile: File) => {
+        try {
+            setLoading(true)
+            const formData = new FormData()
+            formData.append('file', newFile)
+            formData.append('oldFileId', file.fileId)
+            formData.append('concept', file.concept)
+            formData.append('oldFileName', file.fileName)
+
+            const res = await fetch('/api/storage/replace-file', {
+                method: 'POST',
+                body: formData,
+            })
+
+            const result = await res.json()
+            if (result.success) {
+                alert(`Archivo reemplazado correctamente: ${result.message}`)
+                await loadStorageUsage()
+                setShowReplaceChoice(false)
+                setFileToReplace(null)
+            } else {
+                alert(result.error || 'Error al reemplazar el archivo')
+            }
+        } catch (error) {
+            console.error('Error reemplazando archivo:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const performReplaceWithExisting = async (file: StorageFile, existingFile: StorageFile) => {
+        try {
+            setLoading(true)
+            const response = await fetch('/api/storage/replace-with-existing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    oldFileId: file.fileId,
+                    newFileId: existingFile.fileId,
+                    concept: file.concept,
+                    oldFileName: file.fileName,
+                    newFileName: existingFile.fileName
+                })
+            })
+
+            const result = await response.json()
+            if (result.success) {
+                alert('Archivo actualizado con uno de la galería')
+                await loadStorageUsage()
+                setShowReplaceChoice(false)
+                setShowGallery(false)
+                setFileToReplace(null)
+            } else {
+                alert(result.error || 'Error al actualizar desde galería')
+            }
+        } catch (error) {
+            console.error('Error reemplazando con existente:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const confirmReplaceWithUpload = (newFile: File) => {
+        if (!fileToReplace) return
+        performReplace(fileToReplace, newFile)
+    }
+
     return {
         state: {
             storageData,
@@ -300,7 +375,10 @@ export function useStorageLogic(planProp?: PlanType) {
             storageLimitGB,
             usedGB,
             activityViewData,
-            usageViewData
+            usageViewData,
+            showReplaceChoice,
+            fileToReplace,
+            showGallery
         },
         actions: {
             loadStorageUsage,
@@ -317,7 +395,16 @@ export function useStorageLogic(planProp?: PlanType) {
             confirmDelete,
             handleEditFileName,
             handleSaveFileName,
-            handleViewFile
+            handleViewFile,
+            handleReplaceFile,
+            setShowReplaceChoice,
+            setFileToReplace,
+            setShowGallery,
+            confirmReplaceWithUpload,
+            confirmReplaceWithGalleryFile: (existing: StorageFile) => {
+                if (!fileToReplace) return
+                performReplaceWithExisting(fileToReplace, existing)
+            }
         }
     }
 }

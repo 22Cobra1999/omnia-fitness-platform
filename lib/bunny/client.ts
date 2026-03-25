@@ -106,6 +106,25 @@ export class BunnyClient {
     }
   }
 
+  async updateVideoTitle(videoId: string, title: string): Promise<boolean> {
+    try {
+      const url = `https://video.bunnycdn.com/library/${this.libraryId}/videos/${videoId}`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'AccessKey': this.streamApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      })
+
+      return response.ok
+    } catch (error) {
+      console.error(`❌ Error updateVideoTitle para ${videoId}:`, error)
+      return false
+    }
+  }
+
   async deleteVideo(videoId: string): Promise<boolean> {
     try {
       const response = await fetch(

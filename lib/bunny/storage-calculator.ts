@@ -19,9 +19,7 @@ export async function getBunnyVideoStorageSize(videoIds: string[]): Promise<numb
     }
   }
   
-  // Convertir bytes a GB (1024^3)
-  const totalGb = totalBytes / (1024 * 1024 * 1024)
-  return totalGb
+  return totalBytes
 }
 
 /**
@@ -121,9 +119,7 @@ export async function getSupabaseStorageSize(coachId: string, concept: 'image' |
       }
     }
 
-    // Convertir bytes a GB (1024^3)
-    const totalGb = totalBytes / (1024 * 1024 * 1024)
-    return totalGb
+    return totalBytes
   } catch (error) {
     console.error(`Error calculando storage de ${concept} en Supabase:`, error)
     return 0

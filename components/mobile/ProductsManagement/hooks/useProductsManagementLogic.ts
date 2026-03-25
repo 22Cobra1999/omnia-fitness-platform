@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useAuth } from '@/contexts/auth-context'
 import { API_ENDPOINTS } from '@/lib/config/api-config'
 import { toast } from "sonner"
@@ -64,6 +64,29 @@ export function useProductsManagementLogic() {
         )
     }
 
+    const hasPreselected = useRef(false)
+    const initialConditionedIds = useRef<number[]>([])
+
+    // Effect: Pre-select already conditioned products only ONCE when mode is activated
+    useEffect(() => {
+        if (isConditioningMode && products.length > 0 && !hasPreselected.current) {
+            const alreadyConditionedIds = products
+                .filter(p => (p as any).adaptive_rule_ids && (p as any).adaptive_rule_ids.length > 0)
+                .map(p => p.id)
+            
+            if (alreadyConditionedIds.length > 0) {
+                setSelectedProductsForConditioning(alreadyConditionedIds)
+                initialConditionedIds.current = alreadyConditionedIds
+            }
+            hasPreselected.current = true
+        } else if (!isConditioningMode) {
+            // Reset state when exiting mode
+            setSelectedProductsForConditioning([])
+            hasPreselected.current = false
+            initialConditionedIds.current = []
+        }
+    }, [isConditioningMode, products])
+
     const resetConditioning = () => {
         setIsConditioningMode(false)
         setSelectedProductsForConditioning([])
@@ -77,28 +100,49 @@ export function useProductsManagementLogic() {
     }
 
     const handleSaveConditioning = async (rules: any) => {
-        console.log("💾 [OMNIA_RECONSTRUCTOR] Saving rules to programs:", selectedProductsForConditioning, rules)
+        console.log("💾 [OMNIA_RECONSTRUCTOR] Auto-syncing rules:", {
+            selected: selectedProductsForConditioning,
+            unlinked: initialConditionedIds.current.filter(id => !selectedProductsForConditioning.includes(id))
+        })
         try {
-            const response = await fetch('/api/activities/apply-adaptive-config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    productIds: selectedProductsForConditioning,
-                    config: rules
-                })
-            })
+            // 1. CLEAR rules for initially conditioned products that ARE NO LONGER selected
+            const productsToUnlink = initialConditionedIds.current.filter(
+                id => !selectedProductsForConditioning.includes(id)
+            )
 
-            const result = await response.json()
-            if (result.success) {
-                toast.success('Configuración aplicada correctamente')
-                resetConditioning()
-                fetchProducts()
-            } else {
-                throw new Error(result.error || 'Error desconocido')
+            if (productsToUnlink.length > 0) {
+                await fetch('/api/activities/apply-adaptive-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        productIds: productsToUnlink,
+                        config: { adaptive_rule_ids: [] }
+                    })
+                })
             }
+
+            // 2. APPLY rules to currently selected products
+            if (selectedProductsForConditioning.length > 0) {
+                const response = await fetch('/api/activities/apply-adaptive-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        productIds: selectedProductsForConditioning,
+                        config: rules
+                    })
+                })
+
+                const result = await response.json()
+                if (!result.success) throw new Error(result.error || 'Error al aplicar configuración')
+            }
+
+            toast.success('Condicionamiento sincronizado correctamente')
+            resetConditioning()
+            fetchProducts()
+            setIsConditionalRulesPanelOpen(false)
         } catch (error: any) {
-            console.error('Error saving adaptive config:', error)
-            toast.error(error.message || 'Error al aplicar configuración')
+            console.error('Error syncing adaptive config:', error)
+            toast.error(error.message || 'Error al sincronizar configuración')
         }
     }
 

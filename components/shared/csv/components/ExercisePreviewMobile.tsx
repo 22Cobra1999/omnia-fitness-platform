@@ -37,24 +37,26 @@ export function ExercisePreviewMobile({ formState, onChange, onVideoSelect, acti
             <div className="flex-1 overflow-y-auto px-4 pt-12 pb-5 scrollbar-hide bg-black">
                 
                 {/* Header - ENHANCED VISIBILITY */}
-                <div className="flex flex-col items-center mb-5">
-                    <span className="text-[7px] font-black tracking-[0.4em] text-zinc-500 uppercase mb-1.5 opacity-80">PREVIEW VIVO</span>
+                <div className="flex flex-col items-center mb-3">
+                    <span className="text-[7px] font-black tracking-[0.4em] text-zinc-600 uppercase mb-1 opacity-80">PREVIEW VIVO</span>
                     <h1 className="w-full text-center text-white font-[1000] text-[15px] leading-tight tracking-tighter uppercase italic px-1 truncate drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
                         {formState.nombre || 'SIN NOMBRE...'}
                     </h1>
                 </div>
 
-                {/* Video - Frameless & Centered Offset */}
-                <div onClick={onVideoSelect} className="relative aspect-video mb-5 cursor-pointer group transition-all pl-1.5 mx-auto w-full">
+                {/* Video - Centered & Clean (No Frame) */}
+                <div onClick={onVideoSelect} className="relative aspect-video mb-5 cursor-pointer group transition-all mx-auto w-full overflow-hidden rounded-xl bg-zinc-950/50">
                     {formState.video_url || formState.bunny_video_id ? (
-                        <UniversalVideoPlayer 
-                            videoUrl={formState.video_url} 
-                            bunnyVideoId={formState.bunny_video_id}
-                            thumbnailUrl={formState.video_thumbnail_url}
-                            className="w-full h-full object-contain overflow-hidden rounded-lg"
-                        />
+                        <div className="w-full h-full scale-[0.85] transform-gpu">
+                            <UniversalVideoPlayer 
+                                videoUrl={formState.video_url} 
+                                bunnyVideoId={formState.bunny_video_id}
+                                thumbnailUrl={formState.video_thumbnail_url}
+                                className="w-full h-full object-cover rounded-lg"
+                            />
+                        </div>
                     ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900/30 backdrop-blur-sm text-zinc-600 transition-colors group-hover:bg-[#FF7939]/5 border border-white/10 rounded-xl">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900/40 backdrop-blur-sm text-zinc-600 transition-colors group-hover:bg-[#FF7939]/5">
                              <div className="p-3 bg-zinc-950/50 rounded-full border border-white/5 mb-2 group-hover:scale-110 transition-all">
                                 <Play className="h-5 w-5 fill-[#FF7939] text-[#FF7939] drop-shadow-[0_0_8px_rgba(255,121,57,0.4)]" />
                              </div>
@@ -63,66 +65,22 @@ export function ExercisePreviewMobile({ formState, onChange, onVideoSelect, acti
                     )}
                 </div>
 
-                {/* Metrics Pill - Image 2 style Enhanced */}
-                <div className="flex items-center justify-between bg-zinc-950/80 p-1 rounded-full border border-white/10 mb-5 shadow-2xl overflow-hidden">
-                    <div className="flex items-center gap-3 px-2">
-                         <div className="flex items-center gap-1">
-                            <Clock className="h-2.5 w-2.5 text-zinc-500" />
-                            <span className="text-[9px] font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
+                {/* Metrics Pill - Centered & Clean */}
+                <div className="flex items-center justify-center bg-zinc-950/80 p-2.5 rounded-full border border-white/10 mb-5 shadow-2xl overflow-hidden">
+                    <div className="flex items-center gap-6 px-2">
+                         <div className="flex items-center gap-1.5 transition-transform hover:scale-105">
+                            <Clock className="h-3 w-3 text-zinc-500" />
+                            <span className="text-[10px] font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
                                 {formState.duracion_min || 0} MIN
                             </span>
                          </div>
-                         <div className="flex items-center gap-1">
-                            <Flame className="h-2.5 w-2.5 text-[#FF7939]" />
-                            <span className="text-[9px] font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
+                         <div className="w-px h-3 bg-white/10" />
+                         <div className="flex items-center gap-1.5 transition-transform hover:scale-105">
+                            <Flame className="h-3 w-3 text-[#FF7939]" />
+                            <span className="text-[10px] font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
                                 ~{formState.calorias || 0}
                             </span>
                          </div>
-                         {/* Intensity Flames Indicator */}
-                         <div className="flex items-center gap-0.5 border-l border-white/5 pl-2 ml-1">
-                            {[1, 2, 3].map((idx) => {
-                                const level = (formState.nivel_intensidad || '').toLowerCase()
-                                const active = (level.includes('alto') && idx <= 3) || 
-                                               (level.includes('medio') && idx <= 2) || 
-                                               (level.includes('bajo') && idx <= 1)
-                                return (
-                                    <Flame 
-                                        key={idx} 
-                                        className={`h-2.5 w-2.5 transition-colors ${active ? 'text-[#FF7939] fill-[#FF7939]' : 'text-zinc-800'}`} 
-                                    />
-                                )
-                            })}
-                         </div>
-                    </div>
-                    
-                    <div 
-                        className="rounded-full px-3 py-1 shadow-[inset_0_0_10px_rgba(255,121,57,0.1)] mr-0.5"
-                        style={{ 
-                            backgroundColor: `${
-                                (formState.tipo_ejercicio || 'FUERZA') === 'CARDIO' ? '#ef444420' : 
-                                (formState.tipo_ejercicio || 'FUERZA') === 'HIIT' ? '#eab30820' : 
-                                (formState.tipo_ejercicio || 'FUERZA') === 'ESTIRAM' ? '#22c55e20' : '#FF793920'
-                            }`,
-                            borderColor: `${
-                                (formState.tipo_ejercicio || 'FUERZA') === 'CARDIO' ? '#ef444440' : 
-                                (formState.tipo_ejercicio || 'FUERZA') === 'HIIT' ? '#eab30840' : 
-                                (formState.tipo_ejercicio || 'FUERZA') === 'ESTIRAM' ? '#22c55e40' : '#FF793940'
-                            }`,
-                            borderWidth: '1px'
-                        }}
-                    >
-                         <span 
-                            className="text-[8px] font-black italic uppercase tracking-wider block leading-none"
-                            style={{ 
-                                color: `${
-                                    (formState.tipo_ejercicio || 'FUERZA') === 'CARDIO' ? '#ef4444' : 
-                                    (formState.tipo_ejercicio || 'FUERZA') === 'HIIT' ? '#eab308' : 
-                                    (formState.tipo_ejercicio || 'FUERZA') === 'ESTIRAM' ? '#22c55e' : '#FF7939'
-                                }` 
-                            }}
-                         >
-                            {formState.tipo_ejercicio || 'FUERZA'}
-                         </span>
                     </div>
                 </div>
 

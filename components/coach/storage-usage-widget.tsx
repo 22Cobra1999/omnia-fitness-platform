@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { RefreshCw } from 'lucide-react'
 import { useStorageLogic, PlanType } from './hooks/storage/useStorageLogic'
@@ -11,6 +12,8 @@ import { StorageFileList } from './storage/StorageFileList'
 import { StorageActivityList } from './storage/StorageActivityList'
 import { FilePreviewModal } from './storage/FilePreviewModal'
 import { DeleteWarningModal } from './storage/DeleteWarningModal'
+import { ReplaceChoiceModal } from './storage/ReplaceChoiceModal'
+import { StorageGalleryModal } from './storage/StorageGalleryModal'
 
 interface StorageUsageWidgetProps {
   plan?: PlanType
@@ -18,6 +21,7 @@ interface StorageUsageWidgetProps {
 
 export function StorageUsageWidget({ plan }: StorageUsageWidgetProps = {}) {
   const { state, actions } = useStorageLogic(plan)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   return (
     <div className="bg-black p-4 text-white">
@@ -82,6 +86,7 @@ export function StorageUsageWidget({ plan }: StorageUsageWidgetProps = {}) {
                       setNewFileName={actions.setNewFileName}
                       onViewFile={actions.handleViewFile}
                       onDeleteFile={actions.handleDeleteFile}
+                      onReplaceFile={actions.handleReplaceFile}
                     />
                   )}
                 </AnimatePresence>
@@ -104,6 +109,41 @@ export function StorageUsageWidget({ plan }: StorageUsageWidgetProps = {}) {
               onConfirm={actions.confirmDelete}
             />
           </AnimatePresence>
+          <AnimatePresence>
+            <ReplaceChoiceModal
+              show={state.showReplaceChoice}
+              file={state.fileToReplace}
+              onClose={() => { actions.setShowReplaceChoice(false); actions.setFileToReplace(null); }}
+              onSelectSource={(source) => {
+                if (source === 'upload') {
+                  fileInputRef.current?.click()
+                } else {
+                  actions.setShowGallery(true)
+                }
+              }}
+            />
+          </AnimatePresence>
+
+          <AnimatePresence>
+            <StorageGalleryModal
+              show={state.showGallery}
+              concept={state.fileToReplace?.concept || 'image'}
+              files={state.storageFiles}
+              onClose={() => actions.setShowGallery(false)}
+              onSelect={actions.confirmReplaceWithGalleryFile}
+            />
+          </AnimatePresence>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept={state.fileToReplace?.concept === 'video' ? 'video/*' : state.fileToReplace?.concept === 'image' ? 'image/*' : 'application/pdf'}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) actions.confirmReplaceWithUpload(file)
+            }}
+          />
         </motion.div>
       ) : null}
     </div>

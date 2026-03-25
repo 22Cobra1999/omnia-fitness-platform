@@ -197,36 +197,43 @@ export function useCsvDataFetching({
                                 'Video': item.video_url || item.video || ''
                             }
                         })
-                        : items.map((item: any) => ({
-                            ...item,
-                            'Nombre': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
-                            'Nombre de la Actividad': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
-                            tipo: item.tipo || '',
-                            'Receta': item.receta || item.descripcion || '',
-                            'Calorías': item.calorias ?? item.calorías ?? '-',
-                            'Proteínas (g)': item.proteinas ?? item.proteínas ?? '-',
-                            'Carbohidratos (g)': item.carbohidratos ?? '-',
-                            'Grasas (g)': item.grasas ?? '-',
-                            'Ingredientes': item.ingredientes ?? '',
-                            'Porciones': item.porciones ?? '',
-                            'Minutos': item.minutos || '-',
-                            'Descripción': item.descripcion || item.receta || '-',
-                            'Duración (min)': item.duracion_min || item.duración || '-',
-                            'Tipo de Ejercicio': item.tipo || '-',
-                            'Equipo Necesario': item.equipo || '-',
-                            'Detalle de Series (peso-repeticiones-series)': item.detalle_series || '',
-                            'Partes del Cuerpo': item.body_parts || '',
-                            'Nivel de Intensidad': item.intensidad || '',
-                            isExisting: true,
-                            is_active: item.is_active !== false,
-                            activo: item.is_active !== false,
-                            activity_id_new: item.activity_id_new || item.activity_id || null,
-                            activity_id: item.activity_id || null,
-                            video_url: item.video_url || item.video || '',
-                            video_file_name: item.video_file_name || null,
-                            bunny_video_id: item.bunny_video_id || item.bunnyVideoId || null,
-                            bunny_library_id: item.bunny_library_id || item.bunnyLibraryId || null
-                        }))
+                        : items.map((item: any) => {
+                            const calorias = item.calorias ?? item.calorías ?? item.Calorías ?? '-'
+                            const duracion = item.duracion_min ?? (item.duración || item['Duración (min)'] || '-')
+                            
+                            return {
+                                ...item,
+                                'Nombre': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+                                'Nombre de la Actividad': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+                                tipo: item.tipo || '',
+                                'Receta': item.receta || item.descripcion || '',
+                                'Calorías': calorias,
+                                calorias: calorias === '-' ? null : calorias,
+                                'Proteínas (g)': item.proteinas ?? item.proteínas ?? '-',
+                                'Carbohidratos (g)': item.carbohidratos ?? '-',
+                                'Grasas (g)': item.grasas ?? '-',
+                                'Ingredientes': item.ingredientes ?? '',
+                                'Porciones': item.porciones ?? '',
+                                'Minutos': item.minutos || '-',
+                                'Descripción': item.descripcion || item.receta || '-',
+                                'Duración (min)': duracion,
+                                duracion_min: duracion === '-' ? null : duracion,
+                                'Tipo de Ejercicio': item.tipo || '-',
+                                'Equipo Necesario': item.equipo || '-',
+                                'Detalle de Series (peso-repeticiones-series)': item.detalle_series || '',
+                                'Partes del Cuerpo': item.body_parts || '',
+                                'Nivel de Intensidad': item.intensidad || '',
+                                isExisting: true,
+                                is_active: item.is_active !== false && item.activo !== false,
+                                activo: item.is_active !== false && item.activo !== false,
+                                activity_id_new: item.activity_id_new || item.activity_id || null,
+                                activity_id: item.activity_id || null,
+                                video_url: item.video_url || item.video || '',
+                                video_file_name: item.video_file_name || null,
+                                bunny_video_id: item.bunny_video_id || item.bunnyVideoId || null,
+                                bunny_library_id: item.bunny_library_id || item.bunnyLibraryId || null
+                            }
+                        })
 
                     setExistingData(transformed)
                     setCsvData(transformed)
@@ -395,17 +402,22 @@ export function useCsvDataFetching({
                         }
                     } else {
                         const normalizedType = normalizeExerciseType(item.tipo || item['Tipo de Ejercicio'] || '', allowedExerciseTypes)
+                        const calorias = item.calorias ?? item['Calorías'] ?? item.calorías ?? ''
+                        const duracion = item.duracion_min ?? item['Duración (min)'] ?? ''
+                        
                         return {
                             ...item,
                             'Nombre de la Actividad': item.nombre_ejercicio || item['Nombre de la Actividad'] || item.nombre || '',
                             'Descripción': item.descripcion || item['Descripción'] || '',
-                            'Duración (min)': item.duracion_min || item['Duración (min)'] || '',
+                            'Duración (min)': duracion,
+                            duracion_min: duracion,
                             'Tipo de Ejercicio': normalizedType,
                             'Nivel de Intensidad': item.intensidad || item['Nivel de Intensidad'] || '',
                             'Equipo Necesario': item.equipo || item['Equipo Necesario'] || '',
                             'Detalle de Series (peso-repeticiones-series)': item.detalle_series || item['Detalle de Series (peso-repeticiones-series)'] || '',
                             'Partes del Cuerpo': item.body_parts || item['Partes del Cuerpo'] || '',
-                            'Calorías': item.calorias || item['Calorías'] || '',
+                            'Calorías': calorias,
+                            calorias: calorias,
                             isExisting: true,
                             is_active: item.is_active !== false,
                             activo: item.is_active !== false,

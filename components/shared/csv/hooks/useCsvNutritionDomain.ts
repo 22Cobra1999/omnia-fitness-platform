@@ -57,7 +57,7 @@ export function useCsvNutritionDomain({
             minutos: exercise['Minutos'] || exercise.minutos || '',
             ingredientes: exercise['Ingredientes'] || exercise.ingredientes || '',
             dificultad: exercise['Dificultad'] || exercise.dificultad || 'Principiante',
-            calorias: exercise.Calorías || exercise.calorias || '',
+            calorias: exercise.calorias ?? exercise.Calorías ?? exercise.calorías ?? '',
             tipo: exercise.tipo || exercise.Comida || '',
             video_url: exercise.video_url || '',
             video_file_name: exercise.video_file_name || '',
@@ -116,6 +116,7 @@ export function useCsvNutritionDomain({
             tipo: manualForm.tipo || 'Desayuno',
             'Receta': manualForm.receta || manualForm.descripcion,
             'Calorías': manualForm.calorias,
+            calorias: manualForm.calorias, // Canonical key
             'Proteínas (g)': manualForm.proteinas,
             'Carbohidratos (g)': manualForm.carbohidratos,
             'Grasas (g)': manualForm.grasas,

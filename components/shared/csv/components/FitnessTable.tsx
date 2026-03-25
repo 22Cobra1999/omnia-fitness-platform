@@ -138,9 +138,9 @@ export function FitnessTable({
                                 <Flame className={`h-4 w-4 transition-colors ${isAllSelected ? 'text-[#FF7939]' : 'text-white'}`} />
                             </button>
                         </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-16">Acciones</th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-12">Acc</th>
                         {activityId === 0 && (
-                            <ThLink column="isExisting" label="Estado" className="w-24" />
+                            <ThLink column="isExisting" label="Estado" className="w-24 pr-4" />
                         )}
                         <ThLink column="nombre" label="Ejercicio" className="w-56" />
                         <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-64 uppercase tracking-widest">Descripción</th>
@@ -335,10 +335,13 @@ export function FitnessTable({
                                         })()}
                                     </td>
                                     <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasBodyPartsIssue ? 'text-red-400' : 'text-white'}`}>
-                                        {(item['Partes del Cuerpo'] || item.body_parts || '').toString().split(/;|,/).filter(Boolean).map((p: string) => p.trim()).join('\n') || '-'}
+                                        {(item.body_parts || item['Partes del Cuerpo'] || '').toString().split(/;|,/).filter(Boolean).map((p: string) => p.trim()).join('\n') || '-'}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
-                                        {(item.Calorías || item.calorias) && Number(item.Calorías || item.calorias) > 0 ? (item.Calorías || item.calorias) : '-'}
+                                        {(() => {
+                                            const val = item.calorias ?? item['Calorías']
+                                            return (val !== undefined && val !== null && val !== '' && Number(val) >= 0) ? (Number(val) > 0 ? val : '0') : '-'
+                                        })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${hasIntensityIssue ? 'bg-red-500/10 text-red-400 border border-red-500/30' :

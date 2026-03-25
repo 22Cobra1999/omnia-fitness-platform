@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import { bunnyClient } from '@/lib/bunny'
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,9 +41,12 @@ export async function POST(request: NextRequest) {
 
     // Determinar el origen del archivo según el fileId y concept
     if (concept === 'video') {
+      // 1. Actualizar título en Bunny
+      await bunnyClient.updateVideoTitle(fileId, trimmedFileName)
+
       let updatedCount = 0
 
-      // 1. Actualizar en ejercicios_detalles
+      // 2. Actualizar en ejercicios_detalles
       const { error: ejError, count: ejUpdated } = await supabase
         .from('ejercicios_detalles')
         .update({ video_file_name: trimmedFileName })

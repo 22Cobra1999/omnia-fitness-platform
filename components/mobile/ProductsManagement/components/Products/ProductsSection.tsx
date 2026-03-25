@@ -64,33 +64,40 @@ const ProductCard = memo(({
     }
 
     return (
-        <div className={`flex-shrink-0 w-40 md:w-52 relative transition-all ${isConditioningMode && !isProgram ? 'opacity-20 grayscale' : ''} ${product.borrada ? 'opacity-60' : ''}`}>
-            <ActivityCard
-                activity={convertProductToActivity(product)}
-                size="small"
-                onClick={handleClick}
-            />
+        <div className={`flex flex-col flex-shrink-0 w-48 md:w-56 transition-all ${isConditioningMode && !isProgram ? 'opacity-20 grayscale' : ''} ${product.borrada ? 'opacity-60' : ''}`}>
+            {/* Top Icon Row for Conditioning */}
+            <div className="h-8 flex items-center justify-center w-full transition-all">
+                {isConditioningMode && isProgram && !product.borrada && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onToggleConditioning(product.id); }}
+                        className="transition-all transform hover:scale-110 active:scale-95"
+                    >
+                        {isSelected ? (
+                            <div className="bg-[#FF7939] rounded-full p-2 border-2 border-white shadow-xl flex items-center justify-center animate-in zoom-in duration-200">
+                                <Zap className="w-3.5 h-3.5 text-black fill-black" />
+                            </div>
+                        ) : (
+                            <div className="w-7 h-7 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center transition-all hover:border-[#FF7939]/30 hover:bg-[#FF7939]/10">
+                                <Zap className="w-3 h-3 text-white/10" />
+                            </div>
+                        )}
+                    </button>
+                )}
+            </div>
 
-            {product.borrada && (
-                <div className="absolute top-2 left-2 z-10 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-full p-1.5 shadow-lg">
-                    <Trash2 className="w-3 h-3 text-red-500" />
-                </div>
-            )}
+            <div className="relative">
+                <ActivityCard
+                    activity={convertProductToActivity(product)}
+                    size="small"
+                    onClick={handleClick}
+                />
 
-            {isConditioningMode && isProgram && !product.borrada && (
-                <div
-                    className="absolute top-2 right-2 z-10"
-                    onClick={(e) => { e.stopPropagation(); onToggleConditioning(product.id); }}
-                >
-                    {isSelected ? (
-                        <div className="bg-[#FF7939] rounded-full p-1 border-2 border-white shadow-lg">
-                            <Check className="w-3 h-3 text-black font-black" />
-                        </div>
-                    ) : (
-                        <div className="w-6 h-6 rounded-full border-2 border-white/40 bg-black/40 backdrop-blur-sm" />
-                    )}
-                </div>
-            )}
+                {product.borrada && (
+                    <div className="absolute top-2 left-2 z-10 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-full p-1.5 shadow-lg">
+                        <Trash2 className="w-3 h-3 text-red-500" />
+                    </div>
+                )}
+            </div>
         </div>
     )
 })
@@ -125,31 +132,31 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
     userId
 }) => {
     return (
-        <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
+        <div className="bg-transparent overflow-hidden">
             {/* Header de tabla con filtros */}
-            <div className="p-4 border-b border-[#1A1A1A]">
+            <div className="p-0 border-b border-transparent pb-4">
                 <div className="flex flex-col space-y-3">
-                    <div className="flex items-center justify-between relative">
+                    <div className="grid grid-cols-3 items-center relative gap-2">
                         {/* Dropdown de categoría a la izquierda */}
-                        <div className="relative">
+                        <div className="flex justify-start">
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-                                className="border-[#1A1A1A] text-gray-400 hover:text-white rounded-full px-3 py-1 text-xs"
+                                className="border-[#1A1A1A] text-gray-400 hover:text-white rounded-full px-3 py-1 text-[10px] h-7"
                             >
                                 {typeFilter === 'todos' ? 'Todos' : typeFilter}
                                 <ChevronDown className="h-3 w-3 ml-1" />
                             </Button>
 
                             {showTypeDropdown && (
-                                <div className="absolute left-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-10 min-w-[150px]">
+                                <div className="absolute left-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-50 min-w-[120px]">
                                     <div className="p-2">
                                         {['todos', 'fitness', 'nutrition', 'program'].map((filter) => (
                                             <button
                                                 key={filter}
                                                 onClick={() => { setTypeFilter(filter); setShowTypeDropdown(false); }}
-                                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm capitalize"
+                                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-xs capitalize"
                                             >
                                                 {filter}
                                             </button>
@@ -160,7 +167,7 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                         </div>
 
                         {/* Icono de Café centrado */}
-                        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-6">
+                        <div className="flex items-center justify-center gap-4">
                             {/* BOTÓN CONDICIONAR */}
                             <div className="flex flex-col items-center">
                                 <button
@@ -168,22 +175,22 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                                         setIsConditioningMode(!isConditioningMode)
                                         if (isConditioningMode) resetConditioning()
                                     }}
-                                    className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-2 ${isConditioningMode ? 'bg-[#FF7939] border-[#FF7939]' : 'bg-transparent border-[#4B5563] hover:bg-white/5'}`}
+                                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 border-2 ${isConditioningMode ? 'bg-[#FF7939] border-[#FF7939]' : 'bg-transparent border-[#4B5563] hover:bg-white/5'}`}
                                 >
-                                    <Zap className={`w-5 h-5 ${isConditioningMode ? 'text-black' : 'text-[#9CA3AF]'}`} />
+                                    <Zap className={`w-4 h-4 ${isConditioningMode ? 'text-black' : 'text-[#9CA3AF]'}`} />
                                     {isConditioningMode && selectedProductsForConditioning.length > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-white text-[#FF7939] text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-[#FF7939]">
+                                        <span className="absolute -top-1 -right-1 bg-white text-[#FF7939] text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center border-2 border-[#FF7939]">
                                             {selectedProductsForConditioning.length}
                                         </span>
                                     )}
                                 </button>
-                                <span className={`text-[7px] font-black uppercase tracking-widest mt-1 ${isConditioningMode ? 'text-[#FF7939]' : 'text-white/20'}`}>Condicionar</span>
+                                <span className={`text-[6px] font-black uppercase tracking-widest mt-1 ${isConditioningMode ? 'text-[#FF7939]' : 'text-white/10'}`}>Condicionar</span>
                             </div>
 
                             <div className="flex flex-col items-center">
                                 <button
                                     onClick={() => setIsCafeModalOpen((prev: boolean) => !prev)}
-                                    className="relative w-10 h-10 rounded-full flex items-center justify-center bg-transparent border-2 border-[#4B5563] transition-all duration-200 hover:bg-[#0A0A0A]/50"
+                                    className="relative w-8 h-8 rounded-full flex items-center justify-center bg-transparent border-2 border-[#4B5563] transition-all duration-200 hover:bg-[#0A0A0A]/50"
                                     style={{
                                         borderColor:
                                             consultations.express.active ||
@@ -194,7 +201,7 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                                     }}
                                 >
                                     <Coffee
-                                        className="h-5 w-5 transition-colors duration-200"
+                                        className="h-4 w-4 transition-colors duration-200"
                                         style={{
                                             color:
                                                 consultations.express.active ||
@@ -207,58 +214,50 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                                     {(consultationSales.express.length +
                                         consultationSales.puntual.length +
                                         consultationSales.profunda.length) > 0 && (
-                                            <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                            <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                                                 {consultationSales.express.length +
                                                     consultationSales.puntual.length +
                                                     consultationSales.profunda.length}
                                             </span>
                                         )}
                                 </button>
-                                <span className={`text-[7px] font-black uppercase tracking-widest mt-1 ${isCafeModalOpen ? 'text-[#FF7939]' : 'text-white/20'}`}>Meets</span>
+                                <span className={`text-[6px] font-black uppercase tracking-widest mt-1 ${isCafeModalOpen ? 'text-[#FF7939]' : 'text-white/10'}`}>Meets</span>
                             </div>
                         </div>
 
                         {/* Botón Crear a la derecha */}
-                        <div className="ml-auto">
+                        <div className="flex justify-end">
                             {(() => {
-                                console.log('🔘 [ProductsSection] Rendering button with status:', { 
-                                    needsProfile: onboarding?.needsProfile, 
-                                    needsMP: onboarding?.needsMP,
-                                    userId: userId
-                                });
-
                                 if (isConditioningMode) {
                                   return (
                                     <Button
-                                        className="bg-white hover:bg-white/90 text-black px-4 py-1 rounded-lg font-black text-xs shadow-md uppercase tracking-wider"
+                                        className="bg-white hover:bg-white/90 text-black px-4 py-1 rounded-lg font-black text-[10px] h-7 shadow-md uppercase tracking-wider"
                                         onClick={handleApplyConditioning}
                                         disabled={selectedProductsForConditioning.length === 0}
                                     >
-                                        Aplicar {selectedProductsForConditioning.length}
+                                        Ok {selectedProductsForConditioning.length}
                                     </Button>
                                   );
                                 }
 
                                 if (onboarding?.needsMP) {
-                                  console.log('🔘 [ProductsSection] Showing Mercado Pago Button');
                                   return (
-                                    <div className="flex flex-col items-center gap-1">
+                                    <div className="flex flex-col items-center gap-0.5">
                                         <Button
-                                            className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-md flex items-center gap-1 uppercase tracking-tight"
+                                            className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2 py-0.5 rounded-lg font-bold text-[9px] h-7 shadow-md flex items-center gap-1 uppercase tracking-tight"
                                             onClick={() => window.dispatchEvent(new CustomEvent('openMPOnboarding'))}
                                         >
                                             <Handshake className="h-3 w-3" />
-                                            Mercado Pago
+                                            MP
                                         </Button>
-                                        <span className="text-[8px] text-[#00B1EA] font-black uppercase tracking-widest whitespace-nowrap">Para crear producto</span>
+                                        <span className="text-[6px] text-[#00B1EA] font-black uppercase tracking-widest whitespace-nowrap">Conectar</span>
                                     </div>
                                   );
                                 }
 
-                                console.log('🔘 [ProductsSection] Showing CREATE Button');
                                 return (
                                     <Button
-                                        className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md"
+                                        className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] h-7 shadow-md"
                                         onClick={onOpenCreateModal}
                                     >
                                         <Plus className="h-3 w-3 mr-1" />
@@ -322,8 +321,8 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                     <div className="text-center text-gray-400 text-sm">No hay productos creados aún</div>
                 ) : (
                     <div>
-                        <div className="overflow-x-auto pb-6 scrollbar-hide">
-                            <div className="flex gap-1 px-2" style={{ minWidth: 'min-content' }}>
+                        <div className="overflow-x-auto pb-6 -mx-4 px-4 scrollbar-hide">
+                            <div className="flex gap-2 px-2" style={{ minWidth: 'min-content' }}>
                                 {/* Active products first */}
                                 {products
                                     .filter(p => !p.borrada)

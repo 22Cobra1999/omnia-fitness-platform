@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Film, Image as ImageIcon, FileText, FileCheck, X, Eye, Edit, Trash2 } from 'lucide-react'
+import { Film, Image as ImageIcon, FileText, FileCheck, X, Eye, Edit, Trash2, RefreshCw } from 'lucide-react'
 import { StorageFile } from '../hooks/storage/useStorageLogic'
 
 interface StorageFileListProps {
@@ -13,6 +13,7 @@ interface StorageFileListProps {
     setNewFileName: (name: string) => void
     onViewFile: (file: StorageFile) => void
     onDeleteFile: (file: StorageFile) => void
+    onReplaceFile?: (file: StorageFile) => void
 }
 
 export function StorageFileList({
@@ -25,7 +26,8 @@ export function StorageFileList({
     onCancelEdit,
     setNewFileName,
     onViewFile,
-    onDeleteFile
+    onDeleteFile,
+    onReplaceFile
 }: StorageFileListProps) {
 
     const formatMB = (gb: number) => {
@@ -63,7 +65,7 @@ export function StorageFileList({
                                 ) : (
                                     <>
                                         <div className="bg-white/5 px-2 py-0.5 rounded-lg inline-block max-w-full">
-                                            <span className="text-white/90 text-[11px] font-medium block truncate hover:text-[#FF7939] cursor-pointer transition-colors" onClick={() => (file.concept === 'video' || file.concept === 'image') && onViewFile(file)}>{file.fileName}</span>
+                                            <span className="text-white/90 text-[11px] font-medium block truncate hover:text-[#FF7939] cursor-pointer transition-colors" onClick={() => (file.concept === 'video' || file.concept === 'image' || file.concept === 'pdf') && onViewFile(file)}>{file.fileName}</span>
                                         </div>
                                         <div className="flex gap-1.5 mt-1.5 overflow-x-auto hide-scrollbar">
                                             {file.activities.map((act, i) => (
@@ -76,11 +78,20 @@ export function StorageFileList({
                         </div>
 
                         <div className="flex items-center gap-3 ml-3">
-                            <span className="text-[#FF7939]/70 text-[10px] font-bold uppercase tracking-tighter bg-[#FF7939]/5 px-1.5 py-0.5 rounded-md">{formatMB(file.sizeGB).split(' ')[0]}mb</span>
+                            <span className="text-[#FF7939]/70 text-[10px] font-bold uppercase tracking-tighter bg-[#FF7939]/5 px-1.5 py-0.5 rounded-md">{formatMB(file.sizeGB || 0)}</span>
                             <div className="flex gap-2">
                                 <button onClick={() => onViewFile(file)} className="text-[#FF7939]/60 hover:text-[#FF7939] transition-colors bg-[#FF7939]/10 p-1.5 rounded-lg border border-[#FF7939]/20">
                                     <Eye className="w-3.5 h-3.5" />
                                 </button>
+                                
+                                <button
+                                    onClick={() => onReplaceFile && onReplaceFile(file)}
+                                    title="Reemplazar archivo"
+                                    className="text-[#FF7939]/60 hover:text-[#FF7939] transition-colors bg-[#FF7939]/10 p-1.5 rounded-lg border border-[#FF7939]/20"
+                                >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+
                                 <button onClick={() => onEditFileName(file)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-1.5 rounded-lg border border-white/10">
                                     <Edit className="w-3.5 h-3.5" />
                                 </button>

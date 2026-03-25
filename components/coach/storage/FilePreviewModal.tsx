@@ -20,7 +20,7 @@ export function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-full max-w-3xl bg-[#050505] rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col"
+                className={`relative w-full ${file.concept === 'image' ? 'max-w-md' : 'max-w-4xl'} bg-[#050505] rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col`}
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-10">
@@ -33,20 +33,28 @@ export function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
                     </button>
                 </div>
 
-                <div className="w-full aspect-video bg-black flex items-center justify-center relative">
+                <div className="w-full h-full min-h-[50vh] max-h-[85vh] overflow-y-auto bg-black flex items-center justify-center relative pt-14">
                     {file.concept === 'video' ? (
-                        <UniversalVideoPlayer
-                            libraryId={file.libraryId}
-                            videoUrl={file.url}
-                            bunnyVideoId={file.fileId}
-                            controls={true}
-                            autoPlay={true}
-                            className="w-full h-full"
+                        <div className="w-full aspect-video">
+                            <UniversalVideoPlayer
+                                libraryId={file.libraryId}
+                                videoUrl={file.url}
+                                bunnyVideoId={file.fileId}
+                                controls={true}
+                                autoPlay={true}
+                                className="w-full h-full"
+                            />
+                        </div>
+                    ) : file.concept === 'pdf' ? (
+                        <iframe
+                            src={file.url}
+                            className="w-full h-[70vh] border-none"
+                            title={file.fileName}
                         />
                     ) : (
                         <img
                             src={file.url || `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-media/coaches/${user?.id}/images/${file.fileName}`}
-                            className="w-full h-full object-contain"
+                            className="w-full h-auto object-contain"
                         />
                     )}
                 </div>

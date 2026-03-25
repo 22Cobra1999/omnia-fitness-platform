@@ -67,12 +67,7 @@ export function FitnessManualFormFields({ formState, onChange, activeSection, on
 
                 {activeSection === 'variables' && (
                     <div className="space-y-3 animate-in fade-in duration-300">
-                        <div className="flex items-center justify-between p-2.5 bg-white/[0.03] rounded-xl border border-white/10 shadow-2xl group transition-all hover:bg-white/[0.05]">
-                             <div className="flex items-center gap-2">
-                                 <div className="w-1 h-3 bg-[#FF7939] rounded-full group-hover:scale-y-125 transition-transform" />
-                                 <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest italic group-hover:text-white transition-colors">Variables de Series</span>
-                             </div>
-                             <div className="flex gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 pb-2">
                                 <button
                                     onClick={() => setShowWeight(!showWeight)}
                                     className={`p-1 rounded-lg border transition-all ${showWeight ? 'bg-[#FF7939]/20 border-[#FF7939]/50 text-[#FF7939] shadow-lg shadow-[#FF7939]/20' : 'bg-transparent border-white/10 text-zinc-600 hover:text-blue-400'}`}
@@ -85,7 +80,6 @@ export function FitnessManualFormFields({ formState, onChange, activeSection, on
                                 >
                                     <Timer className={`h-2.5 w-2.5 ${showSeconds ? 'scale-110 drop-shadow-[0_0_5px_rgba(96,165,250,0.3)]' : 'scale-100 grayscale'}`} />
                                 </button>
-                             </div>
                         </div>
 
                         <div className="grid grid-cols-4 gap-2">
@@ -136,7 +130,7 @@ export function FitnessManualFormFields({ formState, onChange, activeSection, on
                                 const currentSeries = (formState.detalle_series || '').split(';').filter(Boolean)
                                 onChange('detalle_series', [...currentSeries, newSerie].join(';'))
                             }}
-                            className="w-full bg-[#FF7939] hover:bg-[#FF6B35] text-white font-black uppercase text-[9px] tracking-tighter h-8 rounded-lg shadow-lg transition-all active:scale-95 italic flex items-center justify-center gap-2 group"
+                            className="w-full bg-[#FF7939] hover:bg-[#FF6B35] text-white font-black uppercase text-[8px] tracking-tighter h-7 rounded-lg shadow-lg transition-all active:scale-95 italic flex items-center justify-center gap-2 group"
                         >
                             <Plus className="h-3 w-3 group-hover:rotate-90 transition-transform" />
                             Agregar Serie

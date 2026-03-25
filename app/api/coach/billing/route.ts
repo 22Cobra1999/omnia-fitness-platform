@@ -72,7 +72,11 @@ export async function GET(request: NextRequest) {
     let endDate: string;
     let periodLabel: string;
 
-    if (days && Number.isFinite(days) && days > 0) {
+    if (daysParam === 'all') {
+      startDate = new Date(2000, 0, 1).toISOString();
+      endDate = now.toISOString();
+      periodLabel = 'all-time';
+    } else if (days && Number.isFinite(days) && days > 0) {
       const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
       startDate = start.toISOString();
       endDate = now.toISOString();
@@ -226,6 +230,7 @@ export async function GET(request: NextRequest) {
       workshops: 0,
       documents: 0,
       consultations: 0,
+      others: 0,
     };
 
     const invoices = (payments || []).map((payment: any) => {
@@ -236,20 +241,30 @@ export async function GET(request: NextRequest) {
       totalIncome += amount;
       totalCommission += commission;
 
-      const activity = payment.activity_enrollments?.activities;
+      let activity = (payment as any).activity_enrollments?.activities;
+      // Handle case where activity_enrollments might be an array
+      if (Array.isArray((payment as any).activity_enrollments)) {
+        activity = (payment as any).activity_enrollments[0]?.activities;
+      }
+
       const activityType = String(activity?.type || '').toLowerCase();
       const activityCategory = String(activity?.categoria || '').toLowerCase();
       const activityTitle = String(activity?.title || '').toLowerCase();
-      // Priorizar el type (program/workshop/document/consultation) y usar categoria/título solo como fallback.
-      const normalized = activityType || activityCategory || activityTitle;
+      
+      const normalized = `${activityType} ${activityCategory} ${activityTitle}`;
+      
+      console.log(`[Billing] Processing payment ${payment.id}: normalized='${normalized}', amount=${sellerAmount}`);
+
       if (normalized.includes('program')) {
         salesBreakdown.programs += sellerAmount;
       } else if (normalized.includes('workshop') || normalized.includes('taller')) {
         salesBreakdown.workshops += sellerAmount;
       } else if (normalized.includes('document') || normalized.includes('doc')) {
         salesBreakdown.documents += sellerAmount;
-      } else if (normalized.includes('consult') || normalized.includes('cafe') || normalized.includes('coffee')) {
+      } else if (normalized.includes('consult') || normalized.includes('cafe') || normalized.includes('meet') || normalized.includes('asesoria')) {
         salesBreakdown.consultations += sellerAmount;
+      } else {
+        salesBreakdown.others += sellerAmount;
       }
 
       return {

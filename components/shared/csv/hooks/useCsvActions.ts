@@ -241,8 +241,24 @@ export function useCsvActions(props: UseCsvActionsProps) {
         // Si estamos en modo librería, intentamos guardar automáticamente
         if (props.activityId === 0) {
             console.log("🧬 [useCsvActions] Library Mode detected. Auto-persisting changes to DB...")
-            // Importante: No esperar al estado de React. Enviamos los datos actuales + el nuevo item.
-            const latestData = [newItem, ...props.csvData]
+            
+            // Importante: No esperar al estado de React. Calculamos el array actualizado.
+            let latestData: any[] = []
+            const isEdit = !!(newItem.id || (newItem as any).tempRowId) && 
+                           props.csvData.some(r => 
+                               (newItem.id && r.id === newItem.id) || 
+                               (newItem.tempRowId && r.tempRowId === newItem.tempRowId)
+                           );
+
+            if (isEdit) {
+                latestData = props.csvData.map(r => 
+                    ((newItem.id && r.id === newItem.id) || 
+                     (newItem.tempRowId && r.tempRowId === newItem.tempRowId)) ? newItem : r
+                )
+            } else {
+                latestData = [newItem, ...props.csvData]
+            }
+
             console.log("📊 [useCsvActions] Syncing latest data array (length:", latestData.length, ")")
             
             // Disparamos el proceso con el override de datos frescos

@@ -84,9 +84,9 @@ export function NutritionTable({
                                 <Flame className={`h-4 w-4 transition-colors ${isAllSelected ? 'text-[#FF7939]' : 'text-white'}`} />
                             </button>
                         </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-16">Acciones</th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-12">Acc</th>
                         {activityId === 0 && (
-                            <ThLink column="isExisting" label="Estado" className="w-12" />
+                            <ThLink column="isExisting" label="Estado" className="w-20 pr-4" />
                         )}
                         <ThLink column="nombre" label="Plato" className="w-48" />
                         <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-64 uppercase tracking-widest">Receta</th>
@@ -231,26 +231,26 @@ export function NutritionTable({
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
-                                            const val = item['Calorías'] ?? item.calorias
-                                            return (val !== undefined && val !== null && Number(val) > 0) ? val : '-'
+                                            const val = (item as any).calorias ?? item['Calorías'] ?? item.calorías
+                                            return (val !== undefined && val !== null && val !== '' && Number(val) >= 0) ? (Number(val) > 0 ? val : '0') : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
-                                            const val = item['Proteínas (g)'] ?? item['Proteínas'] ?? item.proteinas
-                                            return (val !== undefined && val !== null && Number(val) > 0) ? `${val}g` : '-'
+                                            const val = (item as any).proteinas ?? item['Proteínas (g)'] ?? item['Proteínas']
+                                            return (val !== undefined && val !== null && val !== '' && Number(val) >= 0) ? `${val}g` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
-                                            const val = item['Carbohidratos (g)'] ?? item['Carbohidratos'] ?? item.carbohidratos
-                                            return (val !== undefined && val !== null && Number(val) > 0) ? `${val}g` : '-'
+                                            const val = (item as any).carbohidratos ?? item['Carbohidratos (g)'] ?? item['Carbohidratos']
+                                            return (val !== undefined && val !== null && val !== '' && Number(val) >= 0) ? `${val}g` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         {(() => {
-                                            const val = item['Grasas (g)'] ?? item['Grasas'] ?? item.grasas
-                                            return (val !== undefined && val !== null && Number(val) > 0) ? `${val}g` : '-'
+                                            const val = (item as any).grasas ?? item['Grasas (g)'] ?? item['Grasas']
+                                            return (val !== undefined && val !== null && val !== '' && Number(val) >= 0) ? `${val}g` : '-'
                                         })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">

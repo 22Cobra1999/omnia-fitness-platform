@@ -29,8 +29,8 @@ const NORMALIZE_NUMBER = (value: string | number | null | undefined) => {
   if (value === null || value === undefined || value === '') return null
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
 
-  // Clean string from units (kcal, min, etc)
-  const cleaned = value.toString().replace(/[a-zA-Z\s]/g, '').replace(',', '.')
+  // Keep only digits, dots, commas, and hyphens
+  const cleaned = value.toString().replace(/[^0-9.,-]/g, '').replace(',', '.')
   const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : null
 }
@@ -131,6 +131,13 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    console.log(`📦 [API/Bulk] Payload received:`, {
+        activityId,
+        coachId: user.id,
+        exercisesCount: exercisesPayload?.length || 0,
+        keysOfFirstItem: exercisesPayload && exercisesPayload[0] ? Object.keys(exercisesPayload[0]) : 'NONE'
+    })
+
     const results: Array<{ id: number | null; tempId?: string; error?: string }> = []
     const failures: Array<{
       tempId?: string
@@ -197,6 +204,24 @@ export async function POST(request: NextRequest) {
         (exercise as any).nivel_intensidad ||
         null
 
+      const getFieldFromPayload = (obj: any, keys: string[]) => {
+        for (const key of keys) {
+          if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key]
+        }
+        return null
+      }
+
+        const caloriasFinal = NORMALIZE_NUMBER(
+          getFieldFromPayload(exercise, [
+            'calorias', 
+            'Calorías', 
+            'calorías', 
+            'calories', 
+            'kcal',
+            'Kcal'
+          ])
+        )
+
       const record = {
         nombre_ejercicio: sanitizeText(normalizedName),
         descripcion: sanitizeText(
@@ -213,8 +238,16 @@ export async function POST(request: NextRequest) {
           detalle_series ||
           (exercise as any)['Detalle de Series (peso-repeticiones-series)'] ||
           null,
-        duracion_min: NORMALIZE_NUMBER(duracion_min || (exercise as any)['Duración (min)'] || (exercise as any)['Duración'] || (exercise as any).Duración),
-        calorias: NORMALIZE_NUMBER(calorias || (exercise as any).Calorías || (exercise as any)['Calorías'] || (exercise as any).calories),
+        duracion_min: NORMALIZE_NUMBER(
+          getFieldFromPayload(exercise, [
+            'duracion_min', 
+            'Duración (min)', 
+            'Duración', 
+            'duracion', 
+            'duration'
+          ])
+        ),
+        calorias: caloriasFinal,
         intensidad: normalizeIntensity(rawIntensity),
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
         video_file_name: sanitizeNullable((exercise as any).video_file_name),
