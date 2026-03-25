@@ -293,11 +293,23 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
 
     const isProgramExpired = useMemo(() => {
         if (!data.enrollment?.expiration_date) return false;
-        if (data.enrollment?.status === 'activa') return false; // Si está activa, no la damos por finalizada por fecha
-        const expDateStr = data.enrollment.expiration_date; // YYYY-MM-DD
+
+        const expDateStr = data.enrollment.expiration_date.split('T')[0];
         const todayStr = getTodayBuenosAiresString();
-        return todayStr > expDateStr;
-    }, [data.enrollment?.expiration_date, data.enrollment?.status]);
+
+        // Si la suscripción expiró, está expirado
+        if (todayStr > expDateStr) return true;
+
+        // Si el estado es finalizada, está expirado (para efectos de UI de fin de programa)
+        if (data.enrollment?.status === 'finalizada') return true;
+
+        // Si ya pasamos todas las semanas del programa, está finalizado
+        const totalWeeks = data.programInfo?.semanas_totales || data.programInfo?.duration_weeks || 4;
+        const currentWeek = getWeekNumber(selectedDate, data.enrollment?.start_date);
+        if (currentWeek > totalWeeks) return true;
+
+        return false;
+    }, [data.enrollment?.expiration_date, data.enrollment?.status, data.programInfo, selectedDate, data.enrollment?.start_date]);
 
     const finalActions = useMemo(() => ({
         ...actions,

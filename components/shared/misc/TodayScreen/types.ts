@@ -45,6 +45,8 @@ export interface ProgramInfo {
     user_survey_status?: {
         has_submitted: boolean;
     };
+    semanas_totales?: number;
+    duration_weeks?: number;
 }
 
 export interface Enrollment {
