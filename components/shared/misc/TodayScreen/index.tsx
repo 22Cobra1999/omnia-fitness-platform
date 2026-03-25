@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../../activities/activity-survey-modal";
 import { StartActivityModal } from "../../activities/StartActivityModal";
@@ -28,6 +28,16 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
 
     // Use the monolithic hook
     const { state, actions, helpers } = useTodayScreenLogic({ activityId, enrollmentId, onBack });
+
+    // Auto-open Survey if Expired/Finished and not yet rated
+    useEffect(() => {
+        if (state.isExpired && !state.isRated && !state.isInitializing && !state.isDayLoading) {
+            const timer = setTimeout(() => {
+                actions.setIsRatingModalOpen(true);
+            }, 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [state.isExpired, state.isRated, state.isInitializing, state.isDayLoading, actions.setIsRatingModalOpen]);
 
     if (state.loading) {
         return <OmniaLoader />;
