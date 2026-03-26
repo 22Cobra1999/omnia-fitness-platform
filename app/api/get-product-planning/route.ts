@@ -262,7 +262,7 @@ export async function GET(request: NextRequest) {
     if (exerciseIds.size > 0) {
       // Consultar la tabla correcta según la categoría
       const camposSelect = isNutrition
-        ? 'id, nombre, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
+        ? 'id, nombre, calorias, proteinas, carbohidratos, grasas, video_url, receta_id, is_active, activity_id'
         : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, activity_id'
 
       const { data: ejercicios, error: ejerciciosError } = await supabase
@@ -302,7 +302,7 @@ export async function GET(request: NextRequest) {
             ...ejercicio,
             // Normalizar para uso interno
             tipo: isNutrition ? 'Plato' : ejercicio.tipo,
-            descripcion: isNutrition ? ejercicio.receta : ejercicio.descripcion,
+            descripcion: isNutrition ? (ejercicio.descripcion || '') : ejercicio.descripcion,
             nombre_plato: isNutrition ? ejercicio.nombre : undefined,
             nombre_ejercicio: !isNutrition ? ejercicio.nombre_ejercicio : undefined,
             activity_map: activityMap,
@@ -346,7 +346,7 @@ export async function GET(request: NextRequest) {
     // Consultar todos los ejercicios faltantes de una vez
     if (ejerciciosFaltantes.size > 0) {
       const camposSelectFaltantes = isNutrition
-        ? 'id, nombre, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
+        ? 'id, nombre, calorias, proteinas, carbohidratos, grasas, video_url, receta_id, is_active, activity_id'
         : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, activity_id'
 
       const { data: ejerciciosFromDb, error: ejerciciosError } = await supabase
@@ -369,7 +369,7 @@ export async function GET(request: NextRequest) {
             ...ejercicioFromDb,
             // Normalizar para uso genérico
             tipo: isNutrition ? 'Plato' : ejercicioFromDb.tipo,
-            descripcion: isNutrition ? ejercicioFromDb.receta : ejercicioFromDb.descripcion,
+            descripcion: isNutrition ? (ejercicioFromDb.descripcion || '') : ejercicioFromDb.descripcion,
             nombre_ejercicio: !isNutrition ? ejercicioFromDb.nombre_ejercicio : ejercicioFromDb.nombre,
             nombre_plato: isNutrition ? ejercicioFromDb.nombre : ejercicioFromDb.nombre_ejercicio,
             activity_map: activityMap,

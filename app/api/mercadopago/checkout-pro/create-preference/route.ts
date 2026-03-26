@@ -391,60 +391,31 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
 
-    // En Sandbox, forzar un precio bajo para evitar challenges de seguridad de MP
-    const isSandboxMode = tokenToUseForPreference?.startsWith('TEST-') || isTestUser || tokenSource.includes('test');
-    const finalPrice = isSandboxMode ? 10 : totalAmount;
-    
-    if (isSandboxMode) {
-      console.log('🧪 SANDBOX DETECTADO: Forzando precio a $10.00 para evitar bloqueos de MP');
-    }
-
     const preferenceData: any = {
       items: [
         {
           id: String(activityId),
-          title: activity.title.substring(0, 50), // Truncar para evitar problemas de longitud
+          title: activity.title.substring(0, 50),
           quantity: 1,
-          unit_price: finalPrice,
+          unit_price: totalAmount,
           currency_id: 'ARS'
         }
       ],
-      // Si usamos el token de OMNIA (Marketplace), debemos decirle quién es el vendedor
-      ...(tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
-      // SOLO incluir marketplace_fee si estamos usando el token del marketplace (integrador)
-      // Y NO estamos en Sandbox (en Sandbox no suele funcionar el split si los usuarios no son del mismo pool)
-      ...(tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
-          ? { marketplace_fee: marketplaceFee } 
-          : {}),
+      payer: {
+        email: clientEmail
+      },
       external_reference: externalReference,
       back_urls: backUrls,
       auto_return: 'approved' as const,
-      notification_url: `${appUrlStr}/api/mercadopago/webhook`,
-      payer: {
-        email: clientEmail,
-        name: clientProfile?.name || 'Cliente',
-        surname: clientProfile?.surname || 'OMNIA',
-        ...(clientProfile?.phone ? { phone: { number: clientProfile.phone } } : {}),
-        ...(clientProfile?.dni ? { 
-          identification: {
-            type: clientProfile?.document_type || 'DNI',
-            number: clientProfile.dni.toString()
-          }
-        } : {})
-      },
-      binary_mode: false,
-      expires: false,
-      // Metadata para tracking interno
       metadata: {
         platform: 'OMNIA',
         activity_id: String(activityId),
-        client_id: clientId,
-        token_source: tokenSource
+        client_id: clientId
       }
     };
 
     // Log detallado del objeto que enviamos a MP
-    console.log('📋 Preference Object to MP:', JSON.stringify(preferenceData, null, 2));
+    console.log('📋 Preference Object to MP (Minimal):', JSON.stringify(preferenceData, null, 2));
 
     // Log detallado ANTES de crear la preferencia
     console.log('📋 ========== CREANDO PREFERENCIA ==========');
@@ -543,9 +514,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point (preferir sandbox_init_point en modo test)
-    const finalInitPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
+    const initPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
 
-    if (!finalInitPoint) {
+    console.log('🔗 ========== PROCESANDO INIT POINT ==========');
+    console.log('🔗 Init Point Original:', initPoint);
+
+    if (!initPoint) {
       console.error('❌ ERROR: No se recibió init_point de Mercado Pago');
       return NextResponse.json(
         {
@@ -556,7 +530,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🔗 Init Point Final:', finalInitPoint);
+    // Agregar locale a la URL si no está presente
+    // IMPORTANTE: El locale debe estar en la URL para que el checkout de Mercado Pago lo use
+    let finalInitPoint = initPoint;
+
+    // Verificar si ya tiene locale
+    if (!finalInitPoint.includes('locale=')) {
+      // Agregar locale a la URL
+      const separator = finalInitPoint.includes('?') ? '&' : '?';
+      finalInitPoint = `${finalInitPoint}${separator}locale=es-AR`;
+    } else {
+      // Si ya tiene locale, asegurarse de que sea es-AR
+      finalInitPoint = finalInitPoint.replace(/locale=[^&]*/, 'locale=es-AR');
+    }
+
+    console.log('🔗 Init Point Final (con locale=es-AR):', finalInitPoint);
+    console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
     const responseData = {
       success: true,
