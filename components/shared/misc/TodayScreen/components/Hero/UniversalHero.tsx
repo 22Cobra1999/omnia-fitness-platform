@@ -63,10 +63,10 @@ export function UniversalHero({
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: isMobile ? '12px 20px 16px' : '16px 32px 18px', 
-            minHeight: '15vh', 
+            padding: isMobile ? '8px 20px 12px' : '10px 32px 14px', // More compact padding
+            minHeight: '13vh', // Reduced minHeight
             marginBottom: 0,
-            marginTop: -32, // Reverted to a safe margin to avoid header overlap
+            marginTop: -48, // Balanced margin to avoid overlap and gaps
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
@@ -78,41 +78,41 @@ export function UniversalHero({
         }}>
             {/* Header row */}
             <div style={{
-                marginBottom: 10,
+                marginBottom: 4, // More compact
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 width: '100%'
             }}>
                 {onBack ? (
-                    <button onClick={onBack} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
-                        <ChevronLeft size={20} />
+                    <button onClick={onBack} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+                        <ChevronLeft size={18} />
                     </button>
                 ) : <div />}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, color: isPlanFinished ? '#FF7939' : 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                    <div style={{ padding: '3px 10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, color: isPlanFinished ? '#FF7939' : 'rgba(255, 255, 255, 0.6)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>
                         {isPlanFinished ? 'EXPIRA: ' : 'FINALIZA: '}
                         {programEndDate ? programEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
                     </div>
                 </div>
             </div>
 
-            {/* Content Row: SAME Hierarchy as Activity Cards */}
+            {/* Content Row: Hierarchy */}
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 textAlign: 'center',
-                marginBottom: 10
+                marginBottom: 6 // More compact
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '75%' }}>
                     <span style={{
-                        fontSize: isMobile ? 22 : 28,
+                        fontSize: isMobile ? 20 : 24, // Smaller
                         fontWeight: 900,
                         color: '#fff',
                         opacity: 0.9,
-                        lineHeight: 1.1,
+                        lineHeight: 1, // Tighter
                         textTransform: 'uppercase',
                         letterSpacing: '-0.04em',
                         display: 'block',
@@ -123,25 +123,25 @@ export function UniversalHero({
                     </span>
                     {titleRows.row2 && (
                         <span style={{
-                            fontSize: isMobile ? 16 : 20,
+                            fontSize: isMobile ? 14 : 18, // Smaller
                             fontWeight: 600,
                             color: 'rgba(255, 255, 255, 0.6)',
-                            lineHeight: 1.1,
+                            lineHeight: 1, // Tighter
                             textTransform: 'uppercase',
                             letterSpacing: '-0.02em',
                             display: 'block',
                             maxWidth: '75%', 
-                            marginBottom: 2
+                            marginBottom: 1
                         }}>
                             {titleRows.row2}
                         </span>
                     )}
                     {titleRows.row3 && (
                         <span style={{
-                            fontSize: isMobile ? 12 : 14,
+                            fontSize: isMobile ? 11 : 12, // Smaller
                             fontWeight: 300,
                             color: 'rgba(255, 255, 255, 0.4)',
-                            lineHeight: 1.1,
+                            lineHeight: 1, // Tighter
                             textTransform: 'uppercase',
                             letterSpacing: '0.02em',
                             display: 'block',
@@ -154,11 +154,11 @@ export function UniversalHero({
                 
                 {programInfo?.description && (
                     <p style={{
-                        margin: '12px auto 0',
-                        fontSize: isMobile ? 12 : 13,
+                        margin: '6px auto 0',
+                        fontSize: isMobile ? 11 : 12, // Smaller
                         fontWeight: 400,
                         color: 'rgba(255, 255, 255, 0.35)', 
-                        lineHeight: 1.4,
+                        lineHeight: 1.3, // Tighter
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
                         WebkitBoxOrient: 'vertical',
@@ -172,7 +172,7 @@ export function UniversalHero({
                 {programInfo?.description && programInfo.description.length > 80 && (
                     <button
                         onClick={() => setDescriptionExpanded(!descriptionExpanded)}
-                        style={{ background: 'transparent', border: 'none', color: '#FF6A00', fontSize: 11, fontWeight: 800, cursor: 'pointer', padding: '4px 0', textTransform: 'uppercase' }}
+                        style={{ background: 'transparent', border: 'none', color: '#FF6A00', fontSize: 10, fontWeight: 800, cursor: 'pointer', padding: '2px 0', textTransform: 'uppercase' }}
                     >
                         {descriptionExpanded ? 'Ver menos' : 'Ver más'}
                     </button>
@@ -183,10 +183,10 @@ export function UniversalHero({
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: 6,
                 justifyContent: 'center', 
                 flexWrap: 'wrap',
-                marginTop: 6
+                marginTop: 2
             }}>
                 {(() => {
                     const type = (programInfo?.type || programInfo?.categoria || '').toLowerCase();
@@ -200,24 +200,24 @@ export function UniversalHero({
 
                     if (isWorkshop) {
                         label = 'Taller';
-                        icon = <Calendar size={10} className="mr-1 inline" />;
+                        icon = <Calendar size={9} className="mr-1 inline" />;
                         color = '#FF7939';
                         border = 'rgba(255, 121, 57, 0.4)';
                     } else if (isDoc) {
                         label = 'Documento';
-                        icon = <FileText size={10} className="mr-1 inline" />;
+                        icon = <FileText size={9} className="mr-1 inline" />;
                         color = '#38BDF8';
                         border = 'rgba(56, 189, 248, 0.4)';
                     }
 
                     return (
                         <span style={{ 
-                            display: 'flex', alignItems: 'center', padding: '4px 12px', 
+                            display: 'flex', alignItems: 'center', padding: '3px 10px', 
                             background: 'rgba(255,255,255,0.03)', 
                             backdropFilter: 'blur(12px) saturate(180%)',
                             WebkitBackdropFilter: 'blur(12px) saturate(180%)',
                             borderRadius: 20, border: `1px solid ${border}`, 
-                            color: color, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' 
+                            color: color, fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' 
                         }}>
                             {icon}{label}
                         </span>
@@ -226,7 +226,7 @@ export function UniversalHero({
 
                 {programInfo?.difficulty && (
                     <span style={{ 
-                        padding: '4px 12px', 
+                        padding: '3px 10px', 
                         background: 'rgba(255,255,255,0.03)', 
                         backdropFilter: 'blur(12px) saturate(180%)',
                         WebkitBackdropFilter: 'blur(12px) saturate(180%)',
@@ -240,7 +240,7 @@ export function UniversalHero({
                             programInfo.difficulty.toLowerCase().includes('adv') ? '#EF4444' : 
                             programInfo.difficulty.toLowerCase().includes('med') || programInfo.difficulty.toLowerCase().includes('int') ? '#FF7939' : 
                             '#FFE4B5',
-                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase' 
+                        fontSize: 9, fontWeight: 800, textTransform: 'uppercase' 
                     }}>
                         {programInfo.difficulty}
                     </span>
