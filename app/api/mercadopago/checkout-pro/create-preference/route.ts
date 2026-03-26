@@ -391,6 +391,8 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
 
+    const isSandbox = tokenToUseForPreference?.startsWith('TEST-') || isTestUser;
+
     const preferenceData: any = {
       items: [
         {
@@ -410,9 +412,10 @@ export async function POST(request: NextRequest) {
           }
         } : {})
       },
-      // Restaurar collector_id y marketplace_fee para modo Marketplace/Split
-      ...(tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
-      ...(tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
+      // SOLO en producción podemos hacer split payment con cuentas reales (Marketplace mode)
+      // En Sandbox, el split falla si el vendedor (coach) es una cuenta real y el integrador (OMNIA) es de prueba
+      ...(!isSandbox && tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
+      ...(!isSandbox && tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
           ? { marketplace_fee: marketplaceFee } 
           : {}),
       external_reference: externalReference,
@@ -421,12 +424,13 @@ export async function POST(request: NextRequest) {
       metadata: {
         platform: 'OMNIA',
         activity_id: String(activityId),
-        client_id: clientId
+        client_id: clientId,
+        is_sandbox: isSandbox
       }
     };
 
     // Log detallado del objeto que enviamos a MP
-    console.log('📋 Preference Object to MP (Restored Essential Fields):', JSON.stringify(preferenceData, null, 2));
+    console.log(`📋 Preference Object to MP (${isSandbox ? 'Sandbox' : 'Production'}):`, JSON.stringify(preferenceData, null, 2));
 
     // Log detallado ANTES de crear la preferencia
     console.log('📋 ========== CREANDO PREFERENCIA ==========');
