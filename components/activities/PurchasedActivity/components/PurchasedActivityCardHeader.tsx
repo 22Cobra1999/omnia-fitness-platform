@@ -66,27 +66,41 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
 
             {/* Floating Circle Badge - Progress - Only for "En curso" */}
             {(!isFinished && !isFuture) && typeof progress === 'number' && progress > 0 && (
-                <div className="absolute top-[clamp(8px,2.5vh,16px)] right-[clamp(8px,2.5vh,16px)] z-20">
-                    <div className="w-[clamp(32px,8vw,40px)] h-[clamp(32px,8vw,40px)] flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
-                        <span className="text-[clamp(8px,1.5vw,10px)] font-[900] text-orange-400 leading-none">
-                            {progress}%
+                <div className="absolute top-2 right-2 z-20">
+                    <div className="w-10 h-10 flex items-center justify-center gap-0.5 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-full shadow-2xl">
+                        <span className="text-[12px] font-black text-orange-400 italic leading-none">
+                            {Math.round(progress)}
                         </span>
+                        <span className="text-[7.5px] font-black text-orange-500 italic leading-none">%</span>
                     </div>
                 </div>
             )}
 
             {/* Centered Title and Coach Info Overlay */}
             <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center px-4 pb-0">
-                <div className="h-16 flex items-start justify-center mb-10">
+                <div className="min-h-[4rem] flex items-center justify-center mb-10 w-full px-1">
                     <h3 className={cn(
-                        "text-white font-bold leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tracking-tight opacity-95",
-                        size === "small" ? "text-xs" : "text-sm md:text-base px-2"
+                        "text-white leading-[1.1] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] tracking-tighter opacity-95 w-full px-0",
+                        size === "small" ? "text-xs" : "text-sm md:text-base"
                     )}>
-                        {title || 'Sin título'}
+                        {(() => {
+                            const words = (title || 'Sin título').split(' ');
+                            const row1 = words.slice(0, 2).join(' ');
+                            const row2 = words.slice(2, 5).join(' ');
+                            const row3 = words.slice(5).join(' ');
+
+                            return (
+                                <div className="flex flex-col items-center w-full overflow-visible">
+                                    <span className="text-[0.8rem] font-black block leading-none opacity-90 w-full uppercase tracking-tight break-words">{row1}</span>
+                                    {row2 && <span className="text-[0.65rem] font-medium opacity-70 block leading-none w-full uppercase mt-1 break-words">{row2}</span>}
+                                    {row3 && <span className="text-[0.45rem] font-light opacity-50 block leading-tight w-full uppercase mt-1 break-words">{row3}</span>}
+                                </div>
+                            );
+                        })()}
                     </h3>
                 </div>
 
-                <div className="flex items-center gap-[clamp(4px,1.5vw,8px)] pl-1 pr-[clamp(8px,3vw,16px)] py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 shadow-2xl relative w-fit max-w-[95%]">
+                <div className="flex items-center gap-2 pl-1 pr-6 h-8 bg-white/10 backdrop-blur-md rounded-full border border-white/10 shadow-2xl relative w-fit max-w-[98%]">
                     <div className="w-[clamp(20px,5vw,24px)] h-[clamp(20px,5vw,24px)] rounded-full bg-zinc-800/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
                         {coachAvatarUrl ? (
                             <Image
@@ -100,13 +114,13 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                         )}
                     </div>
                     <div className="flex items-center gap-1 min-w-0">
-                        <span className="text-[clamp(9px,1.8vw,11px)] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-90">
-                            {(coachName || 'Coach').substring(0, 14)}
+                        <span className="text-[9px] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-90">
+                            {(coachName || 'Coach').substring(0, 11)}
                         </span>
                         {coachRating && coachRating > 0 && (
-                            <div className="flex items-center gap-0.5 shrink-0 ml-0.5 bg-black/30 px-1 rounded-full">
-                                <Star className="h-[clamp(8px,1.5vw,10px)] w-[clamp(8px,1.5vw,10px)] fill-yellow-400 text-yellow-400" />
-                                <span className="text-[clamp(8px,1.5vw,10px)] font-black text-zinc-400">{coachRating.toFixed(1)}</span>
+                            <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
+                                <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+                                <span className="text-[9px] font-black text-zinc-400">{coachRating.toFixed(1)}</span>
                             </div>
                         )}
                     </div>

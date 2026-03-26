@@ -21,7 +21,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
   const [height, setHeight] = useState("")
   const [weight, setWeight] = useState("")
   const [birthDate, setBirthDate] = useState("")
-  const [role, setRole] = useState<"client" | "coach">("client")
+  const [role, setRole] = useState<"client" | "coach" | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -31,6 +31,11 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    if (!role) {
+      setError("Por favor seleccioná si sos Coach o Cliente")
+      setLoading(false)
+      return
+    }
 
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden")
@@ -125,22 +130,31 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
       )}
 
       {/* Role Selection */}
-      <div className="flex p-1 bg-white/5 rounded-2xl border border-white/10 mb-2">
+      <div className={`flex p-1 bg-white/5 rounded-2xl border border-white/10 ${!role ? 'mb-0' : 'mb-2'}`}>
         <button
           type="button"
           onClick={() => setRole("client")}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${role === "client" ? "bg-[#FF7939] text-white shadow-lg" : "text-white/40 hover:text-white/60"}`}
+          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${role === "client" ? "bg-[#FF7939] text-white shadow-lg scale-[1.02]" : "text-white/40 hover:text-white/60"}`}
         >
           Soy Cliente
         </button>
         <button
           type="button"
           onClick={() => setRole("coach")}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${role === "coach" ? "bg-[#FF7939] text-white shadow-lg" : "text-white/40 hover:text-white/60"}`}
+          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${role === "coach" ? "bg-[#FF7939] text-white shadow-lg scale-[1.02]" : "text-white/40 hover:text-white/60"}`}
         >
           Soy Coach
         </button>
       </div>
+
+      {role && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="overflow-hidden space-y-6"
+        >
+
 
       <div className="space-y-4">
         <div className="space-y-2">
@@ -249,23 +263,25 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
         </div>
       </div>
 
-      <div className="pt-2">
-        <Button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-[#FF7939] hover:bg-[#E66829] text-white h-16 rounded-2xl font-black text-lg shadow-[0_15px_40px_rgba(255,121,57,0.3)] transition-all active:scale-[0.98] relative overflow-hidden group"
-        >
-          <span className="relative z-10 flex items-center justify-center gap-3">
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Creando cuenta...</span>
-              </>
-            ) : role === 'coach' ? "Unirme como Coach" : "Unirme a OMNIA"}
-          </span>
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-        </Button>
-      </div>
+        <div className="pt-2">
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#FF7939] hover:bg-[#E66829] text-white h-16 rounded-2xl font-black text-lg shadow-[0_15px_40px_rgba(255,121,57,0.3)] transition-all active:scale-[0.98] relative overflow-hidden group"
+          >
+            <span className="relative z-10 flex items-center justify-center gap-3">
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Creando cuenta...</span>
+                </>
+              ) : role === 'coach' ? "Unirme como Coach" : "Unirme a OMNIA"}
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          </Button>
+        </div>
+        </motion.div>
+      )}
 
       {onLoginClick && (
         <div className="text-center">

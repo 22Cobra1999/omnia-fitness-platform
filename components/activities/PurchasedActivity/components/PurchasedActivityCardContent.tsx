@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { Star, Calendar, Clock, CheckCircle2, Flame, Play, Video, Zap } from "lucide-react"
+import { Star, Calendar, Clock, CheckCircle2, Flame, Play, Video, Zap, UtensilsCrossed } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 import { getCategoryBadge, getTypeBadge, formatDate } from "../utils"
 
@@ -86,7 +86,12 @@ export function PurchasedActivityCardContent({
 
                 {/* 1. Dynamic Pill (EMPEZAR, HOY or PRÓXIMA) */}
                 <div className="flex items-center justify-between gap-1 px-1">
-                    {daysInfo.isExpired ? (
+                    {daysInfo.isExpired && !enrollment.rating_coach ? (
+                        <div className="flex items-center gap-1 bg-[#FF7939] border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left shadow-[#FF7939]/20">
+                            <Star className="w-3 h-3 text-white fill-white" />
+                            <span className="text-[9px] font-[1000] text-white tracking-widest uppercase whitespace-nowrap">CALIFICAR</span>
+                        </div>
+                    ) : daysInfo.isExpired ? (
                         <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left opacity-90">
                             <CheckCircle2 className="w-3 h-3 text-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">VENCIDA</span>
@@ -97,26 +102,25 @@ export function PurchasedActivityCardContent({
                                 EMPEZAR ANTES DE: {formatDM((enrollment as any).start_deadline)}
                             </span>
                         </div>
-                    ) : isFinished ? (
-                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
-                            <CheckCircle2 className="w-3 h-3 text-white" />
-                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">FINALIZADA</span>
-                        </div>
                     ) : pendingCount && pendingCount > 0 ? (
                         <div className="flex items-center gap-1.5 bg-[#FF7939]/40 backdrop-blur-xl border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
-                            <Zap className="w-3 h-3 text-white fill-white" />
+                            {isNutrition ? (
+                                <UtensilsCrossed className="w-3 h-3 text-white" />
+                            ) : (
+                                <Zap className="w-3 h-3 text-white fill-white" />
+                            )}
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
                                 HOY {pendingCount}
                             </span>
                         </div>
-                    ) : (
+                    ) : nextSessionDate ? (
                         <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-xl border border-white/20 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
                             <Calendar className="w-3 h-3 text-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                                {nextSessionDate ? `PROX: ${formatDM(nextSessionDate)}` : 'PROGRAMADO'}
+                                PROX: {formatDM(nextSessionDate)}
                             </span>
                         </div>
-                    )}
+                    ) : null}
 
                     {/* Proxima context (Right side) */}
                     {(!isFuture && !isFinished && !daysInfo.isExpired && pendingCount && pendingCount > 0) && (

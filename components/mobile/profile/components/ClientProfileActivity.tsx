@@ -31,7 +31,7 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
     activityRings,
 }) => {
     return (
-        <div className="bg-[#1A1C1F] rounded-2xl p-6">
+        <div className="bg-[#000000] rounded-2xl p-6">
             <div className="mb-6">
                 <DailyActivityRings
                     userId={user?.id} selectedDate={selectedDay?.date} category={activityFilter} currentWeek={ringsWeek}

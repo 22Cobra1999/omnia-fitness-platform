@@ -48,15 +48,15 @@ export const formatDate = (dateString: string) => {
 export const getSizeClasses = (size: string) => {
     switch (size) {
         case "small": return "w-32 md:w-40 h-auto"
-        case "large": return "w-80 md:w-96 h-auto"
-        default: return "w-48 md:w-56 h-auto"
+        case "large": return "w-[260px] md:w-[280px] h-auto"
+        default: return "w-[165px] md:w-[190px] h-auto"
     }
 }
 
 export const getImageHeightClass = (size: string, isCoachView: boolean) => {
     switch (size) {
-        case "small": return "h-48 md:h-56"
-        case "large": return "h-64 md:h-72"
-        default: return "h-56 md:h-64"
+        case "small": return "h-40 md:h-48"
+        case "large": return "h-60 md:h-68"
+        default: return "h-48 md:h-56"
     }
 }

@@ -288,10 +288,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'small': return 'w-44 md:w-52 h-auto flex flex-col'
-      case 'medium': return 'w-72 md:w-80 h-auto flex flex-col'
-      case 'large': return 'w-80 md:w-96 h-auto flex flex-col'
-      default: return 'w-72 h-auto flex flex-col'
+      case 'small': return 'w-40 md:w-48 h-auto flex flex-col'
+      case 'medium': return 'w-64 md:w-72 h-auto flex flex-col'
+      case 'large': return 'w-72 md:w-80 h-auto flex flex-col'
+      default: return 'w-64 h-auto flex flex-col'
     }
   }
 
@@ -409,10 +409,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               </div>
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-[clamp(9px,1.8vw,11px)] font-bold text-zinc-100 tracking-tight whitespace-nowrap opacity-95">
-                  {(activity.coach_name || 'Coach').substring(0, 14)}
+                  {(activity.coach_name || 'Coach').substring(0, 11)}
                 </span>
                 {activity.coach_rating != null && activity.coach_rating > 0 && (
-                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5 bg-black/20 px-1 rounded-full">
+                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
                     <Star className="h-[clamp(8px,1.5vw,10px)] w-[clamp(8px,1.5vw,10px)] fill-yellow-400 text-yellow-400" />
                     <span className="text-[clamp(8px,1.5vw,9px)] font-black text-zinc-300">{activity.coach_rating.toFixed(1)}</span>
                   </div>
