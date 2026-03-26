@@ -415,6 +415,8 @@ export async function POST(request: NextRequest) {
           }
         } : {})
       },
+      // BINARY MODE: Evita los desafíos de identidad (MFA) que causan bucles en Sandbox
+      binary_mode: isSandboxFinal,
       // Restaurar collector_id SOLO si no es sandbox o si el marketplace es de producción
       ...(!isSandboxFinal && tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
       ...(!isSandboxFinal && tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
@@ -533,11 +535,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point
-    // IMPORTANTE: Después de varias pruebas, forzamos init_point (Producción) para evitar bucles.
-    // Pero eliminamos la inyección manual de locale=es-AR que podría estar rompiendo la firma del redirect.
-    const finalInitPoint = preferenceResponse.init_point;
+    // IMPORTANTE: Con BINARY MODE activado en Sandbox, ahora podemos usar la URL nativa de pruebas (sandbox_init_point)
+    // sin riesgo de bucles de identidad, ya que el modo binario los salta.
+    const finalInitPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
 
-    console.log('🔗 ========== PROCESANDO INIT POINT (SIMPLE) ==========');
+    console.log('🔗 ========== PROCESANDO INIT POINT (BINARY MODE) ==========');
     console.log('🔗 Init Point Final:', finalInitPoint);
     console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
