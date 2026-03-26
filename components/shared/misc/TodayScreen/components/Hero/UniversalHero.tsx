@@ -63,10 +63,10 @@ export function UniversalHero({
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: isMobile ? '12px 20px 16px' : '10px 32px 14px', // More compact
+            padding: isMobile ? '12px 20px 16px' : '16px 32px 18px', 
             minHeight: '15vh', 
             marginBottom: 0,
-            marginTop: isMobile ? -44 : -64, // Shifted up more in web
+            marginTop: -32, // Reverted to a safe margin to avoid header overlap
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
@@ -78,7 +78,7 @@ export function UniversalHero({
         }}>
             {/* Header row */}
             <div style={{
-                marginBottom: 6,
+                marginBottom: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -116,7 +116,7 @@ export function UniversalHero({
                         textTransform: 'uppercase',
                         letterSpacing: '-0.04em',
                         display: 'block',
-                        maxWidth: '95%', // Wider row 1
+                        maxWidth: '95%', 
                         marginBottom: 1
                     }}>
                         {titleRows.row1}
@@ -130,7 +130,7 @@ export function UniversalHero({
                             textTransform: 'uppercase',
                             letterSpacing: '-0.02em',
                             display: 'block',
-                            maxWidth: '75%', // Narrower row 2
+                            maxWidth: '75%', 
                             marginBottom: 2
                         }}>
                             {titleRows.row2}
@@ -145,7 +145,7 @@ export function UniversalHero({
                             textTransform: 'uppercase',
                             letterSpacing: '0.02em',
                             display: 'block',
-                            maxWidth: '60%' // Narrowest row 3
+                            maxWidth: '60%' 
                         }}>
                             {titleRows.row3}
                         </span>
