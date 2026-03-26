@@ -63,10 +63,12 @@ export function UniversalHero({
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: isMobile ? '8px 20px 12px' : '10px 32px 14px', // More compact padding
-            minHeight: '13vh', // Reduced minHeight
+            // Highly increased paddingTop on web to offset the negative margin and keep content in place
+            padding: isMobile ? '12px 20px 16px' : '52px 32px 14px', 
+            minHeight: '13vh', 
             marginBottom: 0,
-            marginTop: -48, // Balanced margin to avoid overlap and gaps
+            // Increased negative margin to cover the gaps near the header
+            marginTop: isMobile ? -48 : -100, 
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
@@ -78,7 +80,7 @@ export function UniversalHero({
         }}>
             {/* Header row */}
             <div style={{
-                marginBottom: 4, // More compact
+                marginBottom: 4, 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -104,16 +106,16 @@ export function UniversalHero({
                 flexDirection: 'column',
                 alignItems: 'center',
                 textAlign: 'center',
-                marginBottom: 6, // More compact
-                marginTop: isMobile ? 0 : -8 // Shift title up on Web
+                marginBottom: 6,
+                marginTop: isMobile ? 0 : -8 
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '75%' }}>
                     <span style={{
-                        fontSize: isMobile ? 20 : 24, // Smaller
+                        fontSize: isMobile ? 20 : 24, 
                         fontWeight: 900,
                         color: '#fff',
                         opacity: 0.9,
-                        lineHeight: 1, // Tighter
+                        lineHeight: 1, 
                         textTransform: 'uppercase',
                         letterSpacing: '-0.04em',
                         display: 'block',
@@ -124,10 +126,10 @@ export function UniversalHero({
                     </span>
                     {titleRows.row2 && (
                         <span style={{
-                            fontSize: isMobile ? 14 : 18, // Smaller
+                            fontSize: isMobile ? 14 : 18, 
                             fontWeight: 600,
                             color: 'rgba(255, 255, 255, 0.6)',
-                            lineHeight: 1, // Tighter
+                            lineHeight: 1, 
                             textTransform: 'uppercase',
                             letterSpacing: '-0.02em',
                             display: 'block',
@@ -139,10 +141,10 @@ export function UniversalHero({
                     )}
                     {titleRows.row3 && (
                         <span style={{
-                            fontSize: isMobile ? 11 : 12, // Smaller
+                            fontSize: isMobile ? 11 : 12, 
                             fontWeight: 300,
                             color: 'rgba(255, 255, 255, 0.4)',
-                            lineHeight: 1, // Tighter
+                            lineHeight: 1, 
                             textTransform: 'uppercase',
                             letterSpacing: '0.02em',
                             display: 'block',
@@ -156,10 +158,10 @@ export function UniversalHero({
                 {programInfo?.description && (
                     <p style={{
                         margin: '6px auto 0',
-                        fontSize: isMobile ? 11 : 12, // Smaller
+                        fontSize: isMobile ? 11 : 12, 
                         fontWeight: 400,
                         color: 'rgba(255, 255, 255, 0.35)', 
-                        lineHeight: 1.3, // Tighter
+                        lineHeight: 1.3, 
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
                         WebkitBoxOrient: 'vertical',
