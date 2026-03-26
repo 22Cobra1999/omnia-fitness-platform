@@ -402,8 +402,19 @@ export async function POST(request: NextRequest) {
         }
       ],
       payer: {
-        email: clientEmail
+        email: clientEmail,
+        ...(clientProfile?.dni ? { 
+          identification: {
+            type: clientProfile?.document_type || 'DNI',
+            number: clientProfile.dni.toString()
+          }
+        } : {})
       },
+      // Restaurar collector_id y marketplace_fee para modo Marketplace/Split
+      ...(tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
+      ...(tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
+          ? { marketplace_fee: marketplaceFee } 
+          : {}),
       external_reference: externalReference,
       back_urls: backUrls,
       auto_return: 'approved' as const,
@@ -415,7 +426,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Log detallado del objeto que enviamos a MP
-    console.log('📋 Preference Object to MP (Minimal):', JSON.stringify(preferenceData, null, 2));
+    console.log('📋 Preference Object to MP (Restored Essential Fields):', JSON.stringify(preferenceData, null, 2));
 
     // Log detallado ANTES de crear la preferencia
     console.log('📋 ========== CREANDO PREFERENCIA ==========');
