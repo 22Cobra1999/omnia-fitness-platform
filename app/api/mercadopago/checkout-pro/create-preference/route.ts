@@ -533,40 +533,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point
-    // IMPORTANTE: En Argentina Sandbox, sandbox_init_point es necesario para que el preference-id de prueba sea válido.
-    // El bucle de redirecciones (ERR_TOO_MANY_REDIRECTS) suele ser causado por la complejidad del Marketplace,
-    // por lo que ahora usamos sandbox_init_point con una preferencia SIMPLE (sin Split Payment) en Sandbox.
-    const initPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
+    // IMPORTANTE: Después de varias pruebas, forzamos init_point (Producción) para evitar bucles.
+    // Pero eliminamos la inyección manual de locale=es-AR que podría estar rompiendo la firma del redirect.
+    const finalInitPoint = preferenceResponse.init_point;
 
-    console.log('🔗 ========== PROCESANDO INIT POINT ==========');
-    console.log('🔗 Init Point Original:', initPoint);
-
-    if (!initPoint) {
-      console.error('❌ ERROR: No se recibió init_point de Mercado Pago');
-      return NextResponse.json(
-        {
-          error: 'No se recibió init_point de Mercado Pago',
-          code: 'MISSING_INIT_POINT'
-        },
-        { status: 500 }
-      );
-    }
-
-    // Agregar locale a la URL si no está presente
-    // IMPORTANTE: El locale debe estar en la URL para que el checkout de Mercado Pago lo use
-    let finalInitPoint = initPoint;
-
-    // Verificar si ya tiene locale
-    if (!finalInitPoint.includes('locale=')) {
-      // Agregar locale a la URL
-      const separator = finalInitPoint.includes('?') ? '&' : '?';
-      finalInitPoint = `${finalInitPoint}${separator}locale=es-AR`;
-    } else {
-      // Si ya tiene locale, asegurarse de que sea es-AR
-      finalInitPoint = finalInitPoint.replace(/locale=[^&]*/, 'locale=es-AR');
-    }
-
-    console.log('🔗 Init Point Final (con locale=es-AR):', finalInitPoint);
+    console.log('🔗 ========== PROCESANDO INIT POINT (SIMPLE) ==========');
+    console.log('🔗 Init Point Final:', finalInitPoint);
     console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
     const responseData = {
