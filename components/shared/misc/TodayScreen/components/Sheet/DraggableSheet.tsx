@@ -72,7 +72,7 @@ export function DraggableSheet({
 }: DraggableSheetProps) {
 
     const TOP_SNAP = 140; // Raised
-    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.40; // Match Layout (40%)
+    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.18; // Match Layout (18% for just header)
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
