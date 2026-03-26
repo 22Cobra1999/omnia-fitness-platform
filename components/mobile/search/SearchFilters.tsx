@@ -3,8 +3,8 @@ import { Zap, Utensils, X, ChevronDown } from "lucide-react"
 interface SearchFiltersProps {
     selectedCategory: string
     setSelectedCategory: (cat: string) => void
-    selectedModality: string
-    setSelectedModality: (mod: string) => void
+    selectedModalities: string[]
+    setSelectedModalities: (mods: string[]) => void
     selectedWorkshopType: string
     setSelectedWorkshopType: (type: string) => void
     selectedSportDiet: string
@@ -22,8 +22,8 @@ interface SearchFiltersProps {
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
     selectedCategory,
     setSelectedCategory,
-    selectedModality,
-    setSelectedModality,
+    selectedModalities,
+    setSelectedModalities,
     selectedWorkshopType,
     setSelectedWorkshopType,
     selectedSportDiet,

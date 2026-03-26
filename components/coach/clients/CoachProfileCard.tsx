@@ -34,12 +34,12 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
     }
 
     if (variant === 'meet') {
-      const heightClass = size === 'medium' ? 'w-[200px] h-[280px]' : 'w-[160px] h-[230px]'
-      return `${base} ${heightClass} rounded-[2rem]`
+      const heightClass = size === 'medium' ? 'w-[170px] h-[220px]' : 'w-[130px] h-[165px]'
+      return `${base} ${heightClass} rounded-[1.5rem]`
     }
 
-    const heightClass = size === 'medium' ? 'w-[240px] h-[340px]' : 'w-[200px] h-[280px]'
-    return `${base} ${heightClass} rounded-[2.5rem]`
+    const heightClass = size === 'medium' ? 'w-[195px] h-[250px]' : 'w-[140px] h-[175px]'
+    return `${base} ${heightClass} rounded-[1.75rem]`
   })()
 
   // Debug logging - Removed for performance in production
@@ -98,7 +98,7 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
       onClick={onClick}
       className={cardClasses}
     >
-      <div className="relative h-full w-full bg-[#121212] rounded-[2rem] overflow-hidden border border-white/10 flex flex-col">
+      <div className={`relative h-full w-full bg-[#121212] ${variant === 'meet' ? 'rounded-[1.5rem]' : 'rounded-[1.75rem]'} overflow-hidden border border-white/10 flex flex-col`}>
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           {coach.avatar_url ? (
@@ -125,69 +125,69 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
         </div>
 
         {/* Rating Badge - Top Left */}
-        <div className="absolute top-[clamp(6px,2vh,12px)] left-[clamp(6px,2vh,12px)] z-20">
-          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-[clamp(4px,1.5vw,8px)] py-0.5 rounded-full border border-white/10">
-            <Star className="h-[clamp(7px,1.5vw,9px)] w-[clamp(7px,1.5vw,9px)] fill-yellow-400 text-yellow-400" />
-            <span className="text-[clamp(8px,1.5vw,10px)] font-black text-white">{showRating ? ratingValue.toFixed(1) : '—'}</span>
+        <div className="absolute top-1.5 left-1.5 z-20">
+          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-white/10">
+            <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+            <span className="text-[9px] font-black text-white">{showRating ? ratingValue.toFixed(1) : '—'}</span>
           </div>
         </div>
 
         {/* Content Section - Defined Layout Sections */}
-        <div className="relative z-20 mt-auto p-2 pb-1 flex flex-col items-center text-center">
+        <div className="relative z-20 mt-auto p-1 pb-2 flex flex-col items-center text-center">
           {/* Section 1: Name & Specialization (Fixed Height) */}
-          <div className="flex flex-col items-center justify-center h-[36px] w-full mb-1">
-            <h3 className="text-[12.5px] md:text-[13.5px] font-black text-white tracking-tight leading-none truncate w-[90%] drop-shadow-md">
+          <div className="flex flex-col items-center justify-center h-[26px] w-full mb-1">
+            <h3 className="text-[11.5px] md:text-[13px] font-black text-white tracking-tight leading-none truncate w-[90%] drop-shadow-md">
               {displayName}
             </h3>
-            <span className="text-[10px] font-black text-[#FF7939] uppercase tracking-[0.15em] leading-none mt-1 opacity-90">
+            <span className="text-[7.5px] font-black text-[#FF7939] uppercase tracking-[0.05em] leading-none mt-0 opacity-90">
               {specialization.split(',')[0]}
             </span>
           </div>
 
           {/* Section 2: Stats Row / Meet Row */}
           {variant === 'meet' ? (
-            <div className="flex items-center justify-center gap-2 w-full h-[40px] mb-2">
-              <div className="flex items-center gap-1.5 bg-[#FF7939]/10 px-3 py-1.5 rounded-full border border-[#FF7939]/20">
-                <Video className="w-3.5 h-3.5 text-[#FF7939]" />
-                <span className="text-xs font-black text-white">{coach.available_meets || 0} MEETS</span>
+            <div className="flex items-center justify-center gap-2 w-full h-[30px] mb-1.5">
+              <div className="flex items-center gap-1 bg-[#FF7939]/10 px-2 py-1 rounded-full border border-[#FF7939]/20">
+                <Video className="w-2.5 h-2.5 text-[#FF7939]" />
+                <span className="text-[9px] font-black text-white">{coach.available_meets || 0} MEETS</span>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-6 w-full h-[50px] mb-3">
+            <div className="flex items-center justify-center gap-2.5 w-full h-[32px] mb-1.5">
               <div className="flex flex-col items-center justify-center">
-                <Flame className="w-4 h-4 text-[#FF7939] mb-1" />
+                <Flame className="w-2.5 h-2.5 text-[#FF7939] mb-0" />
                 <div className="flex flex-col items-center">
-                  <span className="text-[15.5px] md:text-[16.5px] font-black text-white leading-none">{coach.total_products || 0}</span>
-                  <span className="text-[10px] md:text-[10.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-1">Prod</span>
+                  <span className="text-[12px] md:text-[14px] font-black text-white leading-none">{coach.total_products || 0}</span>
+                  <span className="text-[7.5px] md:text-[9.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-0">Prod</span>
                 </div>
               </div>
               <div className="flex flex-col items-center justify-center">
-                <DollarSign className="w-4 h-4 text-[#FF7939] mb-1" />
+                <DollarSign className="w-2.5 h-2.5 text-[#FF7939] mb-0" />
                 <div className="flex flex-col items-center">
-                  <span className="text-[15.5px] md:text-[16.5px] font-black text-white leading-none">
+                  <span className="text-[12px] md:text-[14px] font-black text-white leading-none">
                     {coach.total_sales ?? coach.total_clients ?? coach.total_sessions ?? 0}
                   </span>
-                  <span className="text-[10px] md:text-[10.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-1">Vtas</span>
+                  <span className="text-[7.5px] md:text-[9.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-0">Vtas</span>
                 </div>
               </div>
               <div className="flex flex-col items-center justify-center">
-                <Award className="w-4 h-4 text-[#FF7939] mb-1" />
+                <Award className="w-2.5 h-2.5 text-[#FF7939] mb-0" />
                 <div className="flex flex-col items-center">
-                  <span className="text-[15.5px] md:text-[16.5px] font-black text-white leading-none">{coach.experience_years || 0}</span>
-                  <span className="text-[10px] md:text-[10.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-1">Años</span>
+                  <span className="text-[12px] md:text-[14px] font-black text-white leading-none">{coach.experience_years || 0}</span>
+                  <span className="text-[7.5px] md:text-[9.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-0">Años</span>
                 </div>
               </div>
             </div>
           )}
 
           {/* Section 3: Specialties Horizontal Scroll (Reserved Space) */}
-          <div className="w-full h-[36px] flex items-center justify-center mb-2">
-            <div className="w-full overflow-x-auto no-scrollbar hide-scrollbar flex gap-2 justify-start px-4">
+          <div className="w-full h-[18px] flex items-center justify-center mb-1.5">
+            <div className="w-full overflow-x-auto no-scrollbar hide-scrollbar flex gap-1.5 justify-start px-3">
               {(specialization.split(',').slice(1, 6).filter(s => s.trim().length > 0).length > 0) ? (
                 specialization.split(',').slice(1, 6).map((spec, index) => (
                   <div
                     key={index}
-                    className="shrink-0 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 text-[10.5px] font-black text-white/60 uppercase tracking-tight whitespace-nowrap"
+                    className="shrink-0 px-2 py-0.5 bg-white/5 rounded-full border border-white/5 text-[7.5px] font-black text-white/60 uppercase tracking-tight whitespace-nowrap"
                   >
                     {spec.trim()}
                   </div>
@@ -199,8 +199,8 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
           </div>
 
           {/* Section 4: Down Indicator "v" - Stable */}
-          <div className="flex justify-center h-[12px] opacity-40">
-            <ChevronDown className="w-3 h-3 text-[#FF7939]" />
+          <div className="flex justify-center h-[10px] opacity-40">
+            <ChevronDown className="w-2.5 h-2.5 text-[#FF7939]" />
           </div>
         </div>
       </div>

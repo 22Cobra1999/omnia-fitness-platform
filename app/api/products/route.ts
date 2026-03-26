@@ -292,6 +292,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('coach_id', user.id)
       .neq('type', 'consultation')
+      .neq('borrada', true)
       .order('created_at', { ascending: false })
 
     if (productsError) {

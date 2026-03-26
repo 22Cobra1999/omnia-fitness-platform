@@ -32,8 +32,8 @@ export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenP
     setShowFilters,
     selectedCategory,
     setSelectedCategory,
-    selectedModality,
-    setSelectedModality,
+    selectedModalities,
+    setSelectedModalities,
     selectedWorkshopType,
     setSelectedWorkshopType,
     selectedSportDiet,
@@ -94,8 +94,8 @@ export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenP
         setShowAllActivities={setShowAllActivities}
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
-        selectedModality={selectedModality}
-        setSelectedModality={setSelectedModality}
+        selectedModalities={selectedModalities}
+        setSelectedModalities={setSelectedModalities}
         resultsCount={expandedSection === 'coaches' ? displayedCoaches.length : activities.length}
       />
 
@@ -104,8 +104,8 @@ export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenP
         <SearchFilters
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
-          selectedModality={selectedModality}
-          setSelectedModality={setSelectedModality}
+          selectedModalities={selectedModalities}
+          setSelectedModalities={setSelectedModalities}
           selectedWorkshopType={selectedWorkshopType}
           setSelectedWorkshopType={setSelectedWorkshopType}
           selectedSportDiet={selectedSportDiet}

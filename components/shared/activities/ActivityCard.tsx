@@ -288,7 +288,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'small': return 'w-48 md:w-56 h-auto flex flex-col'
+      case 'small': return 'w-44 md:w-52 h-auto flex flex-col'
       case 'medium': return 'w-72 md:w-80 h-auto flex flex-col'
       case 'large': return 'w-80 md:w-96 h-auto flex flex-col'
       default: return 'w-72 h-auto flex flex-col'
@@ -310,18 +310,18 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     <div
       className={cn(
         getSizeClasses(),
-        "cursor-pointer group relative flex-shrink-0 bg-[#121212] overflow-hidden rounded-[2.8rem]"
+        "cursor-pointer group relative flex-shrink-0 bg-[#121212] overflow-hidden rounded-[2.2rem]"
       )}
       onClick={() => onClick?.(activity)}
     >
-      <div className={`rounded-[2.8rem] overflow-hidden border transition-all duration-500 hover:scale-[1.02] h-full flex flex-col relative
+      <div className={`rounded-[2.2rem] overflow-hidden border transition-all duration-500 hover:scale-[1.02] h-full flex flex-col relative
         ${variant === 'blurred'
           ? 'bg-white/5 backdrop-blur-md border-white/10 hover:border-[#FF7939]/50'
           : 'bg-black border-white/5 hover:border-[#FF7939]/30'
         }
         ${shouldShowAsInactive ? 'opacity-50 grayscale' : ''}`}>
 
-        <div className="relative w-full h-[280px] flex-shrink-0 overflow-hidden rounded-t-[2.8rem] bg-black">
+        <div className="relative w-full h-[260px] flex-shrink-0 overflow-hidden rounded-t-[2.2rem] bg-black">
           {getValidImageUrl(activity) ? (
             <Image
               src={getValidImageUrl(activity)!}
@@ -395,7 +395,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </div>
 
             <div className="flex items-center gap-[clamp(4px,1.5vw,8px)] pl-1 pr-[clamp(8px,3vw,16px)] py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 shadow-2xl relative w-fit max-w-[95%]">
-              <div className="w-[clamp(20px,5vw,24px)] h-[clamp(20px,5vw,24px)] rounded-full bg-zinc-800/50 border border-white/20 flex items-center justify-center overflow-hidden shrink-0 relative">
+              <div className="w-[clamp(18px,4.5vw,22px)] h-[clamp(18px,4.5vw,22px)] rounded-full bg-zinc-800/50 border border-white/20 flex items-center justify-center overflow-hidden shrink-0 relative">
                 {activity.coach_avatar_url ? (
                   <Image
                     src={activity.coach_avatar_url}
@@ -404,7 +404,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     className="object-cover"
                   />
                 ) : (
-                  <span className="text-[clamp(8px,1.5vw,10px)] font-black text-zinc-400 capitalize">{activity.coach_name?.[0] || 'C'}</span>
+                  <span className="text-[clamp(7px,1.2vw,9px)] font-black text-zinc-400 capitalize">{activity.coach_name?.[0] || 'C'}</span>
                 )}
               </div>
               <div className="flex items-center gap-1 min-w-0">
@@ -422,7 +422,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           </div>
         </div>
 
-        <div className="py-2 px-4 flex-1 flex flex-col h-full min-h-0 bg-black rounded-b-[2.8rem]">
+        <div className="py-2 px-3.5 flex-1 flex flex-col h-full min-h-0 bg-black rounded-b-[2.2rem]">
           {/* Badge row pulled from the side-by-side style */}
           <div className="flex flex-wrap gap-2 justify-center items-center mb-4 pt-2">
             <span className={`flex items-center justify-center w-7 h-7 bg-white/5 backdrop-blur-md ${getCategoryColor(activity.categoria || 'fitness')} rounded-full border border-white/10 shadow-lg`} title={getCategoryBadge(activity.categoria || 'fitness')}>
@@ -518,13 +518,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         </div>
 
         {isWorkshopInactive && (
-          <div className="absolute inset-0 bg-black/80 rounded-[2.8rem] flex items-center justify-center z-10 text-center p-4">
+          <div className="absolute inset-0 bg-black/80 rounded-[2.2rem] flex items-center justify-center z-10 text-center p-4">
             <RotateCcw className="w-8 h-8 text-[#FF7939] mx-auto mb-2" />
             <p className="text-white font-bold text-base">Taller Finalizado</p>
           </div>
         )}
         {isPaused && !isWorkshopInactive && (
-          <div className="absolute inset-0 bg-black/60 rounded-[2.8rem] flex items-center justify-center z-10 text-center p-4">
+          <div className="absolute inset-0 bg-black/60 rounded-[2.2rem] flex items-center justify-center z-10 text-center p-4">
             <Lock className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
             <p className="text-white font-bold text-base">Pausado</p>
           </div>

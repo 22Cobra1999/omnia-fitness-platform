@@ -58,7 +58,7 @@ export function useSearchScreenLogic(initialData?: any) {
     const [searchTerm, setSearchTerm] = useState("")
     const [showFilters, setShowFilters] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>("all")
-    const [selectedModality, setSelectedModality] = useState<string>("all")
+    const [selectedModalities, setSelectedModalities] = useState<string[]>([])
     const [selectedProgramType, setSelectedProgramType] = useState<string>("all")
     const [selectedWorkshopType, setSelectedWorkshopType] = useState<string>("all")
     const [selectedSportDiet, setSelectedSportDiet] = useState<string>("all")
@@ -235,16 +235,16 @@ export function useSearchScreenLogic(initialData?: any) {
                 if (actCat !== targetCat && actCat !== (targetCat === "nutricion" ? "nutrition" : "fitness")) return false
             }
 
-            if (selectedModality !== "all") {
+            if (selectedModalities.length > 0) {
                 const lowerTitle = title.toLowerCase()
                 const actType = activity.type?.toLowerCase() || ""
-                if (selectedModality === 'doc') {
-                    if (!lowerTitle.includes('doc') && !actType.includes('doc')) return false
-                } else if (selectedModality === 'taller') {
-                    if (!lowerTitle.includes('taller') && !lowerTitle.includes('workshop') && !actType.includes('workshop')) return false
-                } else if (selectedModality === 'programa') {
-                    if (!lowerTitle.includes('programa') && !actType.includes('program')) return false
-                }
+                const matchesAny = selectedModalities.some(mod => {
+                    if (mod === 'doc') return lowerTitle.includes('doc') || actType.includes('doc')
+                    if (mod === 'taller') return lowerTitle.includes('taller') || lowerTitle.includes('workshop') || actType.includes('workshop')
+                    if (mod === 'programa') return lowerTitle.includes('programa') || actType.includes('program')
+                    return false
+                })
+                if (!matchesAny) return false
             }
 
             if (selectedWorkshopType !== "all") {
@@ -278,7 +278,7 @@ export function useSearchScreenLogic(initialData?: any) {
 
             return true
         })
-    }, [allActivities, searchTerm, selectedCategory, selectedModality, selectedWorkshopType, selectedSportDiet, selectedDuration, selectedObjectives])
+    }, [allActivities, searchTerm, selectedCategory, selectedModalities, selectedWorkshopType, selectedSportDiet, selectedDuration, selectedObjectives])
 
     // Interaction Handlers
     const handleActivityClick = useCallback((activity: Activity, fromCoachProfile = false, coachId?: string) => {
@@ -383,7 +383,7 @@ export function useSearchScreenLogic(initialData?: any) {
     const clearAllFilters = useCallback(() => {
         setSearchTerm("");
         setSelectedCategory("all");
-        setSelectedModality("all");
+        setSelectedModalities([]);
         setSelectedProgramType("all");
         setSelectedWorkshopType("all");
         setSelectedSportDiet("all");
@@ -411,7 +411,7 @@ export function useSearchScreenLogic(initialData?: any) {
             if (event.detail?.tab === 'search') {
                 setSearchTerm("")
                 setSelectedCategory("all")
-                setSelectedModality("all")
+                setSelectedModalities([])
                 setShowFilters(false)
                 setSelectedObjectives([])
                 setNavigationStack([])
@@ -471,7 +471,7 @@ export function useSearchScreenLogic(initialData?: any) {
         searchTerm,
         showFilters,
         selectedCategory,
-        selectedModality,
+        selectedModalities,
         selectedProgramType,
         selectedWorkshopType,
         selectedSportDiet,
@@ -506,7 +506,7 @@ export function useSearchScreenLogic(initialData?: any) {
         handleSuggestionClick,
         setShowFilters,
         setSelectedCategory,
-        setSelectedModality,
+        setSelectedModalities,
         setSelectedProgramType,
         setSelectedWorkshopType,
         setSelectedSportDiet,

@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       *,
       activity_media!activity_media_activity_id_fkey(*)
     `)
+    .neq('borrada', true)
     
     if (searchTerm) {
       query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)

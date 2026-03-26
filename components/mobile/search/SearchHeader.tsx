@@ -1,5 +1,5 @@
 import React from "react"
-import { Search, Filter, X, ArrowLeft, Dumbbell, ChefHat, Zap, Utensils } from "lucide-react"
+import { Search, Filter, X, ArrowLeft, Dumbbell, ChefHat, Zap, Utensils, BookOpen, Users, FileText } from "lucide-react"
 
 interface SearchHeaderProps {
     expandedSection: 'coaches' | 'activities' | null
@@ -13,8 +13,10 @@ interface SearchHeaderProps {
     setShowAllActivities: (show: boolean) => void
     selectedCategory: string
     setSelectedCategory: (cat: string) => void
-    selectedModality: string
-    setSelectedModality: (mod: string) => void
+    selectedModalities: string[]
+    setSelectedModalities: (mods: string[]) => void
+    selectedModality?: string // Para compatibilidad si se usa en otros lados
+    setSelectedModality?: (mod: string) => void // Para compatibilidad
     resultsCount: number
 }
 
@@ -30,8 +32,8 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
     setShowAllActivities,
     selectedCategory,
     setSelectedCategory,
-    selectedModality,
-    setSelectedModality,
+    selectedModalities,
+    setSelectedModalities,
     resultsCount,
 }) => {
     const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
@@ -54,13 +56,13 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                     <div className="flex flex-1 items-center gap-2 overflow-hidden">
                         <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
                             {[
-                                { id: 'fitness', label: 'Fitness', icon: <Dumbbell className="w-3 h-3" /> },
-                                { id: 'nutricion', label: 'Nutrición', icon: <ChefHat className="w-3 h-3" /> },
+                                { id: 'fitness', label: 'Fitness', icon: <Zap className="w-3 h-3 text-[#FF7939]" /> },
+                                { id: 'nutricion', label: 'Nutrición', icon: <Utensils className="w-3 h-3 text-[#FF7939]" /> },
                                 ...(expandedSection === 'coaches' ? [{ id: 'general', label: 'General', icon: <Zap className="w-3 h-3" /> }] : [])
                             ].map(cat => (
                                 <button
                                     key={cat.id}
-                                    onClick={() => setSelectedCategory(cat.id)}
+                                    onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${selectedCategory === cat.id
                                         ? 'bg-[#FF7939] border-[#FF7939] text-white shadow-[0_0_10px_rgba(255,121,57,0.2)]'
                                         : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
@@ -70,6 +72,38 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                                     <span className="text-[11px] font-bold whitespace-nowrap">{cat.label}</span>
                                 </button>
                             ))}
+
+                            <div className="w-[1px] h-4 bg-white/10 mx-0.5 self-center" />
+
+                            {[
+                                { id: 'doc', label: 'Docs', icon: <FileText className="w-3 h-3" />, color: '#FF9FC4' },
+                                { id: 'programa', label: 'Progs', icon: <BookOpen className="w-3 h-3" />, color: '#FF7939' },
+                                { id: 'taller', label: 'Talleres', icon: <Users className="w-3 h-3" />, color: '#FFD1A6' }
+                            ].map(mod => {
+                                const isActive = selectedModalities.includes(mod.id);
+                                return (
+                                    <button
+                                        key={mod.id}
+                                        onClick={() => {
+                                            if (isActive) {
+                                                setSelectedModalities(selectedModalities.filter(m => m !== mod.id))
+                                            } else {
+                                                setSelectedModalities([...selectedModalities, mod.id])
+                                            }
+                                        }}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${isActive
+                                            ? 'bg-white/10 border-white/20 text-white shadow-[0_0_10px_rgba(255,121,57,0.1)]'
+                                            : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                                            }`}
+                                    >
+                                        {React.cloneElement(mod.icon, {
+                                            className: `w-3 h-3 ${isActive ? '' : 'opacity-40'}`,
+                                            style: { color: mod.color }
+                                        })}
+                                        <span className="text-[11px] font-bold whitespace-nowrap">{mod.label}</span>
+                                    </button>
+                                )
+                            })}
                         </div>
 
                         <div className="relative flex-1 min-w-[120px]">
@@ -133,22 +167,60 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                     )}
 
                     {!isSearchExpanded && (
-                        <div className="flex gap-1">
-                            {[
-                                { id: 'fitness', title: 'Fitness', icon: <Zap className="w-4 h-4 text-[#FF7939]" /> },
-                                { id: 'nutricion', title: 'Nutrición', icon: <Utensils className="w-4 h-4 text-[#FF7939]" /> }
-                            ].map(cat => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
-                                    className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${selectedCategory === cat.id
-                                        ? 'bg-white/10'
-                                        : 'bg-white/5 text-white/40 hover:bg-white/10'
-                                        }`}
-                                >
-                                    {cat.icon}
-                                </button>
-                            ))}
+                        <div className="flex items-center">
+                            {/* Fitness / Nutricion */}
+                            <div className="flex gap-1">
+                                {[
+                                    { id: 'fitness', title: 'Fitness', icon: <Zap className="w-4 h-4 text-[#FF7939]" /> },
+                                    { id: 'nutricion', title: 'Nutrición', icon: <Utensils className="w-4 h-4 text-[#FF7939]" /> }
+                                ].map(cat => (
+                                    <button
+                                        key={cat.id}
+                                        onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
+                                        className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${selectedCategory === cat.id
+                                            ? 'bg-white/10'
+                                            : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                            }`}
+                                    >
+                                        {cat.icon}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Separador */}
+                            <div className="w-[1px] h-6 bg-white/10 mx-1.5 self-center" />
+
+                            {/* Doc / Programas / Talleres */}
+                            <div className="flex gap-1">
+                                {[
+                                    { id: 'doc', title: 'Documentos', icon: <FileText className="w-4 h-4" />, color: '#FF9FC4' },
+                                    { id: 'programa', title: 'Programas', icon: <BookOpen className="w-4 h-4" />, color: '#FF7939' },
+                                    { id: 'taller', title: 'Talleres', icon: <Users className="w-4 h-4" />, color: '#FFD1A6' }
+                                ].map(mod => {
+                                    const isActive = selectedModalities.includes(mod.id);
+                                    return (
+                                        <button
+                                            key={mod.id}
+                                            onClick={() => {
+                                                if (isActive) {
+                                                    setSelectedModalities(selectedModalities.filter(m => m !== mod.id))
+                                                } else {
+                                                    setSelectedModalities([...selectedModalities, mod.id])
+                                                }
+                                            }}
+                                            className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${isActive
+                                                ? 'bg-white/10'
+                                                : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                                }`}
+                                        >
+                                            {React.cloneElement(mod.icon, {
+                                                className: `w-4 h-4 ${isActive ? '' : 'opacity-40'}`,
+                                                style: { color: mod.color }
+                                            })}
+                                        </button>
+                                    )
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -165,27 +237,6 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                 >
                     {showFilters ? <X className="w-5 h-5" /> : <Filter className="w-5 h-5" />}
                 </button>
-            </div>
-
-            {/* Fila Secundaria: Todos / Doc / Taller / Programas */}
-            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
-                {[
-                    { id: 'all', label: 'Todos' },
-                    { id: 'doc', label: 'Documentos' },
-                    { id: 'taller', label: 'Talleres' },
-                    { id: 'programa', label: 'Programas' }
-                ].map(mod => (
-                    <button
-                        key={mod.id}
-                        onClick={() => setSelectedModality(mod.id)}
-                        className={`text-xs font-bold whitespace-nowrap pb-1 border-b-2 transition-all uppercase tracking-wide ${selectedModality === mod.id
-                            ? 'border-[#FF7939] text-white'
-                            : 'border-transparent text-white/40 hover:text-white/70'
-                            }`}
-                    >
-                        {mod.label}
-                    </button>
-                ))}
             </div>
         </div>
     )
