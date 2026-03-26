@@ -391,18 +391,28 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
 
-    const preferenceData = {
+    // En Sandbox, forzar un precio bajo para evitar challenges de seguridad de MP
+    const isSandboxMode = tokenToUseForPreference?.startsWith('TEST-') || isTestUser || tokenSource.includes('test');
+    const finalPrice = isSandboxMode ? 10 : totalAmount;
+    
+    if (isSandboxMode) {
+      console.log('🧪 SANDBOX DETECTADO: Forzando precio a $10.00 para evitar bloqueos de MP');
+    }
+
+    const preferenceData: any = {
       items: [
         {
           id: String(activityId),
-          title: activity.title,
+          title: activity.title.substring(0, 50), // Truncar para evitar problemas de longitud
           quantity: 1,
-          unit_price: totalAmount,
+          unit_price: finalPrice,
           currency_id: 'ARS'
         }
       ],
+      // Si usamos el token de OMNIA (Marketplace), debemos decirle quién es el vendedor
+      ...(tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
       // SOLO incluir marketplace_fee si estamos usando el token del marketplace (integrador)
-      // Y NO estamos en modo de prueba del marketplace
+      // Y NO estamos en Sandbox (en Sandbox no suele funcionar el split si los usuarios no son del mismo pool)
       ...(tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
           ? { marketplace_fee: marketplaceFee } 
           : {}),
