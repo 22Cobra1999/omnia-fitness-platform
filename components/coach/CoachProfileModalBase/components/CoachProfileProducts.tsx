@@ -64,7 +64,7 @@ export const CoachProfileProducts: React.FC<CoachProfileProductsProps> = ({
                 </div>
             ) : coachProducts.length > 0 ? (
                 <div className="overflow-x-auto">
-                    <div className="flex gap-4" style={{ minWidth: "min-content" }}>
+                    <div className="flex gap-1.5" style={{ minWidth: "min-content" }}>
                         {coachProducts.map((product, index) => (
                             <ActivityCard
                                 key={product.id || `product-${index}`}

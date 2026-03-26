@@ -397,9 +397,11 @@ export async function POST(request: NextRequest) {
           currency_id: 'ARS'
         }
       ],
-      // SOLO incluir marketplace_fee si NO estamos en modo prueba
-      // En modo prueba, el marketplace_fee puede causar que el botón se deshabilite
-      ...(marketplaceTokenIsTest ? {} : (marketplaceFee > 0 && sellerAmount > 0 ? { marketplace_fee: marketplaceFee } : {})),
+      // SOLO incluir marketplace_fee si estamos usando el token del marketplace (integrador)
+      // Y NO estamos en modo de prueba del marketplace
+      ...(tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
+          ? { marketplace_fee: marketplaceFee } 
+          : {}),
       external_reference: externalReference,
       back_urls: backUrls,
       auto_return: 'approved' as const,
@@ -544,45 +546,20 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point (preferir sandbox_init_point en modo test)
-    const initPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
+    const finalInitPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
 
-    console.log('🔗 ========== PROCESANDO INIT POINT ==========');
-    console.log('🔗 Init Point Original:', initPoint);
-    console.log('🔗 Tiene Init Point:', !!initPoint);
-    console.log('🔗 Tiene Sandbox Init Point:', !!preferenceResponse.sandbox_init_point);
-    console.log('🔗 Tiene Production Init Point:', !!preferenceResponse.init_point);
-
-    if (!initPoint) {
+    if (!finalInitPoint) {
       console.error('❌ ERROR: No se recibió init_point de Mercado Pago');
-      console.error('❌ Response completa:', JSON.stringify(preferenceResponse, null, 2));
       return NextResponse.json(
         {
           error: 'No se recibió init_point de Mercado Pago',
-          code: 'MISSING_INIT_POINT',
-          details: 'La respuesta de Mercado Pago no incluyó init_point ni sandbox_init_point'
+          code: 'MISSING_INIT_POINT'
         },
         { status: 500 }
       );
     }
 
-    // Agregar locale a la URL si no está presente
-    // IMPORTANTE: El locale debe estar en la URL para que el checkout de Mercado Pago lo use
-    let finalInitPoint = initPoint;
-
-    // Verificar si ya tiene locale
-    if (!finalInitPoint.includes('locale=')) {
-      // Agregar locale a la URL
-      const separator = finalInitPoint.includes('?') ? '&' : '?';
-      finalInitPoint = `${finalInitPoint}${separator}locale=es-AR`;
-    } else {
-      // Si ya tiene locale, asegurarse de que sea es-AR
-      finalInitPoint = finalInitPoint.replace(/locale=[^&]*/, 'locale=es-AR');
-    }
-
-    console.log('🔗 Init Point Original:', initPoint);
-    console.log('🔗 Init Point Final (con locale=es-AR):', finalInitPoint);
-    console.log('🔗 Tiene locale en URL:', finalInitPoint.includes('locale='));
-    console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
+    console.log('🔗 Init Point Final:', finalInitPoint);
 
     const responseData = {
       success: true,

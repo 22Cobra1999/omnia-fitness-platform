@@ -288,7 +288,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'small': return 'w-40 md:w-48 h-auto flex flex-col'
+      case 'small': return 'w-44 md:w-48 h-auto flex flex-col'
       case 'medium': return 'w-64 md:w-72 h-auto flex flex-col'
       case 'large': return 'w-72 md:w-80 h-auto flex flex-col'
       default: return 'w-64 h-auto flex flex-col'
