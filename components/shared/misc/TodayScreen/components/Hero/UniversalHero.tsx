@@ -104,7 +104,8 @@ export function UniversalHero({
                 flexDirection: 'column',
                 alignItems: 'center',
                 textAlign: 'center',
-                marginBottom: 6 // More compact
+                marginBottom: 6, // More compact
+                marginTop: isMobile ? 0 : -8 // Shift title up on Web
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '75%' }}>
                     <span style={{
