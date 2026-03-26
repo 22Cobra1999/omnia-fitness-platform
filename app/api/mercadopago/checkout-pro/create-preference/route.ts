@@ -349,13 +349,23 @@ export async function POST(request: NextRequest) {
       .single();
 
     // 9. Configurar URLs
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
+    let appUrlStr = (process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
+    
+    // Forzar HTTPS en Vercel/Producción si el usuario configuró mal la variable
+    if (!appUrlStr.includes('localhost') && appUrlStr.startsWith('http:')) {
+      console.log('🔒 Forzando HTTPS para appUrl en entorno no-local:', appUrlStr);
+      appUrlStr = appUrlStr.replace('http:', 'https:');
+    }
+
+    console.log('🌐 App URL Detectada:', appUrlStr);
 
     const backUrls = {
-      success: `${appUrl}/payment/success`,
-      failure: `${appUrl}/payment/failure`,
-      pending: `${appUrl}/payment/pending`
+      success: `${appUrlStr}/payment/success`,
+      failure: `${appUrlStr}/payment/failure`,
+      pending: `${appUrlStr}/payment/pending`
     };
+
+    console.log('📋 Back URLs configuradas:', JSON.stringify(backUrls, null, 2));
 
     // 10. Crear external_reference único
     const externalReference = `omnia_${activityId}_${clientId}_${Date.now()}`;
@@ -399,7 +409,7 @@ export async function POST(request: NextRequest) {
       external_reference: externalReference,
       back_urls: backUrls,
       auto_return: 'approved' as const,
-      notification_url: `${appUrl}/api/mercadopago/webhook`,
+      notification_url: `${appUrlStr}/api/mercadopago/webhook`,
       payer: {
         email: clientEmail,
         name: clientProfile?.name || 'Cliente',
