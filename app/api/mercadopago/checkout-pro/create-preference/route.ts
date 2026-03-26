@@ -513,8 +513,10 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Preferencia creada pero no se pudo guardar en banco');
     }
 
-    // 13. Obtener init_point (preferir sandbox_init_point en modo test)
-    const initPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
+    // 13. Obtener init_point
+    // IMPORTANTE: En Argentina Sandbox, sandbox_init_point suele causar bucles de redirección (ERR_TOO_MANY_REDIRECTS)
+    // Usar init_point (Producción) con un token de TEST es el workaround oficial para más estabilidad.
+    const initPoint = preferenceResponse.init_point;
 
     console.log('🔗 ========== PROCESANDO INIT POINT ==========');
     console.log('🔗 Init Point Original:', initPoint);
