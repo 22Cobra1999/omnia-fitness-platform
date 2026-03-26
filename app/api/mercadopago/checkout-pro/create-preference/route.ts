@@ -311,36 +311,27 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Coach Token es PRODUCCIÓN:', coachTokenIsProduction);
     console.log('🔍 Marketplace Token es TEST:', marketplaceTokenIsTest);
     console.log('🔍 Marketplace Token disponible:', !!marketplaceToken);
-    console.log('🔍 Marketplace Token empieza con:', marketplaceToken.substring(0, 20) + '...');
-
-    // 7.5. ESTRATEGIA: En sandbox, SIEMPRE priorizar token de prueba del marketplace
-    // Esto garantiza que las cuentas de prueba funcionen correctamente
+    // 7.5. ESTRATEGIA: En sandbox, priorizar token del coach si es de prueba
     let tokenToUseForPreference = coachAccessToken;
     let tokenSource = 'coach';
 
-    // PRIORIDAD 1: Si el marketplace tiene token de prueba, usarlo SIEMPRE
-    // Esto permite que las cuentas de prueba funcionen incluso si el coach tiene token de producción
-    if (marketplaceTokenIsTest && marketplaceToken) {
-      console.log('✅ Marketplace tiene token de prueba. Usando token del marketplace para permitir cuentas de prueba.');
+    // PRIORIDAD 1: Si el coach tiene token de prueba, usarlo SIEMPRE (es lo más directo)
+    if (coachTokenIsTest) {
+      console.log('✅ Coach tiene token de prueba. Usando token del coach para Sandbox.');
+      tokenSource = 'coach (test)';
+      tokenToUseForPreference = coachAccessToken;
+    }
+    // PRIORIDAD 2: Si el marketplace tiene token de prueba, usarlo como fallback
+    else if (marketplaceTokenIsTest && marketplaceToken) {
+      console.log('✅ Usando token del marketplace para permitir pruebas.');
       tokenToUseForPreference = marketplaceToken;
       tokenSource = 'marketplace (test)';
     }
-    // PRIORIDAD 2: Si el coach tiene token de prueba, usarlo
-    else if (coachTokenIsTest) {
-      console.log('✅ Coach tiene token de prueba. Usando token del coach.');
-      tokenSource = 'coach (test)';
-    }
-    // PRIORIDAD 3: Si el coach es cuenta de prueba conocida pero tiene token de producción, usar token del marketplace
-    else if (isTestUser && coachTokenIsProduction && marketplaceToken) {
-      console.log('⚠️ Coach es cuenta de prueba pero tiene token de producción.');
-      console.log('💡 Usando token del marketplace para permitir cuentas de prueba...');
-      tokenToUseForPreference = marketplaceToken;
-      tokenSource = 'marketplace (fallback for test user)';
-    }
-    // PRIORIDAD 4: En producción, usar token del coach
+    // PRIORIDAD 3: En producción, usar token del coach
     else {
       console.log('✅ Usando Access Token del coach (producción).');
       tokenSource = 'coach (production)';
+      tokenToUseForPreference = coachAccessToken;
     }
 
     console.log('🔍 Token seleccionado:', tokenSource);
@@ -404,6 +395,8 @@ export async function POST(request: NextRequest) {
           : {}),
       external_reference: externalReference,
       back_urls: backUrls,
+      auto_return: 'approved' as const,
+      notification_url: `${appUrl}/api/mercadopago/webhook`,
       payer: {
         email: clientEmail,
         name: clientProfile?.name || 'Cliente',
