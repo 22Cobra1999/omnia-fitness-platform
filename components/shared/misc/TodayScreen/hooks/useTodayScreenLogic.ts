@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/supabase-client';
 import {
     createBuenosAiresDate,
     getCurrentBuenosAiresDate,
-    getTodayBuenosAiresString
+    getTodayBuenosAiresString,
+    getBuenosAiresDateString
 } from '@/utils/date-utils';
 
 // Sub-hooks
@@ -292,24 +293,36 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     }, [data.enrollment]);
 
     const isProgramExpired = useMemo(() => {
-        if (!data.enrollment?.expiration_date) return false;
+        if (!data.enrollment?.expiration_date || !data.enrollment?.start_date) return false;
 
         const expDateStr = data.enrollment.expiration_date.split('T')[0];
         const todayStr = getTodayBuenosAiresString();
 
-        // Si la suscripción expiró, está expirado
+        // 1. Si la suscripción expiró por fecha de expiración técnica (días de acceso)
         if (todayStr > expDateStr) return true;
 
-        // Si el estado es finalizada, está expirado (para efectos de UI de fin de programa)
-        if (data.enrollment?.status === 'finalizada') return true;
+        // 2. Si el estado es finalizada, ya no mostramos el programa (sino la encuesta)
+        // Pero el usuario pidió que si finaliza HOY, se vea HOY y la encuesta mañana.
+        if (data.enrollment?.status === 'finalizada' && todayStr > getBuenosAiresDateString(new Date((data.enrollment as any).updated_at || todayStr))) {
+            return true;
+        }
 
-        // Si ya pasamos todas las semanas del programa, está finalizado
+        // 3. Si ya pasamos todas las semanas del programa
         const totalWeeks = data.programInfo?.semanas_totales || data.programInfo?.duration_weeks || 4;
         const currentWeek = getWeekNumber(selectedDate, data.enrollment?.start_date);
-        if (currentWeek > totalWeeks) return true;
+
+        if (currentWeek > totalWeeks) {
+            // Verificamos si realmente ya pasó el último día de la última semana
+            const startDate = new Date(data.enrollment.start_date + 'T00:00:00');
+            const lastDayOfProgram = new Date(startDate);
+            lastDayOfProgram.setDate(startDate.getDate() + (totalWeeks * 7) - 1); // El último día es (start + totalWeeks*7 - 1)
+            
+            const lastDayStr = getBuenosAiresDateString(lastDayOfProgram);
+            if (todayStr > lastDayStr) return true;
+        }
 
         return false;
-    }, [data.enrollment?.expiration_date, data.enrollment?.status, data.programInfo, selectedDate, data.enrollment?.start_date]);
+    }, [data.enrollment?.expiration_date, data.enrollment?.start_date, data.enrollment?.status, (data.enrollment as any)?.updated_at, data.programInfo, selectedDate]);
 
     const finalActions = useMemo(() => ({
         ...actions,
