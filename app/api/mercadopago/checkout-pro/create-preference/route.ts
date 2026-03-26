@@ -336,10 +336,13 @@ export async function POST(request: NextRequest) {
       tokenToUseForPreference = coachAccessToken;
     }
 
-    console.log('🔍 Token seleccionado FINAL:', tokenSource);
-    console.log('🔍 Token usado empieza con:', tokenToUseForPreference ? tokenToUseForPreference.substring(0, 20) + '...' : 'VACÍO');
-    console.log('🔍 Es Sandbox (init point preference):', tokenToUseForPreference?.startsWith('TEST-') || isTestUser);
-    console.log('🔍 ========== FIN ANÁLISIS ==========');
+    console.log('🔍 ========== ANÁLISIS DE TOKENS FINAL ==========');
+    console.log('🔍 Coach User ID:', coachUserId);
+    console.log('🔍 Token Source:', tokenSource);
+    console.log('🔍 Token Prefix:', tokenToUseForPreference?.substring(0, 15));
+    console.log('🔍 Is Sandbox Mode:', tokenToUseForPreference?.startsWith('TEST-') || isTestUser);
+    console.log('🔍 Is Test User (Hardcoded):', isTestUser);
+    console.log('🔍 ========== FIN ANÁLISIS FINAL ==========');
 
     // 8. Obtener información del cliente (con todos los campos disponibles)
     const { data: clientProfile } = await supabase
@@ -391,7 +394,7 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
 
-    const isSandbox = tokenToUseForPreference?.startsWith('TEST-') || isTestUser;
+    const isSandboxFinal = tokenToUseForPreference?.startsWith('TEST-') || isTestUser;
 
     const preferenceData: any = {
       items: [
@@ -412,10 +415,9 @@ export async function POST(request: NextRequest) {
           }
         } : {})
       },
-      // SOLO en producción podemos hacer split payment con cuentas reales (Marketplace mode)
-      // En Sandbox, el split falla si el vendedor (coach) es una cuenta real y el integrador (OMNIA) es de prueba
-      ...(!isSandbox && tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
-      ...(!isSandbox && tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
+      // Restaurar collector_id SOLO si no es sandbox o si el marketplace es de producción
+      ...(!isSandboxFinal && tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
+      ...(!isSandboxFinal && tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
           ? { marketplace_fee: marketplaceFee } 
           : {}),
       external_reference: externalReference,
@@ -425,12 +427,14 @@ export async function POST(request: NextRequest) {
         platform: 'OMNIA',
         activity_id: String(activityId),
         client_id: clientId,
-        is_sandbox: isSandbox
+        is_sandbox: isSandboxFinal,
+        token_source: tokenSource
       }
     };
 
-    // Log detallado del objeto que enviamos a MP
-    console.log(`📋 Preference Object to MP (${isSandbox ? 'Sandbox' : 'Production'}):`, JSON.stringify(preferenceData, null, 2));
+    // Log CRÍTICO para ver exactamente qué enviamos a MP en Vercel
+    console.log('🚀 [DEPLOY LOG] Preference Data to MP:', JSON.stringify(preferenceData, null, 2));
+    console.log('🚀 [DEPLOY LOG] Using Token:', tokenToUseForPreference?.substring(0, 15) + '...');
 
     // Log detallado ANTES de crear la preferencia
     console.log('📋 ========== CREANDO PREFERENCIA ==========');
