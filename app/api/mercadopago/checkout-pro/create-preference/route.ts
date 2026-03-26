@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
   // Log inicial para verificar que el endpoint se está ejecutando
   console.log('🚀 ========== INICIO CREATE PREFERENCE ==========');
   console.log('🚀 Timestamp:', new Date().toISOString());
+  console.log('🚀 Env:', process.env.NODE_ENV);
+  console.log('🚀 MP Token available:', !!process.env.MERCADOPAGO_ACCESS_TOKEN);
 
   try {
     // 1. Validar autenticación (usar getUser() en lugar de getSession() para mayor seguridad)
@@ -334,8 +336,9 @@ export async function POST(request: NextRequest) {
       tokenToUseForPreference = coachAccessToken;
     }
 
-    console.log('🔍 Token seleccionado:', tokenSource);
-    console.log('🔍 Token usado empieza con:', tokenToUseForPreference.substring(0, 20) + '...');
+    console.log('🔍 Token seleccionado FINAL:', tokenSource);
+    console.log('🔍 Token usado empieza con:', tokenToUseForPreference ? tokenToUseForPreference.substring(0, 20) + '...' : 'VACÍO');
+    console.log('🔍 Es Sandbox (init point preference):', tokenToUseForPreference?.startsWith('TEST-') || isTestUser);
     console.log('🔍 ========== FIN ANÁLISIS ==========');
 
     // 8. Obtener información del cliente (con todos los campos disponibles)
@@ -415,10 +418,13 @@ export async function POST(request: NextRequest) {
       metadata: {
         platform: 'OMNIA',
         activity_id: String(activityId),
-        client_id: clientId
+        client_id: clientId,
+        token_source: tokenSource
       }
-      // NO incluir additional_info para simplificar
     };
+
+    // Log detallado del objeto que enviamos a MP
+    console.log('📋 Preference Object to MP:', JSON.stringify(preferenceData, null, 2));
 
     // Log detallado ANTES de crear la preferencia
     console.log('📋 ========== CREANDO PREFERENCIA ==========');
