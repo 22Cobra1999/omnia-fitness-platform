@@ -396,6 +396,7 @@ export async function POST(request: NextRequest) {
 
     const isSandboxFinal = tokenToUseForPreference?.startsWith('TEST-') || isTestUser;
 
+    // RESET NUCLEAR: Solo lo mínimo absoluto para que MP no rechace la preferencia
     const preferenceData: any = {
       items: [
         {
@@ -407,36 +408,13 @@ export async function POST(request: NextRequest) {
         }
       ],
       payer: {
-        email: clientEmail,
-        ...(clientProfile?.dni ? { 
-          identification: {
-            type: clientProfile?.document_type || 'DNI',
-            number: clientProfile.dni.toString()
-          }
-        } : {})
-      },
-      // BINARY MODE: Evita los desafíos de identidad (MFA) que causan bucles en Sandbox
-      binary_mode: isSandboxFinal,
-      // Restaurar collector_id SOLO si no es sandbox o si el marketplace es de producción
-      ...(!isSandboxFinal && tokenSource.includes('marketplace') && coachUserId ? { collector_id: Number(coachUserId) } : {}),
-      ...(!isSandboxFinal && tokenSource.includes('marketplace') && !marketplaceTokenIsTest && marketplaceFee > 0 && sellerAmount > 0 
-          ? { marketplace_fee: marketplaceFee } 
-          : {}),
-      external_reference: externalReference,
-      back_urls: backUrls,
-      auto_return: 'approved' as const,
-      metadata: {
-        platform: 'OMNIA',
-        activity_id: String(activityId),
-        client_id: clientId,
-        is_sandbox: isSandboxFinal,
-        token_source: tokenSource
+        email: clientEmail
       }
     };
 
-    // Log CRÍTICO para ver exactamente qué enviamos a MP en Vercel
-    console.log('🚀 [DEPLOY LOG] Preference Data to MP:', JSON.stringify(preferenceData, null, 2));
-    console.log('🚀 [DEPLOY LOG] Using Token:', tokenToUseForPreference?.substring(0, 15) + '...');
+    // Log CRÍTICO para ver exactamente qué enviamos a MP en Vercel (MODO RESET)
+    console.log('🚀 [DEPLOY LOG - RESET NUCLEAR] Preference Data:', JSON.stringify(preferenceData, null, 2));
+    console.log('🚀 [DEPLOY LOG - RESET NUCLEAR] Using Token:', tokenToUseForPreference?.substring(0, 15) + '...');
 
     // Log detallado ANTES de crear la preferencia
     console.log('📋 ========== CREANDO PREFERENCIA ==========');
@@ -535,11 +513,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point
-    // IMPORTANTE: Con BINARY MODE activado en Sandbox, ahora podemos usar la URL nativa de pruebas (sandbox_init_point)
-    // sin riesgo de bucles de identidad, ya que el modo binario los salta.
-    const finalInitPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
+    // RESET NUCLEAR: Forzamos init_point (Producción) para máxima estabilidad.
+    const finalInitPoint = preferenceResponse.init_point;
 
-    console.log('🔗 ========== PROCESANDO INIT POINT (BINARY MODE) ==========');
+    console.log('🔗 ========== PROCESANDO INIT POINT (NUCLEAR) ==========');
     console.log('🔗 Init Point Final:', finalInitPoint);
     console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
