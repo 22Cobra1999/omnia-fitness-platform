@@ -111,15 +111,15 @@ export function WeeklyCalendar({
             WebkitBackdropFilter: 'blur(10px) saturate(150%)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderRadius: 24,
-            padding: '4px 20px', // Further reduced top padding
-            paddingTop: '4px',
-            paddingBottom: calendarExpanded ? 52 : 12,
-            minHeight: calendarExpanded ? '40vh' : '25vh', 
+            padding: '2px 20px', 
+            paddingTop: '2px',
+            paddingBottom: calendarExpanded ? 48 : 8,
+            minHeight: calendarExpanded ? '38vh' : '22vh', 
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center', 
             marginBottom: 0,
-            marginTop: -6, // Negative margin to pull it closer to the title section
+            marginTop: -12, // Pull up closer to Hero
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
@@ -131,7 +131,7 @@ export function WeeklyCalendar({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: 12,
+                marginBottom: 8,
                 width: '100%',
                 padding: '0'
             }}>
@@ -240,8 +240,8 @@ export function WeeklyCalendar({
                     gridTemplateColumns: 'repeat(7, 1fr)',
                     gap: 6, // Original had 16 but with style overrides. Let's stick to visual provided earlier or 6 for safety if constraint. Original 3160 says gap: 16.
                     width: '100%',
-                    marginBottom: 8,
-                    padding: '12px 0'
+                    marginBottom: 4,
+                    padding: '8px 0'
                 }}>
                     {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((dayInitial, index) => {
                         // Logic from original 3166

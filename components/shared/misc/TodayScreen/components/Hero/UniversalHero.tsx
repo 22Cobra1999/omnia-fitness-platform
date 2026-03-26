@@ -63,10 +63,10 @@ export function UniversalHero({
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: isMobile ? '12px 20px 16px' : '16px 32px 20px', // Reduced top padding on web
-            minHeight: '18vh', 
-            marginBottom: 6,
-            marginTop: isMobile ? -44 : -56, // Shifted up more in web
+            padding: isMobile ? '12px 20px 16px' : '10px 32px 14px', // More compact
+            minHeight: '15vh', 
+            marginBottom: 0,
+            marginTop: isMobile ? -44 : -64, // Shifted up more in web
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
@@ -78,7 +78,7 @@ export function UniversalHero({
         }}>
             {/* Header row */}
             <div style={{
-                marginBottom: 10,
+                marginBottom: 6,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
