@@ -533,9 +533,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point
-    // IMPORTANTE: En Argentina Sandbox, sandbox_init_point suele causar bucles de redirección (ERR_TOO_MANY_REDIRECTS)
-    // Usar init_point (Producción) con un token de TEST es el workaround oficial para más estabilidad.
-    const initPoint = preferenceResponse.init_point;
+    // IMPORTANTE: En Argentina Sandbox, sandbox_init_point es necesario para que el preference-id de prueba sea válido.
+    // El bucle de redirecciones (ERR_TOO_MANY_REDIRECTS) suele ser causado por la complejidad del Marketplace,
+    // por lo que ahora usamos sandbox_init_point con una preferencia SIMPLE (sin Split Payment) en Sandbox.
+    const initPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
 
     console.log('🔗 ========== PROCESANDO INIT POINT ==========');
     console.log('🔗 Init Point Original:', initPoint);
