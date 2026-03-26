@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 import {
   getActiveFlagForActivity,
-  normalizeActivityMap
+  normalizeActivityMap,
+  hasActivity
 } from '@/lib/utils/exercise-activity-map'
 
 // GET - Obtener planificación de ejercicios de un producto
@@ -279,26 +280,23 @@ export async function GET(request: NextRequest) {
         })
         ejercicios.forEach((ejercicio) => {
           const activityMap = normalizeActivityMap(ejercicio.activity_id)
-          const hasActivity = !!activityMap[String(actividadIdNumber)]
+          const isLinked = hasActivity(ejercicio.activity_id, actividadIdNumber)
 
-          if (!hasActivity) {
-            console.warn('[get-product-planning] Ejercicio NO tiene activity_id correcto:', {
+          if (!isLinked) {
+            console.warn('[get-product-planning] Ejercicio NO tiene link explícito en activity_id:', {
               ejercicioId: ejercicio.id,
               nombre_ejercicio: ejercicio.nombre_ejercicio,
               activity_id: ejercicio.activity_id,
               actividadIdBuscado: actividadIdNumber,
-              activityMapKeys: Object.keys(activityMap),
-              activityMap: activityMap
+              activityMapKeys: Object.keys(activityMap)
             })
-            // NO hacer return, agregar igualmente al mapa para que tenga los datos
-            // El filtro de activity_id es solo para el flag is_active
           }
 
-          const isActive = hasActivity ? getActiveFlagForActivity(
-            activityMap,
+          const isActive = getActiveFlagForActivity(
+            ejercicio.activity_id,
             actividadIdNumber,
             ejercicio.is_active !== false
-          ) : true // Si no tiene el activity_id, asumir activo por defecto
+          )
 
           ejerciciosMap.set(String(ejercicio.id), {
             ...ejercicio,

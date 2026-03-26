@@ -15,6 +15,17 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 export function normalizeActivityMap(
   value: unknown
 ): ExerciseActivityMap {
+  // Manejo de valores escalares para compatibilidad
+  if (typeof value === 'number') {
+    return { [String(value)]: { activo: true } }
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const num = parseInt(value, 10)
+    if (!Number.isNaN(num) && String(num) === value.trim()) {
+      return { [value.trim()]: { activo: true } }
+    }
+  }
+
   if (!isObject(value)) {
     return {}
   }
@@ -45,7 +56,7 @@ export function hasActivity(
 ): boolean {
   const map = normalizeActivityMap(value)
   const key = activityKey(activityId)
-  return key in map
+  return key in map || '0' in map // '0' representa global
 }
 
 export function getActivityEntry(
@@ -54,7 +65,7 @@ export function getActivityEntry(
 ): ExerciseActivityEntry | null {
   const map = normalizeActivityMap(value)
   const key = activityKey(activityId)
-  return map[key] ?? null
+  return map[key] ?? map['0'] ?? null // Priorizar id específico, fallback a global '0'
 }
 
 export function getActiveFlagForActivity(
