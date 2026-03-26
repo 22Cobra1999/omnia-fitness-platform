@@ -404,8 +404,6 @@ export async function POST(request: NextRequest) {
           : {}),
       external_reference: externalReference,
       back_urls: backUrls,
-      auto_return: 'approved' as const,
-      notification_url: `${appUrl}/api/mercadopago/webhook`,
       payer: {
         email: clientEmail,
         name: clientProfile?.name || 'Cliente',
@@ -418,19 +416,13 @@ export async function POST(request: NextRequest) {
           }
         } : {})
       },
-      statement_descriptor: 'OMNIA',
       binary_mode: false,
       expires: false,
-      // Configurar locale explícitamente para evitar warnings de Bricks
-      // Esto es crítico para que el botón de pagar funcione correctamente
-      locale: 'es-AR',
-      // Metadata solo para debugging
+      // Metadata para tracking interno
       metadata: {
         platform: 'OMNIA',
         activity_id: String(activityId),
-        client_id: clientId,
-        test_mode: marketplaceTokenIsTest,
-        simple_preference: useSimplePreference
+        client_id: clientId
       }
       // NO incluir additional_info para simplificar
     };
@@ -451,14 +443,10 @@ export async function POST(request: NextRequest) {
       identification: preferenceData.payer.identification
     });
     console.log('📋 Items:', JSON.stringify(preferenceData.items, null, 2));
-    console.log('📋 Payment Methods:', JSON.stringify(preferenceData.payment_methods, null, 2));
     console.log('📋 Back URLs:', JSON.stringify(preferenceData.back_urls, null, 2));
-    console.log('📋 Auto Return:', preferenceData.auto_return);
     console.log('📋 Binary Mode:', preferenceData.binary_mode);
     console.log('📋 Expires:', preferenceData.expires);
-    console.log('📋 Has Marketplace Fee:', !!(marketplaceFee > 0 && sellerAmount > 0));
     console.log('📋 External Reference:', preferenceData.external_reference);
-    console.log('📋 Notification URL:', preferenceData.notification_url);
 
     // Log completo de la preferencia (para debugging)
     console.log('🔍 ========== PREFERENCIA COMPLETA (JSON) ==========');
