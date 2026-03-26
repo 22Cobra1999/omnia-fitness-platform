@@ -63,11 +63,11 @@ export function UniversalHero({
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            // Highly increased paddingTop on web to offset the negative margin and keep content in place
-            padding: isMobile ? '12px 20px 16px' : '52px 32px 14px', 
+            // TOP PADDING: compensation for the negative margin to keep content position stable
+            padding: isMobile ? '8px 20px 12px' : '62px 32px 14px', 
             minHeight: '13vh', 
             marginBottom: 0,
-            // Increased negative margin to cover the gaps near the header
+            // HERO FRAME HEIGHT ADJUSTMENT: Bleed background up behind the header
             marginTop: isMobile ? -48 : -100, 
             marginLeft: '-24px',
             marginRight: '-24px',
@@ -107,7 +107,7 @@ export function UniversalHero({
                 alignItems: 'center',
                 textAlign: 'center',
                 marginBottom: 6,
-                marginTop: isMobile ? 0 : -8 
+                marginTop: isMobile ? 0 : -8 // Maintain internal shift for compactness
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: isMobile ? '100%' : '75%' }}>
                     <span style={{

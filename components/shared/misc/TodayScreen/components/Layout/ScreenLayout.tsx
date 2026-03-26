@@ -25,7 +25,7 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic - Responsive
-    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.35; 
+    const COLLAPSED_H = isMobile ? vh * 0.12 : vh * 0.40; 
     const collapsedY = vh - COLLAPSED_H;
     const TOP_SNAP = 140; // Raised snap (closer to top) for more workspace
 
