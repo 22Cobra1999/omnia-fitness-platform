@@ -410,23 +410,13 @@ export async function POST(request: NextRequest) {
         email: clientEmail,
         name: clientProfile?.name || 'Cliente',
         surname: clientProfile?.surname || 'OMNIA',
-        // Agregar phone si está disponible
         ...(clientProfile?.phone ? { phone: { number: clientProfile.phone } } : {}),
-        // Agregar identificación - SIEMPRE incluir para evitar problemas con el botón
-        identification: clientProfile?.dni ? {
-          type: clientProfile?.document_type || 'DNI',
-          number: clientProfile.dni.toString()
-        } : {
-          type: 'DNI',
-          number: '12345678' // DNI de prueba genérico
-        }
-      },
-      // Configuración mínima de payment_methods
-      payment_methods: {
-        excluded_payment_methods: [],
-        excluded_payment_types: [],
-        installments: 12,
-        default_installments: 1
+        ...(clientProfile?.dni ? { 
+          identification: {
+            type: clientProfile?.document_type || 'DNI',
+            number: clientProfile.dni.toString()
+          }
+        } : {})
       },
       statement_descriptor: 'OMNIA',
       binary_mode: false,
