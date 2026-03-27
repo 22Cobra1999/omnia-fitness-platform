@@ -1,0 +1,19 @@
+--- SIMULACIÓN DE GENERACIÓN DE PROGRESO NUTRICIÓN ---
+👤 Perfil encontrado: Masculino 69.7 kg
+📖 Platos encontrados en DB: 10
+⚙️ Factores Aplicados: Kcal x1.00, Prot x1.00
+
+--- INSERT SQL SIMULADO (Ejemplo para un día) ---
+
+INSERT INTO "public"."progreso_cliente_nutricion" 
+("cliente_id", "actividad_id", "fecha", "ejercicios_completados", "ejercicios_pendientes", "macros", "ingredientes", "enrollment_id") 
+VALUES (
+    '00dedc23-0b17-4e50-b84e-b2e8100dc93c', 
+    93, 
+    '2026-03-30', 
+    '{"ejercicios": []}', 
+    '{"ejercicios": [753, 758, 759, 760, 761, 764, 765]}', 
+    '{"753":{"id":753,"nombre":"Wrap de Pollo Caesar","calorias":420,"minutos":0,"proteinas":32,"carbohidratos":38,"grasas":16,"receta":"","ingredientes":[""]},"758":{"id":758,"nombre":"Curry de Garbanzos","calorias":420,"minutos":0,"proteinas":14,"carbohidratos":58,"grasas":14,"receta":"","ingredientes":[""]},"759":{"id":759,"nombre":"Sushi Bowl","calorias":450,"minutos":0,"proteinas":24,"carbohidratos":56,"grasas":14,"receta":"","ingredientes":[""]},"760":{"id":760,"nombre":"Pizza Fit de Pollo BBQ","calorias":480,"minutos":0,"proteinas":36,"carbohidratos":52,"grasas":14,"receta":"","ingredientes":[""]},"761":{"id":761,"nombre":"Wok de Verduras y Tofu","calorias":380,"minutos":0,"proteinas":18,"carbohidratos":48,"grasas":12,"receta":"","ingredientes":[""]},"764":{"id":764,"nombre":"Avena con proteína y frutos rojos","calorias":380,"minutos":15,"proteinas":28,"carbohidratos":45,"grasas":12,"receta":"","ingredientes":["Avena 50g","Proteína en polvo 1 scoop","Frutos rojos 100g","Almendras 20g"]},"765":{"id":765,"nombre":"Pollo a la plancha con quinoa","calorias":520,"minutos":30,"proteinas":45,"carbohidratos":55,"grasas":12,"receta":"","ingredientes":["Pechuga de pollo 200g","Quinoa 100g","Ensalada verde 150g","Limón 1 unidad"]},"771":{"id":771,"nombre":"Pancakes de avena y plátano","calorias":380,"minutos":20,"proteinas":18,"carbohidratos":50,"grasas":12,"receta":"","ingredientes":["Avena molida 60g","Plátano 1 unidad","Huevos 2 unidades","Frutos rojos 100g","Miel 10g"]},"772":{"id":772,"nombre":"Pavo con batata y espárragos","calorias":490,"minutos":35,"proteinas":42,"carbohidratos":50,"grasas":10,"receta":"","ingredientes":["Pechuga de pavo 200g","Batata 200g","Espárragos verdes 150g","Ajo 2 dientes"]},"773":{"id":773,"nombre":"Ensalada de salmón ahumado","calorias":400,"minutos":15,"proteinas":30,"carbohidratos":15,"grasas":25,"receta":"","ingredientes":["Salmón ahumado 150g","Lechuga 100g","Aguacate 80g","Pepino 100g","Tomates cherry 100g","Aceite de oliva 15ml"]}}', 
+    '{"753":[""],"758":[""],"759":[""],"760":[""],"761":[""],"764":["Avena 50g","Proteína en polvo 1 scoop","Frutos rojos 100g","Almendras 20g"],"765":["Pechuga de pollo 200g","Quinoa 100g","Ensalada verde 150g","Limón 1 unidad"],"771":["Avena molida 60g","Plátano 1 unidad","Huevos 2 unidades","Frutos rojos 100g","Miel 10g"],"772":["Pechuga de pavo 200g","Batata 200g","Espárragos verdes 150g","Ajo 2 dientes"],"773":["Salmón ahumado 150g","Lechuga 100g","Aguacate 80g","Pepino 100g","Tomates cherry 100g","Aceite de oliva 15ml"]}', 
+    215
+);

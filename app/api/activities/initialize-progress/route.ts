@@ -258,14 +258,17 @@ export async function POST(request: NextRequest) {
           })
 
           const ejercicioIdsArray = Array.from(ejercicioIdsSet)
-          console.log(`🔍 [${nombreDia}] IDs detectados:`, ejercicioIdsArray)
           let ejerciciosData: any[] = []
 
           if (categoria === 'nutricion') {
-            const { data: platosData } = await supabase
+            const { data: platosData, error: platesError } = await supabase
               .from('nutrition_program_details')
-              .select('id, nombre, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos')
+              .select('id, nombre, receta_id, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos')
               .in('id', ejercicioIdsArray)
+            
+            if (platesError) {
+              console.error(`❌ Error fetching nutrition plates for day ${nombreDia}:`, platesError)
+            }
             ejerciciosData = platosData || []
           } else {
             const { data: ejerciciosFitnessData } = await supabase
@@ -276,6 +279,7 @@ export async function POST(request: NextRequest) {
           }
 
           const ejerciciosMap = new Map()
+          
           ejerciciosData?.forEach((ej: any) => {
             if (categoria === 'nutricion') {
               // LÓGICA DE NUTRICIÓN ADAPTATIVA (Sincronizada con auditoría v3.0)
@@ -341,7 +345,7 @@ export async function POST(request: NextRequest) {
                 proteinas: protFinal,
                 carbohidratos: ej.carbohidratos || 0,
                 grasas: ej.grasas || 0,
-                receta: ej.receta || '',
+                receta_id: ej.receta_id,
                 ingredientes: ej.ingredientes || [],
                 ajuste_motor: factorKcal !== 1.0 ? factorKcal : undefined
               }
@@ -444,26 +448,28 @@ export async function POST(request: NextRequest) {
                 applied_factors: coachAppliedResult.appliedFactors
               })
             }
-          })
+          });
 
-          ejerciciosArray.forEach((ej: any) => {
-            if (ej.id) {
-              const ejercicioId = parseInt(ej.id)
+          // Usar ejerciciosArray que ya fue homogeneizado arriba
+          (ejerciciosArray || []).forEach((ej: any) => {
+            const ejercicioId = ej.id;
+            if (ejercicioId) {
               const orden = ej.orden || ordenGlobal
               const bloqueNum = ej.bloque || 1
-              const keyUnico = `${ejercicioId}_${bloqueNum}_${orden}`
+              const keyUnico = categoria === 'nutricion' ? ejercicioId.toString() : `${ejercicioId}_${bloqueNum}_${orden}`
 
-              // Simplificado: Guardamos solo el ID (o true), ya que la info de bloque/orden está en la KEY
               ejerciciosPendientes[keyUnico] = ejercicioId
 
               const ejercicioData = ejerciciosMap.get(ejercicioId) || { detalle_series: '', duracion_min: 0, calorias: 0 }
 
-              detallesSeries[keyUnico] = {
-                id: ejercicioId,
-                detalle_series: ejercicioData.detalle_series || ''
+              if (categoria === 'fitness') {
+                detallesSeries[keyUnico] = {
+                  id: ejercicioId,
+                  detalle_series: ejercicioData.detalle_series || ''
+                }
               }
 
-              if (!ej.orden) ordenGlobal++
+              if (typeof ej === 'object' && !ej.orden) ordenGlobal++
             }
           })
 
@@ -495,21 +501,31 @@ export async function POST(request: NextRequest) {
               cliente_id: clientId,
               enrollment_id: enrollmentId,
               fecha: fechaStr,
-              ejercicios_completados: {},
-              ejercicios_pendientes: ejerciciosPendientes
+              ejercicios_completados: categoria === 'nutricion' ? { ejercicios: [] } : {},
+              ejercicios_pendientes: categoria === 'nutricion' ? { ejercicios: Object.values(ejerciciosPendientes) } : ejerciciosPendientes
             }
 
             if (categoria === 'nutricion') {
               const macrosJson: any = {}
               const ingredientesJson: any = {}
-              Object.keys(ejerciciosPendientes).forEach(key => {
-                const ejId = ejerciciosPendientes[key]
+              
+              const platosDelDiaIds = Object.values(ejerciciosPendientes) as number[]
+              
+              platosDelDiaIds.forEach(ejId => {
                 const ejData = ejerciciosMap.get(ejId)
-                if (ejData && ejData.detalle_series) {
-                  try { macrosJson[key] = JSON.parse(ejData.detalle_series) } catch { macrosJson[key] = {} }
-                  ingredientesJson[key] = ejData.ingredientes || []
+                if (ejData) {
+                  if (ejData.detalle_series) {
+                    try { 
+                      macrosJson[ejId] = JSON.parse(ejData.detalle_series) 
+                    } catch (e) { 
+                      console.error(`   ❌ Error parseando detalle_series para ID=${ejId}:`, e)
+                      macrosJson[ejId] = {} 
+                    }
+                    ingredientesJson[ejId] = ejData.ingredientes || []
+                  }
                 }
               })
+              
               registro.macros = macrosJson
               registro.ingredientes = ingredientesJson
             } else {
