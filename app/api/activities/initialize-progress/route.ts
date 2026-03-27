@@ -565,10 +565,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Error at ${targetTable}`, details: insertError.message }, { status: 500 })
     }
 
+    // 7. Actualizar el enrollment con la nueva fecha de inicio
+    const { error: enrollmentUpdateError } = await supabase
+      .from('activity_enrollments')
+      .update({ 
+        start_date: startDate,
+        status: 'activa' 
+      })
+      .eq('id', enrollmentId)
+
+    if (enrollmentUpdateError) {
+      console.warn('⚠️ [initialize-progress] Falló actualizar start_date en enrollment:', enrollmentUpdateError.message)
+    }
+
     return NextResponse.json({
       success: true,
       message: `${created?.length || 0} days initialized`,
-      recordsCreated: created?.length || 0
+      recordsCreated: created?.length || 0,
+      startDate
     })
 
   } catch (error: any) {

@@ -5,7 +5,6 @@ WITH daily_stats AS (
     SELECT 
         p.id,
         p.fecha,
-        p.status,
         a.title as actividad,
         p.enrollment_id,
         p.ejercicios_pendientes,
