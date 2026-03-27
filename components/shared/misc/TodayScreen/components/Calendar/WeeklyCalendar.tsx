@@ -353,20 +353,21 @@ export function WeeklyCalendar({
                                     opacity: isLocked ? 0.3 : 1,
 
                                     // Visuals
-                                    background: isSelected ? 'rgba(255, 255, 255, 0.15)' : (dayInfo.isCurrentMonth ?
-                                        (dayStatus === 'completed' ? 'rgba(255, 106, 0, 0.5)' :
+                                    background: isSelected ? 'rgba(255, 255, 255, 0.15)' : (
+                                        dayStatus === 'completed' ? 'rgba(255, 106, 0, 0.5)' :
                                             dayStatus === 'started' ? 'rgba(255, 180, 0, 0.5)' :
                                                 dayStatus === 'not-started' ? 'rgba(255, 68, 68, 0.5)' :
-                                                    'rgba(42, 45, 49, 0.3)') : 'transparent'),
+                                                    (dayInfo.isCurrentMonth ? 'rgba(42, 45, 49, 0.3)' : 'transparent')
+                                    ),
 
                                     border: isSelected ? (
                                         dayStatus === 'completed' ? '2px solid rgb(255, 106, 0)' :
                                             dayStatus === 'started' ? '2px solid rgb(255, 180, 0)' :
                                                 dayStatus === 'not-started' ? '2px solid rgb(255, 68, 68)' :
                                                     '1px solid rgba(255, 255, 255, 0.4)'
-                                    ) : (dayInfo.isCurrentMonth && isToday ? '2px solid rgba(255, 255, 255, 0.4)' : 'transparent'),
+                                    ) : (isToday ? '2px solid rgba(255, 255, 255, 0.4)' : 'transparent'),
 
-                                    color: '#FFFFFF',
+                                    color: dayInfo.isCurrentMonth ? '#FFFFFF' : 'rgba(255,255,255,0.3)',
                                     transform: isSelected ? 'scale(1.1)' : 'scale(0.9)',
                                     boxShadow: isSelected ? '0 4px 15px rgba(0,0,0,0.4)' : 'none',
 

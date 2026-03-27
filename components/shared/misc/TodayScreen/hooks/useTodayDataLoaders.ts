@@ -21,16 +21,19 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
     const [meetCreditsAvailable, setMeetCreditsAvailable] = React.useState<number | null>(null);
     const [backgroundImageLoaded, setBackgroundImageLoaded] = React.useState(false);
     const [isRated, setIsRated] = React.useState(false);
+    const [isProfileComplete, setIsProfileComplete] = React.useState(false);
+    const [isOnboardingLoading, setIsOnboardingLoading] = React.useState(true);
 
     const loadProgramInfo = React.useCallback(async () => {
         if (!user || !activityId) return;
 
         try {
             // Parallel fetch for speed
-            const [activityRes, purchaseRes, mediaRes] = await Promise.all([
+            const [activityRes, purchaseRes, mediaRes, onboardingRes] = await Promise.all([
                 supabase.from("activities").select("*").eq("id", activityId).single(),
                 fetch(`/api/activities/${activityId}/purchase-status`).then(r => r.json()),
-                supabase.from("activity_media").select("image_url").eq("activity_id", activityId).limit(1)
+                supabase.from("activity_media").select("image_url").eq("activity_id", activityId).limit(1),
+                supabase.from('client_onboarding_responses').select('intensity_level').eq('client_id', user.id).maybeSingle()
             ]);
 
             // 1. Set Program Info
@@ -42,7 +45,11 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
                 setBackgroundImageLoaded(true);
             }
 
-            // 3. Process Enrollment
+            // 3. Set Profile Completeness
+            setIsProfileComplete(!!onboardingRes.data?.intensity_level);
+            setIsOnboardingLoading(false);
+
+            // 4. Process Enrollment
             const result = purchaseRes;
             if (result.success && result.data.enrollments?.length > 0) {
                 // Priority: URL enrollmentId > Most recent active > Most recent
@@ -150,6 +157,7 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
             const result = await response.json();
 
             if (result.success && result.data.activities) {
+                console.log(`✅ [TodayDataLoaders] Found ${result.data.activities.length} activities for date ${selectedDateString}`);
                 const categoria = result.data?.activity?.categoria || programInfo?.categoria || 'fitness';
                 const mapped = result.data.activities.map((item: any, index: number) => {
                     const realExerciseId = Number(item.exercise_id || item.ejercicio_id || (typeof item.id === 'string' && item.id.includes('-') ? item.id.split('-')[1] : item.id));
@@ -226,7 +234,9 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
         loadProgramInfo,
         loadTodayActivities,
         refreshDayStatuses,
-        loadMeetCredits
+        loadMeetCredits,
+        isProfileComplete,
+        isOnboardingLoading
     }), [
         programInfo,
         enrollment,
@@ -240,6 +250,8 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
         loadProgramInfo,
         loadTodayActivities,
         refreshDayStatuses,
-        loadMeetCredits
+        loadMeetCredits,
+        isProfileComplete,
+        isOnboardingLoading
     ]);
 }

@@ -44,7 +44,11 @@ export function StatusFilterBar({ activeTab, onTabChange, countMap, isSearchOpen
                             {count > 0 && (
                                 <span className={cn(
                                     "flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px]",
-                                    isActive ? "bg-[#FF6A1A] text-white" : "bg-white/10 text-gray-300"
+                                    isActive 
+                                        ? "bg-[#FF6A1A] text-white" 
+                                        : tab.id === 'por-empezar'
+                                            ? "bg-[#FF6A1A]/20 text-[#FF6A1A] border border-[#FF6A1A]/30"
+                                            : "bg-white/10 text-gray-300"
                                 )}>
                                     {count}
                                 </span>

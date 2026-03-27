@@ -9,10 +9,13 @@ interface StartActivityInfoModalProps {
   onClose: () => void;
   onStartToday: () => void;
   onStartOnFirstDay: () => void;
+  onOpenSurvey: () => void;
   activityTitle: string;
   firstDay: string;
   currentDay: string;
   startDeadline?: string;
+  isProfileComplete: boolean;
+  isOnboardingLoading?: boolean;
 }
 
 export function StartActivityInfoModal({
@@ -20,10 +23,13 @@ export function StartActivityInfoModal({
   onClose,
   onStartToday,
   onStartOnFirstDay,
+  onOpenSurvey,
   activityTitle,
   firstDay = 'lunes',
   currentDay,
-  startDeadline
+  startDeadline,
+  isProfileComplete,
+  isOnboardingLoading = false
 }: StartActivityInfoModalProps) {
   if (!isOpen) return null;
 
@@ -108,10 +114,32 @@ export function StartActivityInfoModal({
               </div>
 
               <div className="space-y-3">
+                {/* Check de Perfil */}
+                {!isProfileComplete && !isOnboardingLoading && (
+                  <div className="p-5 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-2xl mb-4">
+                    <p className="text-[#FF7939] text-[10px] font-black uppercase tracking-widest mb-2">Perfil incompleto</p>
+                    <p className="text-white/60 text-xs mb-4 leading-relaxed">
+                      Completá tu perfil para que OMNIA pueda adaptar las porciones y cargas a tu metabolismo y objetivos.
+                    </p>
+                    <button
+                      onClick={onOpenSurvey}
+                      className="w-full h-10 bg-[#FF7939] hover:bg-[#FF7939]/80 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                      Completar Encuesta
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Opción 1: Empezar hoy */}
                 <button
                   onClick={onStartToday}
-                  className="w-full h-16 px-5 bg-white/5 border border-white/5 hover:border-[#FF7939]/30 hover:bg-[#FF7939]/5 rounded-2xl transition-all flex items-center justify-between group"
+                  disabled={!isProfileComplete}
+                  className={`w-full h-16 px-5 border rounded-2xl transition-all flex items-center justify-between group ${
+                    isProfileComplete 
+                      ? "bg-white/5 border-white/5 hover:border-[#FF7939]/30 hover:bg-[#FF7939]/5 cursor-pointer" 
+                      : "bg-white/5 border-white/5 opacity-40 cursor-not-allowed grayscale"
+                  }`}
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center group-hover:bg-[#FF7939]/20 transition-all">
@@ -131,7 +159,12 @@ export function StartActivityInfoModal({
                 {!isExceedingDeadline ? (
                   <button
                     onClick={onStartOnFirstDay}
-                    className="w-full h-16 px-5 bg-[#FF7939] hover:bg-[#E66829] rounded-2xl transition-all flex items-center justify-between shadow-[0_10px_30px_rgba(255,121,57,0.2)] active:scale-[0.98]"
+                    disabled={!isProfileComplete}
+                    className={`w-full h-16 px-5 rounded-2xl transition-all flex items-center justify-between shadow-[0_10px_30px_rgba(255,121,57,0.2)] active:scale-[0.98] ${
+                      isProfileComplete
+                        ? "bg-[#FF7939] hover:bg-[#E66829] cursor-pointer"
+                        : "bg-white/5 border border-white/5 opacity-40 cursor-not-allowed grayscale shadow-none"
+                    }`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-black/10 rounded-xl flex items-center justify-center">

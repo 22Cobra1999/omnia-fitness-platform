@@ -6,6 +6,7 @@ export function useTodayUiState() {
     const [loading, setLoading] = React.useState(true);
     const [isDayLoading, setIsDayLoading] = React.useState(false);
     const [isInitializing, setIsInitializing] = React.useState(false);
+    const [initializationProgress, setInitializationProgress] = React.useState(0);
 
     // UI Expand/Collapse States
     const [isVideoExpanded, setIsVideoExpanded] = React.useState(false);
@@ -23,6 +24,7 @@ export function useTodayUiState() {
     const [showConfirmModal, setShowConfirmModal] = React.useState<any>(false);
     const [selectedHorario, setSelectedHorario] = React.useState<any>(null);
     const [isRatingModalOpen, setIsRatingModalOpen] = React.useState(false);
+    const [showOnboardingModal, setShowOnboardingModal] = React.useState(false);
 
     // Feedback States
     const [calendarMessage, setCalendarMessage] = React.useState<string | null>(null);
@@ -59,6 +61,8 @@ export function useTodayUiState() {
         setIsDayLoading,
         isInitializing,
         setIsInitializing,
+        initializationProgress,
+        setInitializationProgress,
         isVideoExpanded,
         setIsVideoExpanded,
         activeExerciseTab,
@@ -79,6 +83,8 @@ export function useTodayUiState() {
         setSelectedHorario,
         isRatingModalOpen,
         setIsRatingModalOpen,
+        showOnboardingModal,
+        setShowOnboardingModal,
         calendarMessage,
         setCalendarMessage,
         isUpdating,
@@ -93,6 +99,7 @@ export function useTodayUiState() {
         loading,
         isDayLoading,
         isInitializing,
+        initializationProgress,
         isVideoExpanded,
         activeExerciseTab,
         collapsedBlocks,
@@ -104,6 +111,7 @@ export function useTodayUiState() {
         showConfirmModal,
         selectedHorario,
         isRatingModalOpen,
+        showOnboardingModal,
         calendarMessage,
         isUpdating,
         touchStart,

@@ -334,24 +334,24 @@ export async function GET(request: NextRequest) {
       // Handle 'ejercicios' as Array
       if (raw && typeof raw === 'object' && Array.isArray((raw as any).ejercicios)) {
         const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
-          ; ((raw as any).ejercicios || []).forEach((x: any) => {
-            const id = Number(x?.id)
-            const orden = Number(x?.orden)
-            const bloque = Number(x?.bloque)
-            if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-            const key = `${id}_${bloque}_${orden}`
-            map[key] = { ejercicio_id: id, orden, bloque }
-          })
+        ;((raw as any).ejercicios || []).forEach((x: any, idx: number) => {
+          const id = Number(x?.id ?? x)
+          const orden = Number(x?.orden ?? (idx + 1))
+          const bloque = Number(x?.bloque ?? 1)
+          if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
+          const key = `${id}_${bloque}_${orden}`
+          map[key] = { ejercicio_id: id, orden, bloque }
+        })
         return map
       }
 
       // Handle 'ejercicios' as Object (Map)
       if (raw && typeof raw === 'object' && (raw as any).ejercicios && typeof (raw as any).ejercicios === 'object' && !Array.isArray((raw as any).ejercicios)) {
         const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
-        Object.values((raw as any).ejercicios).forEach((x: any) => {
-          const id = Number(x?.id)
-          const orden = Number(x?.orden)
-          const bloque = Number(x?.bloque)
+        Object.values((raw as any).ejercicios).forEach((x: any, idx: number) => {
+          const id = Number(x?.id ?? x)
+          const orden = Number(x?.orden ?? (idx + 1))
+          const bloque = Number(x?.bloque ?? 1)
           if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
           const key = `${id}_${bloque}_${orden}`
           map[key] = { ejercicio_id: id, orden, bloque }

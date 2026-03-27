@@ -96,12 +96,6 @@ export function PurchasedActivityCardContent({
                             <CheckCircle2 className="w-3 h-3 text-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">VENCIDA</span>
                         </div>
-                    ) : isFuture && (enrollment as any).start_deadline ? (
-                        <div className="flex items-center bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-2.5 py-0.5 rounded-full shadow-lg shrink-0 mx-auto scale-[0.78] max-w-[95%]">
-                            <span className="text-[8.5px] font-black text-white tracking-wider uppercase whitespace-nowrap">
-                                EMPEZAR ANTES DE: {formatDM((enrollment as any).start_deadline)}
-                            </span>
-                        </div>
                     ) : pendingCount && pendingCount > 0 ? (
                         <div className="flex items-center gap-1.5 bg-[#FF7939]/40 backdrop-blur-xl border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
                             {isNutrition ? (
@@ -134,22 +128,31 @@ export function PurchasedActivityCardContent({
                 </div>
 
                 {/* 2. Dates Row - No frame, lighter labels */}
-                <div className="flex flex-col gap-1 px-1 -mt-3.5">
+                <div className="flex flex-col gap-2 px-1 -mt-2">
                     <div className="flex justify-between items-center px-1">
                         <div className="flex flex-col">
                             <span className="text-zinc-500 font-bold uppercase text-[6px] tracking-[0.2em] opacity-40">
                                 {isFuture ? 'Compra' : 'Inicio'}
                             </span>
-                            <span className="text-zinc-400 font-extrabold text-[11px]">
+                            <span className="text-zinc-400 font-extrabold text-[11px] h-[14px]">
                                 {isFuture ? formatDM(enrollment.created_at) : formatDM(enrollment.start_date)}
                             </span>
                         </div>
 
                         <div className="flex flex-col items-end">
-                            <span className="text-zinc-500 font-bold uppercase text-[6px] tracking-[0.2em] opacity-40">Fin</span>
-                            <span className="text-zinc-400 font-extrabold text-[11px]">{formatDM(enrollment.program_end_date)}</span>
+                            <span className="text-zinc-500 font-bold uppercase text-[6px] tracking-[0.2em] opacity-40 text-right">Fin</span>
+                            <span className="text-zinc-400 font-extrabold text-[11px] h-[14px] text-right">{formatDM(enrollment.program_end_date)}</span>
                         </div>
                     </div>
+
+                    {/* MOVED: Empezar antes de (para actividades futuras) */}
+                    {isFuture && (enrollment as any).start_deadline && !daysInfo.isExpired && (
+                        <div className="flex items-center bg-[#FF7939]/20 backdrop-blur-xl border border-[#FF7939]/30 px-2 py-0.5 rounded-full shadow-sm mx-auto scale-[0.85] w-fit -mt-0.5">
+                            <span className="text-[8px] font-black text-orange-400 tracking-wider uppercase whitespace-nowrap">
+                                EMPEZAR ANTES DE: {formatDM((enrollment as any).start_deadline)}
+                            </span>
+                        </div>
+                    )}
 
                     {/* Larger Progress Percent below dates - Only for "Finalizadas" */}
                     {isFinished && typeof progress === 'number' && (
@@ -163,7 +166,7 @@ export function PurchasedActivityCardContent({
 
                 {/* 3. Streak Counter (Racha) - Side-by-side design + RACHA label below */}
                 {(streak > 0 || (pendingCount === 0 && hasStarted)) && (
-                    <div className="flex flex-col items-center justify-center -mt-4">
+                    <div className="flex flex-col items-center justify-center -mt-4 mb-2">
                         <div className="relative group transition-all duration-500 active:scale-95 flex flex-col items-center">
                             {/* Premium dark squircle frame */}
                             <div className={cn(

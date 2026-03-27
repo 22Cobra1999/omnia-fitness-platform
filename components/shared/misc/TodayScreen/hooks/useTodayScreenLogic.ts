@@ -56,6 +56,12 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         ui.setLoading(false);
         // Desactivar estado de inicialización tras la primera carga exitosa
         if (result.activities.length > 0) {
+            console.log(`✅ [useTodayScreenLogic] Actividades cargadas correctamente (${result.activities.length}). Saliendo de inicialización.`);
+            ui.setIsInitializing(false);
+        } else {
+            console.log(`⚠️ [useTodayScreenLogic] No hay actividades para la fecha seleccionada (${selectedDate.toISOString().split('T')[0]}).`);
+            // Si el día está cargando y no hay actividades, igual quitamos el overlay de inicialización
+            // porque la generación de progreso ya terminó, solo que este día específico está vacío (quizás descanso o precarga).
             ui.setIsInitializing(false);
         }
     }, [
@@ -64,6 +70,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         data.setActivities,
         data.setBlockNames,
         ui.setIsDayLoading,
+        ui.setIsInitializing,
         ui.setLoading
     ]);
 
@@ -80,6 +87,25 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     });
 
     // 3. Effects & Coordination
+    
+    // Initialization Progress Simulation
+    useEffect(() => {
+        let interval: any;
+        if (ui.isInitializing) {
+            ui.setInitializationProgress(0);
+            interval = setInterval(() => {
+                ui.setInitializationProgress(prev => {
+                    if (prev >= 92) return prev; // Limit to 92 until real completion
+                    const inc = Math.random() * 8;
+                    return Math.min(prev + inc, 92);
+                });
+            }, 600);
+        } else {
+            ui.setInitializationProgress(0);
+            if (interval) clearInterval(interval);
+        }
+        return () => { if (interval) clearInterval(interval); };
+    }, [ui.isInitializing, ui.setInitializationProgress]);
 
     // Sync enrollment on back or external changes
     useEffect(() => {
@@ -409,17 +435,21 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
 
                     if (!response.ok) {
                         const errData = await response.json();
-                        console.error('❌ Error initializing progress:', errData);
+                        console.error('❌ [useTodayScreenLogic] Error initializing progress:', errData);
+                        alert('Error al inicializar progreso.');
+                    } else {
+                        console.log('✅ [useTodayScreenLogic] Progreso inicializado con éxito (Today)');
                     }
 
                     await data.loadProgramInfo();
                     // Refrescar actividades explícitamente después de que el estado de enrollment se actualice
                     setTimeout(async () => {
+                        console.log('🔄 [useTodayScreenLogic] Ejecutando fetchActivities post-inicialización (Today)...');
                         await fetchActivities();
-                    }, 500);
+                    }, 800);
                 }
             } catch (e) {
-                console.error(e);
+                console.error('❌ [useTodayScreenLogic] Exception in handleStartToday:', e);
             } finally {
                 ui.setIsDayLoading(false);
             }
@@ -460,34 +490,39 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
 
                 if (!error) {
                     const response = await fetch('/api/activities/initialize-progress', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            activityId: activityId,
-                            clientId: user.id,
-                            startDate: nextTargetStr,
-                            enrollmentId: data.enrollment.id
-                        })
-                    });
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        activityId: activityId,
+                        clientId: user.id,
+                        startDate: nextTargetStr,
+                        enrollmentId: data.enrollment.id
+                    })
+                });
 
-                    if (!response.ok) {
-                        const errData = await response.json();
-                        console.error('❌ Error initializing progress:', errData);
-                    }
-
-                    await data.loadProgramInfo();
-                    // Refrescar actividades explícitamente después de que el estado de enrollment se actualice
-                    setTimeout(async () => {
-                        await fetchActivities();
-                    }, 500);
+                if (!response.ok) {
+                    const errData = await response.json();
+                    console.error('❌ [useTodayScreenLogic] Error initializing progress:', errData);
+                    alert('Error al inicializar progreso. Revisa la consola para más detalles.');
+                } else {
+                    console.log('✅ [useTodayScreenLogic] Progreso inicializado con éxito');
                 }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                ui.setIsDayLoading(false);
+
+                await data.loadProgramInfo();
+                // Refrescar actividades explícitamente después de que el estado de enrollment se actualice
+                setTimeout(async () => {
+                    console.log('🔄 [useTodayScreenLogic] Ejecutando fetchActivities post-inicialización...');
+                    await fetchActivities();
+                }, 800);
             }
-        },
+        } catch (e) {
+            console.error('❌ [useTodayScreenLogic] Exception in handleStartOnFirstDay:', e);
+        } finally {
+            ui.setIsDayLoading(false);
+        }
+    },
         setCalendarMessage: ui.setCalendarMessage,
+        setShowOnboardingModal: ui.setShowOnboardingModal,
         setIsEditing: editing.setIsEditing,
         setSourceDate: editing.setSourceDate,
         setTargetDate: editing.setTargetDate,
@@ -498,6 +533,8 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         isBlockCompleted: actions.isBlockCompleted,
         setIsVideoExpanded: ui.setIsVideoExpanded,
         setSelectedVideo: setSelectedVideo,
+        refreshDayStatuses: data.refreshDayStatuses,
+        fetchActivities: (options?: any) => fetchActivities(options),
         goToToday: () => actions.goToToday(),
         onNext: () => navigateActivity(1),
         onPrev: () => navigateActivity(-1),
@@ -566,6 +603,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         loading: ui.loading,
         isDayLoading: ui.isDayLoading,
         isInitializing: ui.isInitializing,
+        initializationProgress: ui.initializationProgress,
         isVideoExpanded: ui.isVideoExpanded,
         activeExerciseTab: ui.activeExerciseTab,
         collapsedBlocks: ui.collapsedBlocks,
@@ -590,6 +628,9 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         dayStatuses: data.dayStatuses,
         dayCounts: data.dayCounts,
         meetCreditsAvailable: data.meetCreditsAvailable,
+        isOnboardingLoading: data.isOnboardingLoading,
+        isProfileComplete: data.isProfileComplete,
+        showOnboardingModal: ui.showOnboardingModal,
         ...workshop,
         ...editing,
         selectedDate,

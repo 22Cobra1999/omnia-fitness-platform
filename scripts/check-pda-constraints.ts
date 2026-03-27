@@ -5,18 +5,11 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 async function checkPlanning() {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    const { data: plans, error } = await supabase
-        .from('progreso_cliente_nutricion')
+    const { data: info, error: err2 } = await supabase.from('information_schema.table_constraints')
         .select('*')
-        .limit(1);
-
-    if (error) {
-        console.error('Error fetching plans:', error);
-        return;
-    }
-
-    console.log(`progreso_cliente_nutricion exists. Sample:`, plans);
+        .eq('table_name', 'progreso_diario_actividad');
+    
+    console.log('Constraints:', info || err2);
 }
 
 checkPlanning();

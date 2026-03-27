@@ -21,14 +21,28 @@ export async function POST(request: NextRequest) {
     // 0. Obtener Perfil del Cliente Consolidado y Configuración de Motor Adaptativo
     const { data: clientFullProfile } = await supabase.from('client_full_profile').select('*').eq('client_id', clientId).single()
 
-    // Obtener la actividad con su configuración adaptativa
+    // Obtener la actividad con su configuración adaptativa y coach_id
     const { data: actBase } = await supabase
       .from('activities')
-      .select('coach_id, type, categoria, adaptive_rule_ids')
+      .select('id, coach_id, type, categoria, adaptive_rule_ids')
       .eq('id', activityId)
       .single()
 
+    const coachId = actBase?.coach_id;
     const adaptiveRuleIds = actBase?.adaptive_rule_ids || []
+
+    // 0.1 Obtener Reglas Dinámicas del Coach (Condicionales de Omnia)
+    const { data: coachSpecificRules } = coachId ? await supabase
+      .from('product_conditional_rules')
+      .select('*')
+      .eq('coach_id', coachId)
+      .eq('is_active', true)
+      : { data: [] }
+
+    // Filtrar reglas que aplican a este producto específico
+    const productRules = (coachSpecificRules || []).filter(r => 
+      !r.target_product_ids || r.target_product_ids.length === 0 || r.target_product_ids.includes(Number(activityId))
+    )
 
     // Obtener las reglas del catálogo que están habilitadas para esta actividad
     const { data: catalogRules } = await supabase
@@ -37,10 +51,10 @@ export async function POST(request: NextRequest) {
       .in('id', adaptiveRuleIds)
 
     const clientProfile: ClientProfile = {
-      gender: clientFullProfile?.gender,
+      gender: (clientFullProfile?.gender || '').toLowerCase(),
       birth_date: clientFullProfile?.birth_date,
-      current_weight: clientFullProfile?.current_weight,
-      current_height: clientFullProfile?.current_height,
+      current_weight: clientFullProfile?.current_weight || 0,
+      current_height: clientFullProfile?.current_height || 0,
       intensity_level: clientFullProfile?.intensity_level,
       fitness_goals: clientFullProfile?.onboarding_interests || clientFullProfile?.fitness_goals || [],
       injuries: clientFullProfile?.injuries || [],
@@ -50,16 +64,20 @@ export async function POST(request: NextRequest) {
       consistency_level: clientFullProfile?.consistency_level
     }
 
+    const bmi = (clientProfile.current_weight && clientProfile.current_height)
+      ? clientProfile.current_weight / Math.pow(clientProfile.current_height / 100, 2)
+      : 24
+    const age = clientProfile.birth_date ? calculateAge(clientProfile.birth_date) : 30
+    const gender = clientProfile.gender;
+
     // Preparar el perfil para el Motor Adaptativo v3.0 (Fitness)
     const adaptiveProfile: AdaptiveProfile = {
       trainingLevel: (clientProfile.intensity_level as any) || "Intermediate",
       activityLevel: "Moderately Active",
-      ages: clientProfile.birth_date ? [calculateAge(clientProfile.birth_date)] : [30],
-      genders: clientProfile.gender ? [clientProfile.gender as any] : ["male"],
+      ages: [age],
+      genders: [gender as any || "male"],
       weight: clientProfile.current_weight,
-      bmis: (clientProfile.current_weight && clientProfile.current_height)
-        ? [clientProfile.current_weight / Math.pow(clientProfile.current_height / 100, 2)]
-        : [24],
+      bmis: [bmi],
       injuries: clientProfile.injuries?.map((i: any) => i.name) || []
     }
 
@@ -187,6 +205,10 @@ export async function POST(request: NextRequest) {
       const inicioSemana = new Date(start)
       inicioSemana.setDate(start.getDate() + ((semanaAbsoluta - 1) * 7))
 
+      // Categorizar reglas que aplican a Fitness para pasarlas al motor
+      const fitnessCoachRules = (productRules || []).filter(r => (r.rule_type || r.criteria?.type) === 'fitness')
+      const nutritionCoachRules = (productRules || []).filter(r => (r.rule_type || r.criteria?.type) === 'nutricion')
+
       for (let diaSemana = 0; diaSemana < 7; diaSemana++) {
         const nombreDia = diasSemana[diaSemana]
         const ejerciciosDia = planSemana[nombreDia]
@@ -205,12 +227,25 @@ export async function POST(request: NextRequest) {
           const detallesSeries: any = {}
           let ordenGlobal = 1
 
-          let ejerciciosArray: any[] = []
+          const ejerciciosArray: any[] = []
           if (ejerciciosParsed && typeof ejerciciosParsed === 'object') {
             if (Array.isArray(ejerciciosParsed.ejercicios)) {
-              ejerciciosArray = ejerciciosParsed.ejercicios
+              // Handle [753, 758] vs [{id: 753, orden: 1}]
+              ejerciciosParsed.ejercicios.forEach((item: any, idx: number) => {
+                if (typeof item === 'number' || typeof item === 'string') {
+                  ejerciciosArray.push({ id: Number(item), orden: idx + 1, bloque: 1 })
+                } else if (item && typeof item === 'object') {
+                  ejerciciosArray.push(item)
+                }
+              })
             } else if (Array.isArray(ejerciciosParsed)) {
-              ejerciciosArray = ejerciciosParsed
+              ejerciciosParsed.forEach((item: any, idx: number) => {
+                if (typeof item === 'number' || typeof item === 'string') {
+                  ejerciciosArray.push({ id: Number(item), orden: idx + 1, bloque: 1 })
+                } else if (item && typeof item === 'object') {
+                  ejerciciosArray.push(item)
+                }
+              })
             }
           }
 
@@ -229,7 +264,7 @@ export async function POST(request: NextRequest) {
           if (categoria === 'nutricion') {
             const { data: platosData } = await supabase
               .from('nutrition_program_details')
-              .select('id, receta, calorias, proteinas, carbohidratos, grasas')
+              .select('id, nombre, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos')
               .in('id', ejercicioIdsArray)
             ejerciciosData = platosData || []
           } else {
@@ -250,8 +285,8 @@ export async function POST(request: NextRequest) {
               const age = clientProfile.birth_date ? calculateAge(clientProfile.birth_date) : 30
               const gender = (clientProfile.gender || '').toLowerCase()
 
-              // Filtrar reglas que aplican a este cliente específico
-              const matchingRules = (catalogRules || []).filter(r => {
+              // 1. Catálogo Global (v3.0)
+              const matchingCatalogRules = (catalogRules || []).filter(r => {
                 const name = (r.name || '').toLowerCase()
                 if (r.category === 'gender' && name.includes(gender)) return true
                 if (r.category === 'bmi' && bmi >= 30 && name.includes('obesidad')) return true
@@ -261,29 +296,61 @@ export async function POST(request: NextRequest) {
                 return false
               })
 
-              // Calcular multiplicadores acumulados (Producto de reglas)
+              // 2. Reglas Específicas del Coach (Condicionales de Omnia)
+              const matchingCoachRules = (nutritionCoachRules || []).filter(r => {
+                const c = r.criteria
+                if (!c) return false
+                
+                // Filtro por género (normalizado)
+                if (c.gender && c.gender !== 'all' && c.gender.toLowerCase() !== gender) return false
+                
+                // Filtro por edad
+                if (c.ageRange && (age < c.ageRange[0] || age > c.ageRange[1])) return false
+                
+                // Filtro por peso
+                const curWeight = clientProfile.current_weight || 70
+                if (c.weightRange && (curWeight < c.weightRange[0] || curWeight > c.weightRange[1])) return false
+
+                return true
+              })
+
+              // Calcular multiplicadores acumulados (Catalog + Coach)
               let factorKcal = 1.0
               let factorProt = 1.0
-              matchingRules.forEach(r => {
+              
+              matchingCatalogRules.forEach(r => {
                 factorKcal *= (r.kcal || 1.0)
                 factorProt *= (r.proteina || 1.0)
+              })
+
+              matchingCoachRules.forEach(r => {
+                // Las reglas del coach suelen usar incrementos porcentuales (Ej: 20 para +20%)
+                const portionIncrease = (r.adjustments?.portions || 0) / 100
+                factorKcal *= (1.0 + portionIncrease)
+                factorProt *= (1.0 + portionIncrease)
               })
 
               const kcalFinal = Math.round((ej.calorias || 0) * factorKcal)
               const protFinal = Number(((ej.proteinas || 0) * factorProt).toFixed(1))
 
               const detallesNutricion = {
+                id: ej.id,
+                nombre: ej.nombre || '',
+                calorias: kcalFinal,
+                minutos: ej.minutos || 0,
                 proteinas: protFinal,
                 carbohidratos: ej.carbohidratos || 0,
                 grasas: ej.grasas || 0,
                 receta: ej.receta || '',
+                ingredientes: ej.ingredientes || [],
                 ajuste_motor: factorKcal !== 1.0 ? factorKcal : undefined
               }
 
               ejerciciosMap.set(ej.id, {
                 detalle_series: JSON.stringify(detallesNutricion),
-                duracion_min: 0,
-                calorias: kcalFinal
+                duracion_min: ej.minutos || 0,
+                calorias: kcalFinal,
+                ingredientes: ej.ingredientes || []
               })
             } else {
               const base: AdaptiveBase = {
@@ -319,12 +386,50 @@ export async function POST(request: NextRequest) {
                 parsedBase.load_kg = ej.detalle_series.peso || ej.detalle_series.load || ej.detalle_series.kg || 0
               }
 
+              // 3. Aplicar Reglas del Coach a nivel de motor (Fitness)
+              const coachFactors = (fitnessCoachRules || []).filter(r => {
+                const c = r.criteria
+                if (!c) return false
+                if (c.gender && c.gender !== 'all' && c.gender.toLowerCase() !== gender) return false
+                if (c.ageRange && (age < c.ageRange[0] || age > c.ageRange[1])) return false
+                const curWeight = clientProfile.current_weight || 70
+                if (c.weightRange && (curWeight < c.weightRange[0] || curWeight > c.weightRange[1])) return false
+                return true
+              }).map(r => ({
+                name: r.name,
+                peso: 1.0 + (r.adjustments?.weight || 0) / 100,
+                series: 1.0 + (r.adjustments?.series || 0) / 100,
+                reps: 1.0 + (r.adjustments?.reps || 0) / 100
+              }))
+
               const adaptiveResult = reconstructPrescription(parsedBase, adaptiveProfile, adaptiveRuleIds)
 
+              // Aplicar factores del coach manualmente sobre el resultado del motor
+              let coachAppliedResult = { ...adaptiveResult }
+              coachFactors.forEach(f => {
+                coachAppliedResult.final.load *= f.peso
+                coachAppliedResult.final.series *= f.series
+                coachAppliedResult.final.reps *= f.reps
+                coachAppliedResult.appliedFactors.push({
+                   phase: 3, 
+                   category: "Coach", 
+                   name: f.name, 
+                   peso: f.peso, 
+                   series: f.series, 
+                   reps: f.reps, 
+                   isActive: true 
+                })
+              })
+
+              // Redondeos finales tras aplicar reglas del coach
+              coachAppliedResult.final.load = Math.round(coachAppliedResult.final.load / 2.5) * 2.5
+              coachAppliedResult.final.series = Math.max(1, Math.round(coachAppliedResult.final.series))
+              coachAppliedResult.final.reps = Math.max(1, Math.round(coachAppliedResult.final.reps))
+
               const finalDetalle = {
-                series: adaptiveResult.final.sets,
-                repeticiones: adaptiveResult.final.reps,
-                peso: adaptiveResult.final.load,
+                series: coachAppliedResult.final.series,
+                repeticiones: coachAppliedResult.final.reps,
+                peso: coachAppliedResult.final.load,
                 ...(typeof ej.detalle_series === 'object' ? ej.detalle_series : {})
               }
 
@@ -332,11 +437,11 @@ export async function POST(request: NextRequest) {
                 detalle_series: JSON.stringify(finalDetalle),
                 duracion_min: ej.duracion_min || 0,
                 calorias: ej.calorias || 0,
-                series: adaptiveResult.final.sets,
-                reps: adaptiveResult.final.reps,
-                peso: adaptiveResult.final.load,
+                series: coachAppliedResult.final.series,
+                reps: coachAppliedResult.final.reps,
+                peso: coachAppliedResult.final.load,
                 descanso: ej.descanso || 60,
-                applied_factors: adaptiveResult.appliedFactors
+                applied_factors: coachAppliedResult.appliedFactors
               })
             }
           })
@@ -396,14 +501,17 @@ export async function POST(request: NextRequest) {
 
             if (categoria === 'nutricion') {
               const macrosJson: any = {}
+              const ingredientesJson: any = {}
               Object.keys(ejerciciosPendientes).forEach(key => {
                 const ejId = ejerciciosPendientes[key]
                 const ejData = ejerciciosMap.get(ejId)
                 if (ejData && ejData.detalle_series) {
                   try { macrosJson[key] = JSON.parse(ejData.detalle_series) } catch { macrosJson[key] = {} }
+                  ingredientesJson[key] = ejData.ingredientes || []
                 }
               })
               registro.macros = macrosJson
+              registro.ingredientes = ingredientesJson
             } else {
               registro.informacion = detallesSeries
               registro.minutos = minutosJson
@@ -421,13 +529,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (registrosACrear.length === 0) {
+      console.warn('⚠️ [initialize-progress] No hay registros para crear');
       return NextResponse.json({ success: true, message: 'No recordings created', recordsCreated: 0 })
     }
 
     const targetTable = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente'
-    const { data: created, error: insertError } = await supabase.from(targetTable).insert(registrosACrear).select()
+    
+    console.log(`🚀 [initialize-progress] Creando ${registrosACrear.length} registros en ${targetTable}`);
+    
+    // Usamos insert simple en lote para eficiencia. 
+    // Los problemas de ON CONFLICT se resolvieron corrigiendo los constraints en la BD.
+    const { data: created, error: insertError } = await supabase
+      .from(targetTable)
+      .insert(registrosACrear)
+      .select()
 
     if (insertError) {
+      console.error(`❌ [initialize-progress] Error inserting into ${targetTable}:`, insertError)
       return NextResponse.json({ error: `Error at ${targetTable}`, details: insertError.message }, { status: 500 })
     }
 

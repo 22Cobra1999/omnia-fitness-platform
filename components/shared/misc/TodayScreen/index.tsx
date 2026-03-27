@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../../activities/activity-survey-modal";
 import { StartActivityModal } from "../../activities/StartActivityModal";
 import { StartActivityInfoModal } from "../../activities/StartActivityInfoModal";
+import { OnboardingModal } from "@/components/mobile/onboarding-modal";
 import { OmniaLoader } from '@/components/shared/ui/omnia-loader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Calendar, ArrowRight, AlertCircle, Check } from 'lucide-react';
@@ -227,16 +228,31 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                 onComplete={actions.handleSurveyComplete}
             />
 
-
             <StartActivityInfoModal
                 isOpen={state.showStartInfoModal}
                 onClose={() => actions.setShowStartInfoModal(false)}
                 onStartToday={actions.handleStartToday}
                 onStartOnFirstDay={actions.handleStartOnFirstDay}
+                onOpenSurvey={() => actions.setShowOnboardingModal(true)}
+                isProfileComplete={state.isProfileComplete}
+                isOnboardingLoading={state.isOnboardingLoading}
                 activityTitle={state.programInfo?.title || "Actividad"}
                 firstDay={state.firstDayOfActivity || 'lunes'}
                 currentDay={state.dayName}
                 startDeadline={state.enrollment?.start_deadline ?? undefined}
+            />
+
+            <OnboardingModal
+                isOpen={state.showOnboardingModal}
+                onClose={() => {
+                    actions.setShowOnboardingModal(false);
+                    // Refresh data to update isProfileComplete
+                    actions.refreshDayStatuses();
+                    // No, refreshDayStatuses doesn't reload enrollment/profile.
+                    // I should probably reload everything if possible, or at least the profile info.
+                    // For now, let's assume it updates. Actually, actions.fetchActivities might be better but it doesn't reload enrollment.
+                    window.location.reload(); // Hard refresh to be safe and simple for now
+                }}
             />
 
             {/* Confirm Move Activity Dialog */}
@@ -273,25 +289,58 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
             {state.isInitializing && state.activities.length === 0 && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-                    <div className="relative flex flex-col items-center gap-6 text-center">
-                        <div className="relative flex items-center justify-center w-[120px] h-[120px]">
-                            {/* Fuego con blur/difuminado */}
-                            <div className="absolute blur-[20px] opacity-60 scale-[1.5]">
-                                <Flame
-                                    size={80}
-                                    color="#FF7939"
-                                    fill="#FF7939"
-                                />
+                    <div className="relative flex flex-col items-center gap-8 text-center max-w-[280px]">
+                        <div className="relative flex flex-col items-center justify-center">
+                            <div className="relative w-[140px] h-[140px] flex items-center justify-center">
+                                {/* Glow Effect */}
+                                <div className="absolute blur-[30px] opacity-40 scale-[1.8] animate-pulse">
+                                    <Flame
+                                        size={100}
+                                        color="#FF7939"
+                                        fill="#FF7939"
+                                    />
+                                </div>
+                                
+                                {/* Background Flame (Empty) */}
+                                <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                                    <Flame
+                                        size={120}
+                                        color="#FFFFFF"
+                                        fill="#FFFFFF"
+                                    />
+                                </div>
+
+                                {/* Foreground Filling Flame */}
+                                <div 
+                                    className="absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out"
+                                    style={{ 
+                                        clipPath: `inset(${100 - state.initializationProgress}% 0 0 0)` 
+                                    }}
+                                >
+                                    <Flame
+                                        size={120}
+                                        color="#FF7939"
+                                        fill="#FF7939"
+                                        className="drop-shadow-[0_0_15px_rgba(255,121,57,0.5)]"
+                                    />
+                                </div>
                             </div>
-                            {/* Fuego principal (más nítido) */}
-                            <div className="relative z-10">
-                                <Flame
-                                    size={120}
-                                    color="#FF7939"
-                                    fill="#FF7939"
-                                    className="animate-soft-pulse"
-                                />
+
+                            {/* Percentage Badge */}
+                            <div className="absolute -bottom-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl">
+                                <span className="text-[14px] font-black text-[#FF7939] tracking-tighter">
+                                    {Math.round(state.initializationProgress)}%
+                                </span>
                             </div>
+                        </div>
+                        
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            <h2 className="text-2xl font-bold text-white leading-tight">
+                                Adaptando el plan a tu perfil...
+                            </h2>
+                            <p className="text-gray-400 text-sm leading-relaxed px-4">
+                                OMNIA está evaluando tus parámetros biométricos, objetivos y nivel de actividad para asegurar que cada plato e incremento de carga sea <span className="text-[#FF7939] font-semibold">100% personal</span>.
+                            </p>
                         </div>
                     </div>
                 </div>

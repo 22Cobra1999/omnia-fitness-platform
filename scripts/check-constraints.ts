@@ -1,33 +1,25 @@
-
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 
-try {
-  const envPath = join(process.cwd(), '.env.local');
-  const envContent = readFileSync(envPath, 'utf-8');
-  envContent.split('\n').forEach(line => {
-    const [key, ...valueParts] = line.split('=');
-    if (key && valueParts.length > 0) {
-      process.env[key.trim()] = valueParts.join('=').trim().replace(/^['"](.*)['"]$/, '$1');
+const supabaseUrl = 'https://mgrfswrsvrzwtgilssad.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+async function checkSchema() {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Query constraints
+    const { data: constraints, error } = await supabase
+        .rpc('get_constraints', { t_name: 'progreso_cliente_nutricion' });
+
+    if (error) {
+        // If RPC doesn't exist, try direct SQL via another way or just query information_schema
+        const { data: info, error: err2 } = await supabase.from('information_schema.table_constraints')
+            .select('*')
+            .eq('table_name', 'progreso_cliente_nutricion');
+        
+        console.log('Constraints (Direct):', info || err2);
+    } else {
+        console.log('Constraints (RPC):', constraints);
     }
-  });
-} catch (e) {}
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-
-async function checkConstraints() {
-  const { data: policies, error: pError } = await supabase.rpc('execute_sql', {
-    sql_query: "SELECT schemaname, tablename, policyname, definition FROM pg_policies WHERE tablename = 'calendar_events';"
-  });
-  console.log('Policies:');
-  console.log(JSON.stringify(policies, null, 2));
-
-  const { data: constraints, error: cError } = await supabase.rpc('execute_sql', {
-    sql_query: "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'public.calendar_events'::regclass AND contype = 'c';"
-  });
-  console.log('\nConstraints:');
-  console.log(JSON.stringify(constraints, null, 2));
 }
 
-checkConstraints();
+checkSchema();
