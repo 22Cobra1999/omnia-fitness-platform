@@ -351,8 +351,11 @@ export async function POST(request: NextRequest) {
       .eq('id', clientId)
       .single();
 
-    // 9. Configurar URLs
-    let appUrlStr = (process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
+    // 9. Configurar URLs (con mejores fallbacks para Vercel)
+    let appUrlStr = (
+      process.env.NEXT_PUBLIC_APP_URL?.trim() || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    ).replace(/\/$/, '');
     
     // Forzar HTTPS en Vercel/Producción si el usuario configuró mal la variable
     if (!appUrlStr.includes('localhost') && appUrlStr.startsWith('http:')) {
@@ -361,6 +364,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('🌐 App URL Detectada:', appUrlStr);
+    if (appUrlStr.includes('localhost') && process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ ATENCIÓN: appUrlStr es localhost pero estás en PRODUCTION. Verifica tus variables de entorno.');
+    }
 
     const backUrls = {
       success: `${appUrlStr}/payment/success`,
@@ -369,6 +375,12 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('📋 Back URLs configuradas:', JSON.stringify(backUrls, null, 2));
+
+    // Forzar logs de APP_URL para verificar en Vercel si está configurada
+    console.log('🌐 APP_URL FINAL:', appUrlStr);
+    if (appUrlStr.includes('localhost')) {
+      console.warn('⚠️ ATENCIÓN: appUrlStr contiene localhost en un entorno que NO parece local. Verifica NEXT_PUBLIC_APP_URL.');
+    }
 
     // 10. Crear external_reference único
     const externalReference = `omnia_${activityId}_${clientId}_${Date.now()}`;
@@ -409,8 +421,18 @@ export async function POST(request: NextRequest) {
       ],
       payer: {
         email: clientEmail
-      }
+      },
+      back_urls: backUrls,
+      auto_return: 'approved',
+      external_reference: externalReference,
+      notification_url: `${appUrlStr}/api/mercadopago/webhook`
     };
+
+    // Si NO es modo sandbox y NO es preferencia simple, agregar marketplace_fee
+    if (!isSandboxFinal && !useSimplePreference && marketplaceFee > 0) {
+      console.log('💰 Agregando Marketplace Fee:', marketplaceFee);
+      preferenceData.marketplace_fee = marketplaceFee;
+    }
 
     // Log CRÍTICO para ver exactamente qué enviamos a MP en Vercel (MODO RESET)
     console.log('🚀 [DEPLOY LOG - RESET NUCLEAR] Preference Data:', JSON.stringify(preferenceData, null, 2));
@@ -513,10 +535,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 13. Obtener init_point
-    // RESET NUCLEAR: Forzamos init_point (Producción) para máxima estabilidad.
-    const finalInitPoint = preferenceResponse.init_point;
+    // Selección inteligente de init_point según el modo (Sandbox o Producción)
+    const finalInitPoint = isSandboxFinal ? 
+      (preferenceResponse.sandbox_init_point || preferenceResponse.init_point) : 
+      (preferenceResponse.init_point || preferenceResponse.sandbox_init_point);
 
-    console.log('🔗 ========== PROCESANDO INIT POINT (NUCLEAR) ==========');
+    console.log('🔗 ========== PROCESANDO INIT POINT (INTELIGENTE) ==========');
+    console.log('🔗 Modo:', isSandboxFinal ? 'SANDBOX' : 'PRODUCCIÓN');
     console.log('🔗 Init Point Final:', finalInitPoint);
     console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
