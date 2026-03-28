@@ -24,7 +24,7 @@ export function useActivityDetailLogic({
 }: UseActivityDetailLogicProps) {
     // Local state for tabs & UI
     const [isVideoPanelExpanded, setIsVideoPanelExpanded] = useState(false);
-    const [activeMealTab, setActiveMealTab] = useState<'Ingredientes' | 'Instrucciones'>('Ingredientes');
+    const [activeMealTab, setActiveMealTab] = useState<'Macros' | 'Ingredientes' | 'Receta'>('Macros');
     const [activeExerciseTab, setActiveExerciseTab] = useState<string>('Series');
 
     // Editing State
@@ -49,7 +49,7 @@ export function useActivityDetailLogic({
         // Manual expand: show play button first
         setIsVideoPanelExpanded(false);
 
-        setActiveMealTab('Ingredientes');
+        setActiveMealTab('Macros');
         setActiveExerciseTab('Series');
         setIsEditingSeries(false);
 

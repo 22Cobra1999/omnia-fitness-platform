@@ -6,6 +6,21 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mgrfswrsvrz
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+function parseIngredientString(s: string) {
+    if (!s || s === "" || s === '""') return null;
+    const regex = /^(.+?)\s+(\d+(?:\.\d+)?)\s*(.*)$/i;
+    const match = s.trim().match(regex);
+    if (match) {
+        return {
+            nombre: match[1].trim(),
+            cantidad: parseFloat(match[2]),
+            unidad: match[3].trim() || 'u'
+        };
+    }
+    return { nombre: s.trim(), cantidad: 1, unidad: 'u' };
+}
+
+
 async function simulateGeneration() {
     const clientId = '00dedc23-0b17-4e50-b84e-b2e8100dc93c';
     const activityId = 93;
@@ -20,7 +35,13 @@ async function simulateGeneration() {
     // 2. Get Plates Details
     const { data: plates } = await supabase
         .from('nutrition_program_details')
-        .select('*')
+        .select(`
+            *,
+            recetas (
+                receta,
+                nombre
+            )
+        `)
         .in('id', plateIds);
     
     console.log(`📖 Platos encontrados en DB: ${plates?.length || 0}`);
@@ -68,10 +89,17 @@ async function simulateGeneration() {
     // 5. Generate JSON Entries
     const macrosJson: any = {};
     const ingredientesJson: any = {};
+    const recetasJson: any = {};
 
     plates.forEach(p => {
         const kcalFinal = Math.round((p.calorias || 0) * factorKcal);
         const protFinal = Number(((p.proteinas || 0) * factorProt).toFixed(1));
+
+        const rawIngs = (p.ingredientes && Array.isArray(p.ingredientes) && p.ingredientes.length > 0 && p.ingredientes[0] !== "")
+            ? p.ingredientes
+            : (p.ingredientes || []);
+        
+        const parsedIngs = rawIngs.map((s: string) => parseIngredientString(s)).filter((i: any) => i !== null);
 
         macrosJson[p.id] = {
             id: p.id,
@@ -81,16 +109,18 @@ async function simulateGeneration() {
             proteinas: protFinal,
             carbohidratos: p.carbohidratos || 0,
             grasas: p.grasas || 0,
-            receta: p.receta || '',
-            ingredientes: p.ingredientes || []
+            receta_id: p.receta_id,
+            ingredientes: parsedIngs
         };
-        ingredientesJson[p.id] = p.ingredientes || [];
+        ingredientesJson[p.id] = parsedIngs;
+        recetasJson[p.id] = p.receta_id;
     });
+
 
     console.log('\n--- INSERT SQL SIMULADO (Ejemplo para un día) ---');
     const insertSql = `
 INSERT INTO "public"."progreso_cliente_nutricion" 
-("cliente_id", "actividad_id", "fecha", "ejercicios_completados", "ejercicios_pendientes", "macros", "ingredientes", "enrollment_id") 
+("cliente_id", "actividad_id", "fecha", "ejercicios_completados", "ejercicios_pendientes", "macros", "ingredientes", "recetas", "enrollment_id") 
 VALUES (
     '${clientId}', 
     ${activityId}, 
@@ -99,6 +129,7 @@ VALUES (
     '{"ejercicios": [753, 758, 759, 760, 761, 764, 765]}', 
     '${JSON.stringify(macrosJson)}', 
     '${JSON.stringify(ingredientesJson)}', 
+    '${JSON.stringify(recetasJson)}',
     215
 );`;
     console.log(insertSql);

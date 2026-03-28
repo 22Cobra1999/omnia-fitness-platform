@@ -4,6 +4,22 @@ import { ClientProfile } from '@/lib/utils/personalization-engine'
 import { reconstructPrescription, AdaptiveProfile, AdaptiveBase } from '@/lib/omnia-adaptive-motor'
 
 // Endpoint para inicializar todas las filas de progreso_cliente al comprar una actividad
+
+function parseIngredientString(s: string) {
+  if (!s || s === "" || s === '""') return null;
+  // Regex para: [Nombre] [Cantidad] [Unidad]
+  const regex = /^(.+?)\s+(\d+(?:\.\d+)?)\s*(.*)$/i;
+  const match = s.trim().match(regex);
+  if (match) {
+    return {
+      nombre: match[1].trim(),
+      cantidad: parseFloat(match[2]),
+      unidad: match[3].trim() || 'u'
+    };
+  }
+  return { nombre: s.trim(), cantidad: 1, unidad: 'u' };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { activityId, clientId, startDate, enrollmentId: explicitEnrollmentId } = await request.json()
@@ -185,6 +201,75 @@ export async function POST(request: NextRequest) {
     const maxSemanasPlanificacion = Math.max(...planificacion.map(p => p.numero_semana))
     const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 
+    // 4. PRE-PROCESAR TODOS LOS INGREDIENTES PARA EL DICCIONARIO (v4.0)
+    const allDishesSet = new Set<number>()
+    planificacion.forEach(p => {
+      diasSemana.forEach(d => {
+        const ej = p[d]
+        if (ej && ej !== '{}') {
+          const parsed = typeof ej === 'string' ? JSON.parse(ej) : ej
+          const arr = Array.isArray(parsed.ejercicios) ? parsed.ejercicios : (Array.isArray(parsed) ? parsed : [])
+          arr.forEach((item: any) => {
+            const id = typeof item === 'object' ? (item.id || item.ejercicio_id) : item
+            if (id) allDishesSet.add(Number(id))
+          })
+        }
+      })
+    })
+
+    const allDishIds = Array.from(allDishesSet)
+    let ingredientLookup: Record<number, any[]> = {}
+    let ingredientsToSync: any[] = []
+
+    if (categoria === 'nutricion' && allDishIds.length > 0) {
+      console.log(`🧪 [v4] Pre-syncing ingredients for ${allDishIds.length} dishes...`)
+      const { data: dishesDetails } = await supabase
+        .from('nutrition_program_details')
+        .select('id, ingredientes')
+        .in('id', allDishIds)
+
+      dishesDetails?.forEach(d => {
+        if (Array.isArray(d.ingredientes)) {
+          const parsed = d.ingredientes.map(s => parseIngredientString(s)).filter(x => x !== null)
+          ingredientLookup[d.id] = parsed
+          parsed.forEach(i => ingredientsToSync.push({ nombre: i.nombre, unidad: i.unidad }))
+        }
+      })
+
+      // Sync with ingredients_nutricion (Insert uniqueness cleaning)
+      if (ingredientsToSync.length > 0) {
+        // Quitar duplicados locales antes de intentar batch insert
+        const uniqueToSync = Array.from(new Map(ingredientsToSync.map(i => [`${i.nombre.toLowerCase()}_${i.unidad.toLowerCase()}`, i])).values())
+        
+        const { data: syncedIngs, error: syncErr } = await supabase
+          .from('ingredientes_nutricion')
+          .upsert(uniqueToSync, { onConflict: 'nombre,unidad', ignoreDuplicates: true })
+          .select()
+
+        if (syncErr) {
+          console.warn('⚠️ [v4] Error syncing ingredients table:', syncErr.message)
+        }
+
+        // Recuperar IDs reales de todos para mapear en el progreso (incluyendo los que ya existían)
+        const { data: allSynced } = await supabase
+          .from('ingredientes_nutricion')
+          .select('id, nombre, unidad')
+
+        if (allSynced) {
+          Object.keys(ingredientLookup).forEach(dishId => {
+            ingredientLookup[Number(dishId)] = ingredientLookup[Number(dishId)].map(i => {
+              const found = allSynced.find(s => 
+                s.nombre.toLowerCase() === i.nombre.toLowerCase() && 
+                s.unidad.toLowerCase() === i.unidad.toLowerCase()
+              )
+              return { ...i, ingredient_id: found?.id }
+            })
+          })
+        }
+      }
+    }
+
+
     // 5. Usar directamente el startDate proporcionado
     const start = new Date(startDate + 'T00:00:00')
 
@@ -263,7 +348,21 @@ export async function POST(request: NextRequest) {
           if (categoria === 'nutricion') {
             const { data: platosData, error: platesError } = await supabase
               .from('nutrition_program_details')
-              .select('id, nombre, receta_id, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos')
+              .select(`
+                id, 
+                nombre, 
+                receta_id, 
+                calorias, 
+                proteinas, 
+                carbohidratos, 
+                grasas, 
+                ingredientes, 
+                minutos,
+                recetas (
+                  receta,
+                  nombre
+                )
+              `)
               .in('id', ejercicioIdsArray)
             
             if (platesError) {
@@ -337,25 +436,30 @@ export async function POST(request: NextRequest) {
               const kcalFinal = Math.round((ej.calorias || 0) * factorKcal)
               const protFinal = Number(((ej.proteinas || 0) * factorProt).toFixed(1))
 
-              const detallesNutricion = {
-                id: ej.id,
-                nombre: ej.nombre || '',
-                calorias: kcalFinal,
-                minutos: ej.minutos || 0,
-                proteinas: protFinal,
-                carbohidratos: ej.carbohidratos || 0,
-                grasas: ej.grasas || 0,
-                receta_id: ej.receta_id,
-                ingredientes: ej.ingredientes || [],
-                ajuste_motor: factorKcal !== 1.0 ? factorKcal : undefined
+              // Extraer receta de la relación join si existe (Supabase puede devolverla como objeto o array)
+              const joinedReceta = Array.isArray(ej.recetas) ? ej.recetas[0] : ej.recetas
+              const recetaText = joinedReceta?.receta || ej.receta || null
+
+              // Estructura de macros ultra-compacta (v4.0)
+              const macrosCompactos = {
+                rid: ej.receta_id,
+                k: kcalFinal,
+                p: protFinal,
+                c: ej.carbohidratos || 0,
+                g: ej.grasas || 0
               }
 
               ejerciciosMap.set(ej.id, {
-                detalle_series: JSON.stringify(detallesNutricion),
+                detalle_series: JSON.stringify(macrosCompactos),
                 duracion_min: ej.minutos || 0,
-                calorias: kcalFinal,
-                ingredientes: ej.ingredientes || []
+                kcal: kcalFinal,
+                // Mapear ingredientes a { id, cnt } unicamente
+                ingredientes: (ingredientLookup[ej.id] || []).map(i => ({ id: i.ingredient_id, cnt: i.cantidad })),
+                rid: ej.receta_id
               })
+
+
+
             } else {
               const base: AdaptiveBase = {
                 sets: 3,
@@ -487,14 +591,15 @@ export async function POST(request: NextRequest) {
 
             Object.keys(ejerciciosPendientes).forEach(key => {
               const ejercicioId = ejerciciosPendientes[key]
-              const ejercicioData = ejerciciosMap.get(ejercicioId) || { duracion_min: 0, calorias: 0, peso: 0, series: 0, reps: 0, descanso: 60 }
+              const ejercicioData = ejerciciosMap.get(ejercicioId) || { duracion_min: 0, kcal: 0, peso: 0, series: 0, reps: 0, descanso: 60 }
               minutosJson[key] = ejercicioData.duracion_min || 0
-              caloriasJson[key] = ejercicioData.calorias || 0
+              caloriasJson[key] = ejercicioData.kcal || 0
               pesoJson[key] = ejercicioData.peso || 0
               seriesJson[key] = ejercicioData.series || 0
               repsJson[key] = ejercicioData.reps || 0
               descansoJson[key] = ejercicioData.descanso || 60
             })
+
 
             const registro: any = {
               actividad_id: parseInt(activityId),
@@ -508,6 +613,7 @@ export async function POST(request: NextRequest) {
             if (categoria === 'nutricion') {
               const macrosJson: any = {}
               const ingredientesJson: any = {}
+              const recetasJson: any = {}
               
               const platosDelDiaIds = Object.values(ejerciciosPendientes) as number[]
               
@@ -516,18 +622,20 @@ export async function POST(request: NextRequest) {
                 if (ejData) {
                   if (ejData.detalle_series) {
                     try { 
-                      macrosJson[ejId] = JSON.parse(ejData.detalle_series) 
+                      macrosJson[ejId.toString()] = JSON.parse(ejData.detalle_series) 
                     } catch (e) { 
-                      console.error(`   ❌ Error parseando detalle_series para ID=${ejId}:`, e)
-                      macrosJson[ejId] = {} 
+                      macrosJson[ejId.toString()] = {} 
                     }
-                    ingredientesJson[ejId] = ejData.ingredientes || []
+                    ingredientesJson[ejId.toString()] = ejData.ingredientes || []
+                    recetasJson[ejId.toString()] = ejData.rid || null // Solo el ID!
                   }
                 }
               })
+
               
               registro.macros = macrosJson
               registro.ingredientes = ingredientesJson
+              registro.recetas = recetasJson
             } else {
               registro.informacion = detallesSeries
               registro.minutos = minutosJson

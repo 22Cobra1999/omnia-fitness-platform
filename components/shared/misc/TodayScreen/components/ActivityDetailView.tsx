@@ -172,7 +172,11 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                                         .map((ing: any, i: number) => (
                                             <li key={i} className="flex items-start gap-3 text-white/80 text-sm">
                                                 <ShoppingCart size={14} className="mt-1 text-orange-500 shrink-0" />
-                                                <span>{typeof ing === 'string' ? ing : (ing?.nombre || JSON.stringify(ing))}</span>
+                                                <span>
+                                                    {typeof ing === 'string' 
+                                                        ? ing 
+                                                        : `${ing?.nombre || ''} ${ing?.cantidad || ''}${ing?.unidad || ''}`.trim()}
+                                                </span>
                                             </li>
                                         ))}
                                 </ul>

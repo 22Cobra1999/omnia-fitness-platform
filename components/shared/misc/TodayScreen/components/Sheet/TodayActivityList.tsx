@@ -273,10 +273,24 @@ export function TodayActivityList({
                                                         </h4>
 
                                                         {isNutri ? (
-                                                            <div className="flex items-center gap-3">
-                                                                {group.proteinas != null && <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">P: {group.proteinas}g</span>}
-                                                                {group.carbohidratos != null && <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">C: {group.carbohidratos}g</span>}
-                                                                {group.grasas != null && <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">G: {group.grasas}g</span>}
+                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                                {group.calorias != null && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Flame size={10} className="text-[#FF7939]" fill="currentColor" />
+                                                                        <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">{group.calorias} kcal</span>
+                                                                    </div>
+                                                                )}
+                                                                {group.minutos != null && group.minutos > 0 && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Clock size={10} className="text-white/40" />
+                                                                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{group.minutos} min</span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex items-center gap-3 ml-1">
+                                                                    {group.proteinas != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">P: {group.proteinas}g</span>}
+                                                                    {group.carbohidratos != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">C: {group.carbohidratos}g</span>}
+                                                                    {group.grasas != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">G: {group.grasas}g</span>}
+                                                                </div>
                                                             </div>
                                                         ) : (
                                                             <>

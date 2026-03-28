@@ -165,7 +165,7 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
                     return {
                         ...item,
                         id: item.id || `${realExerciseId}_${item.bloque || 1}_${item.orden || 1}`,
-                        title: categoria === 'nutricion' ? (item.nombre_plato || item.title) : (item.nombre_ejercicio || item.name),
+                        title: categoria === 'nutricion' ? (item.nombre_plato || item.nombre || item.title) : (item.nombre_ejercicio || item.name),
                         type: item.tipo || 'general',
                         done: Boolean(item.completed || item.done),
                         bloque: Number(item.bloque || 1),
