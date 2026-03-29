@@ -62,7 +62,7 @@ export function filterEnrollments(
     categoryTab: string = "all",
     enrollmentProgresses: Record<string, number> = {}
 ): Enrollment[] {
-    return enrollments.filter(enrollment => {
+    const filtered = enrollments.filter(enrollment => {
         // 1. Calculate Real Status
         const progress = enrollmentProgresses[enrollment.id] || 0
         const realStatus = calculateEnrollmentStatus(enrollment, progress)
@@ -90,11 +90,21 @@ export function filterEnrollments(
             }
         }
 
-        // 4. Filter by Category (if implemented)
-        if (categoryTab !== 'all') {
-            // Logic for category filtering if needed
-        }
-
         return true
     })
+
+    // 5. De-duplicate by activity_id (only for active/pending tabs)
+    if (statusTab !== 'finalizadas') {
+        const seen = new Set<string>();
+        // Enrollment list is already sorted by created_at DESC in the hook, 
+        // so the first one we find is the most recent.
+        return filtered.filter(e => {
+            const activityId = String(e.activity_id);
+            if (seen.has(activityId)) return false;
+            seen.add(activityId);
+            return true;
+        });
+    }
+
+    return filtered;
 }

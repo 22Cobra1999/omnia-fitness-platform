@@ -446,8 +446,10 @@ export async function POST(request: NextRequest) {
                 k: kcalFinal,
                 p: protFinal,
                 c: ej.carbohidratos || 0,
-                g: ej.grasas || 0
+                g: ej.grasas || 0,
+                m: ej.minutos || 0
               }
+
 
               ejerciciosMap.set(ej.id, {
                 detalle_series: JSON.stringify(macrosCompactos),

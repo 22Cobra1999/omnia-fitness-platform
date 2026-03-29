@@ -305,24 +305,69 @@ export async function POST(request: NextRequest) {
 
       // Agregar campos opcionales si existen
       if (ingredientesVal !== undefined && ingredientesVal !== null) {
-        // Si ingredientes es un string, intentar parsearlo como JSON si parece JSON
+        let processedIngs = []
+        let rawIngs = []
+
         if (typeof ingredientesVal === 'string') {
           const trimmed = ingredientesVal.trim()
           if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
             try {
-              record.ingredientes = JSON.parse(trimmed)
+              rawIngs = JSON.parse(trimmed)
             } catch {
-              record.ingredientes = [trimmed]
+              rawIngs = [trimmed]
             }
           } else {
-            // Es una lista separada por comas o punto y coma
-            const list = trimmed.split(/[;,\n]/).map(i => i.trim()).filter(Boolean)
-            record.ingredientes = list.length > 0 ? list : [trimmed]
+            rawIngs = trimmed.split(/[;,\n]/).map(i => i.trim()).filter(Boolean)
           }
-        } else {
-          record.ingredientes = ingredientesVal
+        } else if (Array.isArray(ingredientesVal)) {
+          rawIngs = ingredientesVal
         }
+
+        // Normalizar a formato {id, cnt}
+        for (const ing of rawIngs) {
+          if (typeof ing === 'object' && ing !== null && (ing as any).id) {
+            processedIngs.push(ing)
+          } else if (typeof ing === 'string') {
+            // Parsear "Avena 50g"
+            const match = ing.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s*(.*)$/)
+            let nombre = ing.trim()
+            let cantidad = 1
+            let unidad = 'u'
+
+            if (match) {
+              nombre = match[1].trim()
+              cantidad = parseFloat(match[2])
+              unidad = match[3].trim() || 'u'
+            }
+
+        // Asegurar que existe en el diccionario
+        const { data: ingDict } = await supabaseService
+          .from('ingredientes_nutricion')
+          .upsert({ nombre, unidad }, { onConflict: 'nombre, unidad' })
+          .select('id')
+          .maybeSingle()
+
+
+
+            let ingId = ingDict?.id
+            if (!ingId) {
+              const { data: existing } = await supabaseService
+                .from('ingredientes_nutricion')
+                .select('id')
+                .eq('nombre', nombre)
+                .eq('unidad', unidad)
+                .maybeSingle()
+              ingId = existing?.id
+            }
+
+            if (ingId) {
+              processedIngs.push({ id: ingId, cnt: cantidad })
+            }
+          }
+        }
+        record.ingredientes = processedIngs
       }
+
 
       if (porcionesVal !== undefined && porcionesVal !== null) {
         const porcionesNum = NORMALIZE_NUMBER(porcionesVal)
@@ -446,6 +491,56 @@ export async function POST(request: NextRequest) {
         }
 
         results.push({ id: existingId, tempId: tempId ?? existingId.toString() })
+
+        // 📣 [PROPAGATION v5.0] Propagar cambios a registros de alumnos existentes si se solicita
+        if ((plato as any).propagateToExisting) {
+          console.log(`📣 [API/Nutrition] Propagating changes for plate ${existingId} to existing student records...`)
+          try {
+            const today = new Date().toISOString().split('T')[0]
+            
+            // 1. Buscar todos los registros de progreso futuros que tienen este plato en pendientes
+            const { data: progressToUpdate } = await supabaseService
+              .from('progreso_cliente_nutricion')
+              .select('id, macros, ingredientes, ejercicios_pendientes')
+              .gte('fecha', today)
+              .contains('ejercicios_pendientes', { ejercicios: [existingId.toString()] })
+
+            if (progressToUpdate && progressToUpdate.length > 0) {
+              console.log(`📣 [API/Nutrition] Found ${progressToUpdate.length} progress records to update for plate ${existingId}`)
+              
+              for (const progressRec of progressToUpdate) {
+                const macros = typeof progressRec.macros === 'string' ? JSON.parse(progressRec.macros) : (progressRec.macros || {})
+                const ingredients = typeof progressRec.ingredientes === 'string' ? JSON.parse(progressRec.ingredientes) : (progressRec.ingredientes || {})
+                
+                const keyId = existingId.toString()
+                
+                // Actualizar macros en el registro de progreso (formato v4.5 compacto)
+                macros[keyId] = {
+                  rid: record.receta_id || (macros[keyId]?.rid),
+                  k: record.calorias,
+                  p: record.proteinas,
+                  c: record.carbohidratos,
+                  g: record.grasas,
+                  m: record.minutos || (macros[keyId]?.m || 0)
+                }
+
+                // Actualizar ingredientes en el registro de progreso
+                if (record.ingredientes) {
+                  ingredients[keyId] = record.ingredientes
+                }
+
+                await supabaseService
+                  .from('progreso_cliente_nutricion')
+                  .update({ macros, ingredientes: ingredients })
+                  .eq('id', progressRec.id)
+              }
+              console.log(`✅ [API/Nutrition] Propagation complete for plate ${existingId}`)
+            }
+          } catch (propError) {
+            console.error(`❌ [API/Nutrition] Propagation error for plate ${existingId}:`, propError)
+          }
+        }
+
       } else {
         console.log('➕ BULK NUTRITION: Insertando plato nuevo:', {
           nombre: record.nombre,

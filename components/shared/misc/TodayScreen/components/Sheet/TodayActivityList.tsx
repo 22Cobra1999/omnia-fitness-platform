@@ -228,130 +228,137 @@ export function TodayActivityList({
 
                         {/* Block Items List */}
                         {!isCollapsed && (
-                            <div className="flex flex-col gap-3 mt-4">
-                                {blockActivities.map((group) => {
-                                    const isDone = group.done;
+                                                            <div className="flex flex-col gap-2">
+                                                                {blockActivities.map((group, idx) => {
+                                                                    const isDone = group.done;
 
-                                    return (
-                                        <div key={group.id} className="relative flex items-center group">
-                                            <button
-                                                onClick={() => openVideo(group.video_url || '', group)}
-                                                className={cn(
-                                                    "flex-1 flex items-center gap-3 p-3 rounded-2xl transition-all duration-300",
-                                                    isDone ? "bg-white/[0.01]" : "bg-white/[0.04] hover:bg-white/[0.06] active:scale-[0.98]"
-                                                )}
-                                                disabled={isExpired}
-                                                style={{ filter: isExpired ? 'grayscale(1)' : 'none' }}
-                                            >
-                                                {/* Status Circle */}
-                                                <div
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleExerciseSimple(group.id);
-                                                    }}
-                                                    className={cn(
-                                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
-                                                        isDone
-                                                            ? "bg-[#FF7939] border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]"
-                                                            : "bg-white/5 border-white/10 hover:border-[#FF7939]/30"
-                                                    )}
-                                                >
-                                                    <Flame
-                                                        size={22}
-                                                        className={cn(isDone ? "text-white" : "text-white/20")}
-                                                        fill={isDone ? "currentColor" : "none"}
-                                                    />
-                                                </div>
+                                                                    return (
+                                                                        <div key={group.id} className="relative flex flex-col gap-2 group">
+                                                                            <div className="relative flex items-center group">
+                                                                                <button
+                                                                                    onClick={() => openVideo(group.video_url || '', group)}
+                                                                                    className={cn(
+                                                                                        "flex-1 flex items-center gap-3 p-3 rounded-2xl transition-all duration-300",
+                                                                                        isDone ? "bg-white/[0.01]" : "bg-white/[0.04] hover:bg-white/[0.06] active:scale-[0.98]"
+                                                                                    )}
+                                                                                    disabled={isExpired}
+                                                                                    style={{ filter: isExpired ? 'grayscale(1)' : 'none' }}
+                                                                                >
+                                                                                    {/* Status Circle */}
+                                                                                    <div
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            toggleExerciseSimple(group.id);
+                                                                                        }}
+                                                                                        className={cn(
+                                                                                            "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
+                                                                                            isDone
+                                                                                                ? "bg-[#FF7939] border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]"
+                                                                                                : "bg-white/5 border-white/10 hover:border-[#FF7939]/30"
+                                                                                        )}
+                                                                                    >
+                                                                                        <Flame
+                                                                                            size={22}
+                                                                                            className={cn(isDone ? "text-white" : "text-white/20")}
+                                                                                            fill={isDone ? "currentColor" : "none"}
+                                                                                        />
+                                                                                    </div>
 
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex flex-col gap-1 text-left">
-                                                        <h4 className={cn(
-                                                            "text-sm font-bold leading-tight tracking-tight",
-                                                            isDone ? "text-white/20 line-through decoration-[#FF7939]/30" : "text-white/90"
-                                                        )}>
-                                                            {group.title}
-                                                        </h4>
+                                                                                    <div className="flex-1 min-w-0">
+                                                                                        <div className="flex flex-col gap-1.5 text-left">
+                                                                                            <h4 className={cn(
+                                                                                                "text-sm font-bold leading-tight tracking-tight",
+                                                                                                isDone ? "text-white/20 line-through decoration-[#FF7939]/30" : "text-white/90"
+                                                                                            )}>
+                                                                                                {group.title}
+                                                                                            </h4>
 
-                                                        {isNutri ? (
-                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                                {group.calorias != null && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <Flame size={10} className="text-[#FF7939]" fill="currentColor" />
-                                                                        <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">{group.calorias} kcal</span>
-                                                                    </div>
-                                                                )}
-                                                                {group.minutos != null && group.minutos > 0 && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <Clock size={10} className="text-white/40" />
-                                                                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{group.minutos} min</span>
-                                                                    </div>
-                                                                )}
-                                                                <div className="flex items-center gap-3 ml-1">
-                                                                    {group.proteinas != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">P: {group.proteinas}g</span>}
-                                                                    {group.carbohidratos != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">C: {group.carbohidratos}g</span>}
-                                                                    {group.grasas != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">G: {group.grasas}g</span>}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                {/* Prescription chips — Series × Reps • Peso */}
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {group.sets_data.map((s: any, idx: number) => {
-                                                                        const isComplex = typeof s.series === 'string' && (s.series.includes('(') || s.series.includes('-'));
-                                                                        if (isComplex && (s.peso === 0 || !s.peso) && (s.reps === 0 || !s.reps)) {
-                                                                            return <span key={idx} className="text-[10px] font-medium text-white/20">{s.series}</span>;
-                                                                        }
-                                                                        return (
-                                                                            <div key={idx} className={cn(
-                                                                                "flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight",
-                                                                                s.done ? "bg-[#FF7939]/10 text-[#FF7939]" : "bg-white/5 text-white/35"
-                                                                            )}>
-                                                                                {s.series || 0}×{s.reps || 0}
-                                                                                {(s.peso != null && Number(s.peso) !== 0) && <span className="opacity-60 ml-0.5">• {s.peso}kg</span>}
+                                                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                                                                {/* Calories & Duration (No frames) */}
+                                                                                                {group.calorias != null && group.calorias > 0 && (
+                                                                                                    <div className="flex items-center gap-1 opacity-60">
+                                                                                                        <Flame size={11} className="text-[#FF7939]/70" fill="currentColor" />
+                                                                                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest leading-none">{group.calorias} kcal</span>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                                {group.minutos != null && group.minutos > 0 && (
+                                                                                                    <div className="flex items-center gap-1 opacity-60">
+                                                                                                        <Clock size={11} className="text-white/30" />
+                                                                                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none">{group.minutos} min</span>
+                                                                                                    </div>
+                                                                                                )}
+
+                                                                                                {isNutri ? (
+                                                                                                    <div className="flex items-center gap-3">
+                                                                                                        {group.proteinas != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">P: {group.proteinas}g</span>}
+                                                                                                        {group.carbohidratos != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">C: {group.carbohidratos}g</span>}
+                                                                                                        {group.grasas != null && <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">G: {group.grasas}g</span>}
+                                                                                                    </div>
+                                                                                                ) : (
+                                                                                                    <div className="flex flex-wrap gap-1">
+                                                                                                        {group.sets_data.map((s: any, idx: number) => {
+                                                                                                            const isComplex = typeof s.series === 'string' && (s.series.includes('(') || s.series.includes('-'));
+                                                                                                            if (isComplex && (s.peso === 0 || !s.peso) && (s.reps === 0 || !s.reps)) {
+                                                                                                                return <span key={idx} className="text-[10px] font-medium text-white/20">{s.series}</span>;
+                                                                                                            }
+                                                                                                            return (
+                                                                                                                <div key={idx} className={cn(
+                                                                                                                    "flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight",
+                                                                                                                    s.done ? "bg-[#FF7939]/10 text-[#FF7939]" : "bg-white/5 text-white/35"
+                                                                                                                )}>
+                                                                                                                    {(s.series || s.sets || 0)}×{(s.reps || 0)}
+                                                                                                                    {((s.peso || s.kg) != null && Number(s.peso || s.kg) !== 0) && <span className="opacity-60 ml-0.5">• {s.peso || s.kg}kg</span>}
+                                                                                                                </div>
+                                                                                                            );
+                                                                                                        })}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Play button — shown when video exists */}
+                                                                                    {group.video_url ? (
+                                                                                        <div className="shrink-0 w-8 h-8 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 flex items-center justify-center transition-all duration-300 group-hover:bg-[#FF7939]/25 group-hover:scale-110">
+                                                                                            <Play size={11} className="text-[#FF7939] ml-0.5" fill="currentColor" />
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="shrink-0 w-8 h-8 rounded-full bg-white/3 border border-white/5 flex items-center justify-center opacity-40">
+                                                                                            <ArrowRight size={12} className="text-white/40" />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </button>
                                                                             </div>
-                                                                        );
-                                                                    })}
-                                                                    {/* Duration chip */}
-                                                                    {group.minutos && (
-                                                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight bg-white/5 text-white/35">
-                                                                            <Clock size={10} className="text-white/20" />
-                                                                            {group.minutos} min
-                                                                        </div>
-                                                                    )}
-                                                                    {/* Rest time indicator */}
-                                                                    {group.descanso && (
-                                                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight bg-white/5 text-white/35">
-                                                                            <CalendarClock size={10} className="text-white/20" />
-                                                                            {typeof group.descanso === 'number' ? `${Math.floor(group.descanso / 60)} min` : group.descanso}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
 
-                                                                {/* Muscles & Equipment NOT shown here — see detail tabs */}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Play button — shown when video exists */}
-                                                {group.video_url ? (
-                                                    <div className="shrink-0 w-8 h-8 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 flex items-center justify-center transition-all duration-300 group-hover:bg-[#FF7939]/25 group-hover:scale-110">
-                                                        <Play size={11} className="text-[#FF7939] ml-0.5" fill="currentColor" />
-                                                    </div>
-                                                ) : (
-                                                    <div className="shrink-0 w-8 h-8 rounded-full bg-white/3 border border-white/5 flex items-center justify-center opacity-40">
-                                                        <ArrowRight size={12} className="text-white/40" />
-                                                    </div>
-                                                )}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                                                            {/* Rest indicator between exercises */}
+                                                                            {idx < blockActivities.length - 1 && group.descanso && (
+                                                                                <div className="flex items-center gap-2 pl-16 py-1">
+                                                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#FF7939]/30 shadow-[0_0_10px_rgba(255,121,57,0.2)]" />
+                                                                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.15em] leading-none">
+                                                                                        Descansa: {typeof group.descanso === 'number' ? `${Math.floor(group.descanso / 60)} min` : group.descanso}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
                         )}
                     </div>
                 );
             })}
+
+            {Object.keys(blocks).length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 px-10 text-center gap-6 animate-in fade-in zoom-in duration-500">
+                    <div className="w-20 h-20 rounded-[32px] bg-white/[0.02] flex items-center justify-center border border-white/5 shadow-inner">
+                        <CalendarClock className="text-white/10" size={36} strokeWidth={1.5} />
+                    </div>
+                    <div className="space-y-2">
+                        <h3 className="text-white font-black text-xl italic uppercase tracking-tight">Sin actividades</h3>
+                        <p className="text-white/30 text-sm font-medium leading-relaxed max-w-[200px]">No tienes actividades programadas para este día.</p>
+                    </div>
+                </div>
+            )}
 
             {/* Calificado Section - MOVED TO HERO */}
 

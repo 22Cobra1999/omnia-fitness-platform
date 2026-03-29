@@ -143,10 +143,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { executionId, bloque, orden, fecha, categoria, activityId, enrollmentId: rawEnrollmentId } = body
-
-    // Optimized parsing for IDs: DB expects BIGINT for enrollment_id
+    
+    // Support both numeric IDs and UUID strings
     const enrollmentId = rawEnrollmentId !== undefined && rawEnrollmentId !== null
-      ? (typeof rawEnrollmentId === 'number' ? rawEnrollmentId : (typeof rawEnrollmentId === 'string' && /^\d+$/.test(rawEnrollmentId) ? Number(rawEnrollmentId) : null))
+      ? (typeof rawEnrollmentId === 'number' ? rawEnrollmentId : (typeof rawEnrollmentId === 'string' ? (/^\d+$/.test(rawEnrollmentId) ? Number(rawEnrollmentId) : rawEnrollmentId) : null))
       : null
 
     console.log('🚀 [API toggle-exercise] STARTING toggle for:', {
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
       categoria,
       activityId,
       enrollmentId,
-      rawEnrollmentId: typeof rawEnrollmentId === 'string' && rawEnrollmentId.length > 20 ? 'UUID' : rawEnrollmentId
+      rawEnrollmentId: typeof rawEnrollmentId === 'string' && rawEnrollmentId.length > 20 ? 'UUID...' : rawEnrollmentId
     })
 
     if (!activityId || (!executionId && !body.exercises)) {
@@ -239,7 +239,10 @@ export async function POST(request: NextRequest) {
         if (data?.[0]) {
           progressTable = table
           progressRecord = data[0]
-          console.log(`✅ [API toggle-exercise] Found record in ${table}, ID: ${progressRecord.id}`)
+          console.log(`✅ [API toggle-exercise] Found record in ${table}, ID: ${progressRecord.id}`, {
+            has_pendientes: !!progressRecord.ejercicios_pendientes,
+            has_completados: !!progressRecord.ejercicios_completados
+          })
           break
         }
       } catch (err: any) {
@@ -446,8 +449,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`📊 [API toggle-exercise] AFTER:`, {
       toggledToCompleted,
-      in_completados: Object.keys(rawComp),
-      in_pendientes: Object.keys(rawPend)
+      compKeys: Object.keys(rawComp),
+      pendKeys: Object.keys(rawPend),
+      is_nutri: requestedCategoria === 'nutricion'
     })
 
     // 3. Persistir conservando el tipo original (string vs objeto)
@@ -463,6 +467,8 @@ export async function POST(request: NextRequest) {
       ejercicios_completados: persist(progressRecord.ejercicios_completados, rawComp),
       ejercicios_pendientes: persist(progressRecord.ejercicios_pendientes, rawPend)
     }
+
+    console.log('📦 [API toggle-exercise] Payload to DB:', JSON.stringify(updatePayload, null, 2))
 
     const { error: updErr } = await supabase
       .from(progressTable)

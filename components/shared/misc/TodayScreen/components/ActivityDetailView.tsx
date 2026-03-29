@@ -67,14 +67,13 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
             </div>
 
             {/* Title */}
-            <div style={{ padding: '4px 20px 10px', zIndex: 10, display: 'flex', justifyContent: 'center' }}>
                 <h1 style={{
                     color: 'rgba(255, 255, 255, 0.9)', fontSize: 22, fontWeight: 700, margin: 0,
                     textAlign: 'center', textShadow: '0 2px 10px rgba(0,0,0,0.5)'
                 }}>
-                    {activity.exerciseName || activity.title}
+                    {activity.name || activity.nombre_ejercicio || activity.exerciseName || activity.title}
                 </h1>
-            </div>
+
 
             {/* Scrollable Content */}
             <div
@@ -83,8 +82,8 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                     flex: 1, overflowY: 'auto', padding: '0 20px 100px', display: 'flex', flexDirection: 'column', gap: 20, zIndex: 1
                 }}
             >
-                {/* Main Play Button (if not expanded) */}
-                {!isVideoPanelExpanded && activity.url && (
+                {/* Video Logic Integration (v5.0) */}
+                {!isVideoPanelExpanded && (activity.video_url || activity.bunny_video_id) && (
                     <div className="flex justify-center mt-4 mb-4">
                         <button
                             onClick={() => setIsVideoPanelExpanded(true)}
@@ -102,9 +101,10 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                     </div>
                 )}
 
+
                 {/* Expanded Video Panel */}
                 <AnimatePresence>
-                    {isVideoPanelExpanded && activity.url && (
+                    {isVideoPanelExpanded && (activity.video_url || activity.bunny_video_id) && (
                         <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 260, opacity: 1 }}
@@ -112,7 +112,9 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                             className="relative w-full rounded-xl overflow-hidden bg-black shadow-2xl border border-white/10"
                         >
                             <UniversalVideoPlayer
-                                videoUrl={activity.url}
+                                videoUrl={activity.video_url}
+                                bunnyVideoId={activity.bunny_video_id}
+                                libraryId={activity.bunny_library_id}
                                 autoPlay={true}
                                 controls={true}
                                 className="w-full h-full"
@@ -126,6 +128,7 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                             </button>
                         </motion.div>
                     )}
+
                 </AnimatePresence>
 
                 {/* Info & Stats */}
