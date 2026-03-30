@@ -40,6 +40,7 @@ export function ScheduleBlockModal({
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4"
                     onClick={onClose}
+                    onMouseDown={(e) => e.stopPropagation()}
                 >
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
@@ -47,6 +48,7 @@ export function ScheduleBlockModal({
                         exit={{ scale: 0.9, opacity: 0 }}
                         className="bg-[#1A1A1A] rounded-xl p-6 w-full max-w-2xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-white font-semibold text-xl">

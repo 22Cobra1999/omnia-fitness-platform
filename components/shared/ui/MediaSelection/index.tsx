@@ -14,7 +14,10 @@ export function MediaSelectionModal({
     onClose,
     onMediaSelected,
     mediaType,
-    className
+    className,
+    exerciseId,
+    activityId,
+    mediaId
 }: MediaSelectionModalProps) {
     const {
         media,
@@ -33,7 +36,7 @@ export function MediaSelectionModal({
         setSourceFilter,
         handleFileChange,
         handleConfirm
-    } = useMediaSelectionLogic(isOpen, mediaType, onMediaSelected, onClose)
+    } = useMediaSelectionLogic(isOpen, mediaType, onMediaSelected, onClose, exerciseId, activityId, mediaId)
     const [viewMode, setViewMode] = React.useState<'choice' | 'gallery' | 'preview'>('choice')
 
     React.useEffect(() => {
@@ -43,24 +46,9 @@ export function MediaSelectionModal({
     const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
-
-        if (mediaType === 'video') {
-            const objectUrl = URL.createObjectURL(file)
-            const videoEl = document.createElement('video')
-            videoEl.preload = 'metadata'
-            videoEl.src = objectUrl
-            videoEl.onloadedmetadata = () => {
-                if (videoEl.duration > 30) {
-                    setError('El video puede durar como máximo 30 segundos.')
-                    return
-                }
-                handleFileChange(e)
-                setViewMode('preview')
-            }
-        } else {
-            await handleFileChange(e)
-            setViewMode('preview')
-        }
+        // Just delegate to hook — preview is shown locally, upload on confirm
+        await handleFileChange(e)
+        setViewMode('preview')
     }
 
     const getMediaTypeLabel = (type: string) => {

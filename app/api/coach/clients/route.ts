@@ -22,28 +22,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
   }
 
-  // Usar el cliente autenticado (con cookies) para respetar RLS y evitar depender de service role.
   const supabase = authSupabase
 
   try {
-
-    const countKeys = (raw: any): number => {
-      if (!raw) return 0
-      if (Array.isArray(raw)) return raw.length
-      if (typeof raw === 'object') return Object.keys(raw).length
-      if (typeof raw === 'string') {
-        try {
-          const parsed = JSON.parse(raw)
-          if (Array.isArray(parsed)) return parsed.length
-          if (parsed && typeof parsed === 'object') return Object.keys(parsed).length
-          return 0
-        } catch {
-          return 0
-        }
-      }
-      return 0
-    }
-
     const formatLastActive = (iso: string | null): string => {
       if (!iso) return 'Nunca'
       try {
@@ -55,644 +36,159 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Primero, traer solo actividades del coach autenticado
     const { data: coachActivities, error: coachActivitiesError } = await supabase
       .from('activities')
       .select('id, title, type, coach_id, price, categoria, included_meet_credits')
       .eq('coach_id', user.id)
 
-    if (coachActivitiesError) {
-      console.error('[coach-clients] Error en activities (coach filter):', coachActivitiesError)
-      return NextResponse.json({
-        success: true,
-        clients: [],
-        warning: 'Error obteniendo actividades',
-        debug: {
-          coachId: user.id,
-          coachActivitiesCount: 0,
-          enrollmentsCount: 0,
-          coachActivitiesError: coachActivitiesError.message
-        }
-      })
-    }
-
-    if (!coachActivities || coachActivities.length === 0) {
-      return NextResponse.json({
-        success: true,
-        clients: [],
-        debug: {
-          coachId: user.id,
-          coachActivitiesCount: 0,
-          enrollmentsCount: 0
-        }
-      })
-    }
+    if (coachActivitiesError) return NextResponse.json({ success: true, clients: [], warning: 'Error obteniendo actividades' })
+    if (!coachActivities || coachActivities.length === 0) return NextResponse.json({ success: true, clients: [] })
 
     const coachActivityIds = coachActivities.map((a: any) => a.id)
 
-    // Obtener inscripciones
     let { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
-      .select(`
-        id,
-        client_id,
-        status,
-        todo_list,
-        activity_id,
-        meet_credits_total,
-        start_date
-      `)
+      .select('id, client_id, status, todo_list, activity_id, meet_credits_total, start_date')
       .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
       .in('activity_id', coachActivityIds)
 
-    // Fallback: en algunos esquemas activity_id puede ser string (bigint/text) y el filtro numérico no matchea.
-    // Reintentar con ids como string si no hubo resultados.
-    if (!enrollmentsError && (!enrollments || enrollments.length === 0)) {
-      const coachActivityIdsStr = coachActivityIds.map((id: any) => String(id))
-      const retry = await supabase
-        .from('activity_enrollments')
-        .select(`
-          id,
-          client_id,
-          status,
-          todo_list,
-          activity_id
-        `)
-        .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
-        .in('activity_id', coachActivityIdsStr as any)
+    if (enrollmentsError) return NextResponse.json({ success: false, error: enrollmentsError.message }, { status: 500 })
+    if (!enrollments || enrollments.length === 0) return NextResponse.json({ success: true, clients: [] })
 
-      if (!retry.error) {
-        enrollments = retry.data
-      }
-    }
-
-    if (enrollmentsError) {
-      console.error('[coach-clients] Error en enrollments:', enrollmentsError)
-      return NextResponse.json({ success: false, error: enrollmentsError.message }, { status: 500 })
-    }
-
-
-    if (!enrollments || enrollments.length === 0) {
-      const coachActivityIdsSample = coachActivityIds.slice(0, 5).map((id: any) => ({ value: id, type: typeof id }))
-      return NextResponse.json({
-        success: true,
-        clients: [],
-        debug: {
-          coachId: user.id,
-          coachActivitiesCount: coachActivityIds.length,
-          enrollmentsCount: 0,
-          coachActivityIdsSample
-        }
-      })
-    }
-
-    const enrollmentStatuses = Array.from(new Set((enrollments || []).map((e: any) => e?.status).filter(Boolean)))
-
-    // Actividades ya están prefiltradas por coach
-    const activities = coachActivities
-
-    // Obtener datos de usuarios
     const clientIds = [...new Set(enrollments.map((e: any) => e.client_id))]
 
-    // Créditos de meet por cliente (fuente de verdad): client_meet_credits_ledger
-    // Fallback: si no existe/no hay datos, usar sum(meet_credits_total) desde enrollments.
     const meetCreditsAvailableByClient = new Map<string, number>()
-    let usedLedgerFallback = false
-    try {
-      const { data: ledger, error: ledgerError } = await supabase
-        .from('client_meet_credits_ledger')
-        .select('client_id, meet_credits_available')
-        .eq('coach_id', user.id)
-
-      if (!ledgerError && Array.isArray(ledger) && ledger.length > 0) {
-        for (const row of ledger) {
-          const cid = String((row as any)?.client_id || '')
-          if (!cid) continue
-          meetCreditsAvailableByClient.set(cid, Math.max(Number((row as any)?.meet_credits_available ?? 0), 0))
-        }
-      } else {
-        usedLedgerFallback = true
-      }
-    } catch {
-      usedLedgerFallback = true
-    }
-
-    if (usedLedgerFallback) {
-      for (const e of enrollments || []) {
-        const cid = String(e?.client_id || '')
-        if (!cid) continue
-        const total = Number(e?.meet_credits_total ?? 0)
-        const delta = Number.isFinite(total) ? total : 0
-        meetCreditsAvailableByClient.set(cid, (meetCreditsAvailableByClient.get(cid) || 0) + Math.max(delta, 0))
+    const { data: ledger } = await supabase.from('client_meet_credits_ledger').select('client_id, meet_credits_available').eq('coach_id', user.id)
+    if (ledger) {
+      for (const row of ledger) {
+        meetCreditsAvailableByClient.set(String(row.client_id), Math.max(Number(row.meet_credits_available || 0), 0))
       }
     }
 
-    const { data: users, error: usersError } = await supabase
-      .from('user_profiles')
-      .select('id, full_name, email, avatar_url')
-      .in('id', clientIds)
-
-    if (usersError) {
-      console.error('[coach-clients] Error en users:', usersError)
-      return NextResponse.json({ success: false, error: usersError.message }, { status: 500 })
-    }
-
-    const { data: clientsTable } = await supabase
-      .from('clients')
-      .select('id, birth_date')
-      .in('id', clientIds)
-
+    const { data: users } = await supabase.from('user_profiles').select('id, full_name, email, avatar_url').in('id', clientIds)
+    const { data: clientsTable } = await supabase.from('clients').select('id, birth_date').in('id', clientIds)
     const birthDateMap = new Map<string, string | null>()
-    if (clientsTable) {
-      clientsTable.forEach((c: any) => birthDateMap.set(c.id, c.birth_date))
-    }
+    if (clientsTable) clientsTable.forEach((c: any) => birthDateMap.set(c.id, c.birth_date))
 
-    // NEW: Fetch last active date from progress tables
-    const { data: lastProgress } = await supabase
-      .from('progreso_diario_actividad')
-      .select('cliente_id, fecha')
-      .in('cliente_id', clientIds)
-      .order('fecha', { ascending: false })
-
+    const { data: lastProgress } = await supabase.from('progreso_diario_actividad').select('cliente_id, fecha').in('cliente_id', clientIds).order('fecha', { ascending: false })
     const lastActiveMap = new Map<string, string>()
     if (lastProgress) {
-      lastProgress.forEach((p: any) => {
-        if (!lastActiveMap.has(p.cliente_id)) {
-          lastActiveMap.set(p.cliente_id, p.fecha)
-        }
-      })
+      lastProgress.forEach((p: any) => { if (!lastActiveMap.has(p.cliente_id)) lastActiveMap.set(p.cliente_id, p.fecha) })
     }
 
-    // Buscar pagos reales en banco (prefer seller_amount, fallback amount_paid)
-    const enrollmentIdsAll = (enrollments || [])
-      .map((e: any) => e?.id)
-      .filter((id: any) => typeof id === 'number' || typeof id === 'string')
-      .map((id: any) => (typeof id === 'number' ? id : Number(id)))
-      .filter((id: number) => Number.isFinite(id) && id > 0)
-
-    let bancoRows: any[] = []
-    if (enrollmentIdsAll.length > 0 || coachActivityIds.length > 0) {
-      let bancoQuery = supabase
-        .from('banco')
-        .select('id, enrollment_id, activity_id, client_id, seller_amount, amount_paid, payment_status')
-
-      const conditions: string[] = []
-      if (enrollmentIdsAll.length > 0) {
-        conditions.push(`enrollment_id.in.(${enrollmentIdsAll.join(',')})`)
-      }
-      if (coachActivityIds.length > 0) {
-        const ids = coachActivityIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0)
-        if (ids.length > 0) {
-          conditions.push(`activity_id.in.(${ids.join(',')})`)
-        }
-      }
-      if (conditions.length > 0) {
-        bancoQuery = bancoQuery.or(conditions.join(','))
-      }
-
-      const { data: bancoData } = await bancoQuery
-      bancoRows = bancoData || []
-    }
-
-    const { data: docProgressData } = await supabase
-      .from('client_document_progress')
-      .select('enrollment_id, completed')
-      .in('enrollment_id', enrollmentIdsAll)
-    const docProgress = docProgressData || []
-
+    const enrollmentIdsAll = enrollments.map((e: any) => Number(e.id)).filter(id => id > 0)
+    const { data: bancoData } = await supabase.from('banco').select('enrollment_id, seller_amount, amount_paid').in('enrollment_id', enrollmentIdsAll)
     const paidByEnrollmentId = new Map<number, number>()
-    for (const row of bancoRows) {
-      const paid = Number((row as any)?.seller_amount ?? (row as any)?.amount_paid ?? 0) || 0
-      const enrId = Number((row as any)?.enrollment_id)
-      if (Number.isFinite(enrId) && enrId > 0) {
-        paidByEnrollmentId.set(enrId, (paidByEnrollmentId.get(enrId) || 0) + paid)
+    if (bancoData) {
+      for (const row of bancoData) {
+        const paid = Number(row.seller_amount ?? row.amount_paid ?? 0)
+        paidByEnrollmentId.set(Number(row.enrollment_id), (paidByEnrollmentId.get(Number(row.enrollment_id)) || 0) + paid)
       }
     }
 
-    // Progreso agregado + última ejercitación (se toma de tablas progreso_cliente / progreso_cliente_nutricion)
     const todayIso = new Date().toISOString().slice(0, 10)
-    const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; itemsTotalesObjetivo: number; diasTotales: number; alertLevel: number; alertLabel: string }>()
+    const { data: allDailyStats } = await supabase.from('progreso_diario_actividad').select('*').in('cliente_id', clientIds)
+    const { data: docProgress } = await supabase.from('client_document_progress').select('completed, client_id, activity_id, enrollment_id').in('client_id', clientIds)
 
-    // PREFETCH MASIVO para evitar query N+1
-    const { data: allDailyStats } = await supabase
-      .from('progreso_diario_actividad')
-      .select('fecha, items_objetivo, items_completados, area, cliente_id, actividad_id, enrollment_id')
-      .in('cliente_id', clientIds)
+    const computeProgressAggForActivity = async (clientId: string, activityId: number, enrollmentId?: number) => {
+      let ds = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(clientId) && String(d.actividad_id) === String(activityId))
+      if (enrollmentId) ds = ds.filter((d: any) => String(d.enrollment_id) === String(enrollmentId))
 
-    const { data: allDocProgress } = await supabase
-      .from('client_document_progress')
-      .select('completed, client_id, activity_id, enrollment_id')
-      .in('client_id', clientIds)
+      let d_ok = 0, d_tot = 0, i_ok = 0, i_tot = 0, d_late = 0
+      const areaStats = { fitness: { completed: 0, total: 0, absent: 0, kcal_c: 0, kcal_o: 0 }, nutricion: { completed: 0, total: 0, absent: 0 } }
 
-    const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string, enrollmentId?: number, activityCategory: string = '') => {
-      const cacheKey = `${clientId}:${activityId}:${activityType}:${enrollmentId || 'all'}:${activityCategory}`
-      const cached = progressCache.get(cacheKey)
-      if (cached) return cached
+      ds.forEach((d: any) => {
+        const isPast = d.fecha < todayIso
+        const ok = (d.fit_items_c || 0) + (d.nut_items_c || 0)
+        const tot = (d.fit_items_o || 0) + (d.nut_items_o || 0)
+        i_ok += ok; i_tot += tot
+        
+        areaStats.fitness.completed += (d.fit_items_c || 0); areaStats.fitness.total += (d.fit_items_o || 0)
+        areaStats.fitness.kcal_c = (areaStats.fitness.kcal_c || 0) + (d.fit_kcal_c || 0)
+        areaStats.fitness.kcal_o = (areaStats.fitness.kcal_o || 0) + (d.fit_kcal_o || 0)
+        if (isPast && (d.fit_items_o || 0) > 0 && (d.fit_items_c || 0) < (d.fit_items_o || 0)) areaStats.fitness.absent += (d.fit_items_o - d.fit_items_c)
+        
+        areaStats.nutricion.completed += (d.nut_items_c || 0); areaStats.nutricion.total += (d.nut_items_o || 0)
+        if (isPast && (d.nut_items_o || 0) > 0 && (d.nut_items_c || 0) < (d.nut_items_o || 0)) areaStats.nutricion.absent += (d.nut_items_o - d.nut_items_c)
 
-      // 1. Obtener Estadísticas Diarias (Fitness, Nutrición, Talleres)
-      // Usamos los datos pre-bajados en allDailyStats
-      let dailyStats = (allDailyStats || []).filter((d: any) =>
-        String(d.cliente_id) === String(clientId) &&
-        String(d.actividad_id) === String(activityId)
-      )
-
-      if (enrollmentId) {
-        dailyStats = dailyStats.filter((d: any) => String(d.enrollment_id) === String(enrollmentId))
-      }
-
-      const dailyError = null;
-
-      let diasCompletados = 0
-      let diasTotales = 0
-      let itemsCompletados = 0
-      let itemsTotalesObjetivo = 0
-      let diasAtraso = 0
-      let itemsPendientes = 0
-
-      const areaStats = {
-        fitness: { completed: 0, total: 0, absent: 0 },
-        nutricion: { completed: 0, total: 0, absent: 0 }
-      }
-
-      if (!dailyError && dailyStats) {
-        const uniqueDays = new Map()
-        dailyStats.forEach((d: any) => {
-          const key = `${d.fecha}_${d.area}`
-          uniqueDays.set(key, d)
-        })
-
-        // For diasTotales we use unique dates across all areas
-        const uniqueDates = new Set(dailyStats.map((d: any) => d.fecha))
-        diasTotales = uniqueDates.size
-
-        dailyStats.forEach((d: any) => {
-          const objetivo = d.items_objetivo || 0
-          const completado = d.items_completados || 0
-          const isPast = d.fecha < todayIso
-          const area = String(d.area || '').toLowerCase()
-          const typeLower = activityType.toLowerCase()
-          const catLower = activityCategory.toLowerCase()
-
-          itemsCompletados += completado
-          itemsTotalesObjetivo += objetivo
-
-          const isFitness = area.includes('fit') || area.includes('ejercicio') || area.includes('entren') ||
-            catLower.includes('fit') || catLower.includes('ejercicio') || catLower.includes('entren') ||
-            (!d.area && (typeLower.includes('fit') || typeLower.includes('rutina') || typeLower.includes('train') || typeLower.includes('workout') || typeLower.includes('ejercicio')))
-
-          const isNutricion = area.includes('nutri') || area.includes('dieta') || area.includes('plato') || area.includes('comida') ||
-            catLower.includes('nutri') || catLower.includes('comida') || catLower.includes('alimento') ||
-            (!d.area && (typeLower.includes('nutri') || typeLower.includes('meal') || typeLower.includes('comida') || typeLower.includes('plan') || typeLower.includes('dieta')))
-
-          if (isFitness) {
-            areaStats.fitness.completed += completado
-            areaStats.fitness.total += objetivo
-            if (isPast && completado < objetivo) areaStats.fitness.absent += (objetivo - completado)
-          } else if (isNutricion) {
-            areaStats.nutricion.completed += completado
-            areaStats.nutricion.total += objetivo
-            if (isPast && completado < objetivo) areaStats.nutricion.absent += (objetivo - completado)
-          }
-
-          // Día Completado (Global per row/activity combo)
-          // Note: a "day" is usually per activity. If activity has 2 areas, we might need a better day logic.
-          // For now keep legacy day logic:
-          if (objetivo > 0 && completado >= objetivo) {
-            // We'll count completed days later per date to be more accurate
-          }
-        })
-
-        // Refined Day Logic: A day is completed if ALL rows for that date (in this activity) are completed
-        Array.from(uniqueDates).forEach((date: any) => {
-          const rowsForDate = dailyStats.filter((d: any) => d.fecha === date)
-          const isCompleted = rowsForDate.every((r: any) => r.items_objetivo === 0 || r.items_completados >= r.items_objetivo)
-          const isPast = date < todayIso
-
-          if (isCompleted) {
-            diasCompletados++
-          } else if (isPast) {
-            diasAtraso++
-          }
-        })
-      }
-
-      // 2. Obtener Progreso de Documentos (si aplica)
-      let docData = (allDocProgress || []).filter((d: any) =>
-        String(d.client_id) === String(clientId) &&
-        String(d.activity_id) === String(activityId)
-      )
-
-      if (enrollmentId) {
-        docData = docData.filter((d: any) => String(d.enrollment_id) === String(enrollmentId))
-      }
-      if (docData && docData.length > 0) {
-        const docTotal = docData.length
-        const docCompleted = docData.filter((d: any) => d.completed).length
-
-        itemsTotalesObjetivo += docTotal
-        itemsCompletados += docCompleted
-        itemsPendientes += (docTotal - docCompleted)
-        // Documents are usually considered "Fitness" or generic. Let's add to fitness if no other areas?
-        // Actually keep them separate if needed, but for now add to fitness.
-        areaStats.fitness.completed += docCompleted
-        areaStats.fitness.total += docTotal
-        areaStats.fitness.absent += (docTotal - docCompleted)
-      }
-
-      itemsPendientes = itemsTotalesObjetivo - itemsCompletados
-
-      let progressPercent = 0
-      if (itemsTotalesObjetivo > 0) {
-        progressPercent = Math.round((itemsCompletados / itemsTotalesObjetivo) * 100)
-      } else if (diasTotales > 0) {
-        progressPercent = Math.round((diasCompletados / diasTotales) * 100)
-      }
-
-      const result = {
-        progressPercent,
-        diasAtraso,
-        itemsPendientes,
-        diasCompletados,
-        itemsCompletados,
-        itemsTotalesObjetivo,
-        diasTotales,
-        areaStats, // New detailed stats
-        alertLevel: 0,
-        alertLabel: ''
-      }
-
-      // Calculate alert
-      let delayPercent = diasTotales > 0 ? (diasAtraso / diasTotales) * 100 : 0
-      if (delayPercent > 50) {
-        result.alertLevel = 3
-        result.alertLabel = 'Crítico'
-      } else if (delayPercent > 20) {
-        result.alertLevel = 2
-        result.alertLabel = 'Moderado'
-      } else if (delayPercent > 0) {
-        result.alertLevel = 1
-        result.alertLabel = 'Leve'
-      }
-
-      progressCache.set(cacheKey, result as any)
-      return result
-    }
-
-    // Agrupar por cliente
-    const clientsMap = new Map()
-
-    for (const enrollment of enrollments || []) {
-      const clientId = enrollment.client_id
-      const user = users?.find((u: any) => u.id === clientId)
-      const activity = activities?.find((a: any) => String(a.id) === String(enrollment.activity_id))
-
-      if (!user || !activity) continue
-
-      if (!clientsMap.has(clientId)) {
-        clientsMap.set(clientId, {
-          id: clientId,
-          name: user.full_name || 'Cliente',
-          email: user.email || '',
-          avatar_url: user.avatar_url || null,
-          birth_date: birthDateMap.get(clientId) || null,
-          activities: [],
-          enrollments: []
-        })
-      }
-
-      const clientData = clientsMap.get(clientId)
-      // Agregar precio al activity
-      const activityWithPrice = {
-        ...activity,
-        amountPaid: activity.price || 0  // Usar el precio de la actividad
-      }
-      clientData.activities.push(activityWithPrice)
-      clientData.enrollments.push(enrollment)
-    }
-
-    // Fetch real pending tasks counts from coach_client_pendings
-    const { data: allPendingTasks } = await supabase
-      .from('coach_client_pendings')
-      .select('client_id')
-      .eq('coach_id', user.id)
-
-    const pendingTasksCountByClient = new Map<string, number>()
-    if (allPendingTasks) {
-      allPendingTasks.forEach((p: any) => {
-        const cid = String(p.client_id)
-        pendingTasksCountByClient.set(cid, (pendingTasksCountByClient.get(cid) || 0) + 1)
+        d_tot++
+        if (tot > 0 && ok >= tot) d_ok++
+        else if (isPast) d_late++
       })
+
+      let docData = (docProgress || []).filter((d: any) => String(d.client_id) === String(clientId) && String(d.activity_id) === String(activityId))
+      if (enrollmentId) docData = docData.filter((d: any) => String(d.enrollment_id) === String(enrollmentId))
+      const docOk = docData.filter((d: any) => d.completed).length, docTot = docData.length
+      i_ok += docOk; i_tot += docTot
+      areaStats.fitness.completed += docOk; areaStats.fitness.total += docTot
+
+      let progressPercent = i_tot > 0 ? Math.round((i_ok / i_tot) * 100) : 0
+      let delayPercent = d_tot > 0 ? (d_late / d_tot) * 100 : 0
+      let alertLevel = delayPercent > 50 ? 3 : (delayPercent > 20 ? 2 : (delayPercent > 0 ? 1 : 0))
+      return { progressPercent, diasAtraso: d_late, itemsPendientes: i_tot - i_ok, diasCompletados: d_ok, itemsCompletados: i_ok, itemsTotalesObjetivo: i_tot, diasTotales: d_tot, areaStats, alertLevel }
     }
 
-    // Fallback básico si por algún motivo el procesamiento avanzado falla
+    const { data: allPendingTasks } = await supabase.from('coach_client_pendings').select('client_id').eq('coach_id', user.id)
+    const pendingCountMap = new Map<string, number>()
+    if (allPendingTasks) allPendingTasks.forEach((p: any) => pendingCountMap.set(String(p.client_id), (pendingCountMap.get(String(p.client_id)) || 0) + 1))
+
+    const clientsMap = new Map()
+    for (const enrollment of enrollments || []) {
+      const clientId = String(enrollment.client_id)
+      const u = users?.find((usr: any) => usr.id === clientId)
+      const activity = coachActivities.find((a: any) => String(a.id) === String(enrollment.activity_id))
+      if (!u || !activity) continue
+      if (!clientsMap.has(clientId)) clientsMap.set(clientId, { id: clientId, name: u.full_name, email: u.email, avatar_url: u.avatar_url, birth_date: birthDateMap.get(clientId), enrollments: [], activities: [] })
+      const cData = clientsMap.get(clientId)
+      cData.enrollments.push(enrollment); cData.activities.push({ ...activity, amountPaid: 0 })
+    }
+
     const basicClients = await Promise.all(Array.from(clientsMap.values()).map(async (client: any) => {
       const statuses = new Set<string>((client.enrollments || []).map((e: any) => String(e?.status || '').toLowerCase()))
-      const hasActive = statuses.has('activa') || statuses.has('active')
-      const hasPending = statuses.has('pendiente') || statuses.has('pending')
-      const clientStatus: 'active' | 'pending' | 'inactive' = hasActive ? 'active' : hasPending ? 'pending' : 'inactive'
-
-      const meetCreditsAvailable = Math.max(
-        Number(meetCreditsAvailableByClient.get(String(client.id)) || 0),
-        0
-      )
-
-      // To Do: Usar conteo real de coach_client_pendings
-      const todoCount = pendingTasksCountByClient.get(String(client.id)) || 0
-
-      // Ingresos reales (solo compras de actividades del coach)
-      const totalRevenue = (client.enrollments || []).reduce((sum: number, enrollment: any) => {
-        const enrId = Number(enrollment?.id)
-        const paid = Number.isFinite(enrId) ? (paidByEnrollmentId.get(enrId) || 0) : 0
-        return sum + paid
-      }, 0)
-
-      // Progreso total: promedio de los porcentajes de CADA ACTIVIDAD ÚNICA
+      const clientStatus = (statuses.has('activa') || statuses.has('active')) ? 'active' : ((statuses.has('pendiente') || statuses.has('pending')) ? 'pending' : 'inactive')
+      const totalRevenue = (client.enrollments || []).reduce((sum: number, e: any) => sum + (paidByEnrollmentId.get(Number(e.id)) || 0), 0)
+      
       const activeProgressByActivity = new Map<number, number>()
-      let totalItemsPendientes = 0
-      let totalItemsCompletados = 0
-      let totalItemsObjetivo = 0
-      let totalDiasCompletados = 0
-      let totalDiasAtraso = 0
-      let totalDiasRegistrados = 0
-      let maxAlertLevel = 0
-      let maxAlertLabel = ''
+      let t_ok = 0, t_pen = 0, t_obj = 0, d_ok = 0, d_late = 0, d_reg = 0, maxAlert = 0
+      const fitStats = { completed: 0, total: 0, absent: 0 }, nutriStats = { completed: 0, total: 0, absent: 0 }
 
-      const fitStats = { completed: 0, total: 0, absent: 0 }
-      const nutriStats = { completed: 0, total: 0, absent: 0 }
-
-      for (const enrollment of client.enrollments || []) {
-        const activityIdNum = Number(enrollment?.activity_id)
-        const activity = activities?.find((a: any) => String(a.id) === String(activityIdNum))
-        if (!activity || !Number.isFinite(activityIdNum)) continue
-
-        const typeLower = String(activity?.type || '').toLowerCase()
-        const catLower = String(activity?.categoria || '').toLowerCase()
-        const isDoc = typeLower.includes('doc') || catLower.includes('doc')
-
-        const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, typeLower, enrollment.id, catLower)
-
-        let progPerc = agg.progressPercent || 0
-
-        // Si es documento, el progreso viene de docProgress
-        if (isDoc) {
-          const docRows = docProgress.filter((d: any) => Number(d.enrollment_id) === Number(enrollment.id))
-          const completedCount = docRows.filter((d: any) => d.completed).length
-          const totalCount = docRows.length
-          if (totalCount > 0) {
-            progPerc = Math.round((completedCount / totalCount) * 100)
-
-            const isFit = typeLower.includes('fit') || catLower.includes('fit') || catLower.includes('entren') || catLower.includes('ejercicio')
-            const isNutri = typeLower.includes('nutri') || catLower.includes('nutri') || catLower.includes('comida') || catLower.includes('alimento') || catLower.includes('dieta') || catLower.includes('plato')
-
-            if (isFit) {
-              fitStats.completed += completedCount
-              fitStats.total += totalCount
-            } else if (isNutri) {
-              nutriStats.completed += completedCount
-              nutriStats.total += totalCount
-            }
-          }
-        }
-
-        const isCompleted = progPerc >= 100 ||
-          ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(enrollment.status?.toLowerCase())
-        const hasStarted = !!enrollment.start_date || !!agg.itemsCompletados || (isDoc && progPerc > 0)
-
-        if (hasStarted) {
-          const currentMax = activeProgressByActivity.get(activityIdNum) || 0
-          activeProgressByActivity.set(activityIdNum, Math.max(currentMax, progPerc))
-
-          totalItemsPendientes += (agg.itemsPendientes || 0)
-          totalItemsCompletados += (agg.itemsCompletados || 0)
-          totalItemsObjetivo += (agg.itemsTotalesObjetivo || 0)
-
-          totalDiasCompletados += (agg.diasCompletados || 0)
-          totalDiasAtraso += (agg.diasAtraso || 0)
-          totalDiasRegistrados += (agg.diasTotales || 0)
-
-          // Area Stats (solo si no es documento, ya que los documentos los sumamos arriba)
-          if ((agg as any).areaStats && !isDoc) {
-            fitStats.completed += (agg as any).areaStats.fitness.completed
-            fitStats.total += (agg as any).areaStats.fitness.total
-            fitStats.absent += (agg as any).areaStats.fitness.absent
-
-            nutriStats.completed += (agg as any).areaStats.nutricion.completed
-            nutriStats.total += (agg as any).areaStats.nutricion.total
-            nutriStats.absent += (agg as any).areaStats.nutricion.absent
-          }
-
-          if (agg.alertLevel > maxAlertLevel) {
-            maxAlertLevel = agg.alertLevel
-            maxAlertLabel = agg.alertLabel
-          }
-        }
+      for (const e of client.enrollments || []) {
+        const agg = await computeProgressAggForActivity(client.id, Number(e.activity_id), Number(e.id))
+        activeProgressByActivity.set(Number(e.activity_id), agg.progressPercent)
+        t_ok += agg.itemsCompletados; t_pen += agg.itemsPendientes; t_obj += agg.itemsTotalesObjetivo
+        d_ok += agg.diasCompletados; d_late += agg.diasAtraso; d_reg += agg.diasTotales
+        fitStats.completed += agg.areaStats.fitness.completed; fitStats.total += agg.areaStats.fitness.total; fitStats.absent += agg.areaStats.fitness.absent
+        nutriStats.completed += agg.areaStats.nutricion.completed; nutriStats.total += agg.areaStats.nutricion.total; nutriStats.absent += agg.areaStats.nutricion.absent
+        if (agg.alertLevel > maxAlert) maxAlert = agg.alertLevel
       }
 
-      // Calculate streak: Look at the most recent days in progreso_diario_actividad
-      let currentStreak = 0;
-      try {
-        const recentDays = (allDailyStats || [])
-          .filter((d: any) => String(d.cliente_id) === String(client.id) && d.fecha <= todayIso)
-          .sort((a: any, b: any) => b.fecha.localeCompare(a.fecha))
-          .slice(0, 60);
-
-        if (recentDays && recentDays.length > 0) {
-          const uniqueDatesArr = Array.from(new Set(recentDays.map((d: any) => d.fecha))).sort((a: any, b: any) => b.localeCompare(a));
-
-          for (let i = 0; i < uniqueDatesArr.length; i++) {
-            const dateStr = String(uniqueDatesArr[i]);
-            const dayRows = recentDays.filter((d: any) => d.fecha === dateStr);
-            const dayCompleted = dayRows.every((d: any) => d.items_objetivo === 0 || d.items_completados >= d.items_objetivo);
-
-            if (dayCompleted) {
-              currentStreak++;
-            } else {
-              if (dateStr === todayIso) continue;
-              break;
-            }
-          }
+      let currentStreak = 0
+      const recent = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(client.id) && d.fecha <= todayIso).sort((a,b) => b.fecha.localeCompare(a.fecha)).slice(0, 60)
+      if (recent.length > 0) {
+        const uniqueDates = Array.from(new Set(recent.map((d: any) => d.fecha))).sort((a,b) => b.localeCompare(a))
+        for (const date of uniqueDates) {
+          const rows = recent.filter(r => r.fecha === date)
+          const ok = rows.every(r => ((r.fit_items_c || 0) + (r.nut_items_c || 0)) >= ((r.fit_items_o || 0) + (r.nut_items_o || 0)))
+          if (ok) currentStreak++
+          else { if (date === todayIso) continue; break }
         }
-      } catch (e) {
-        console.warn('Error calculating streak for client', client.id, e);
       }
-
-      const uniqueActiveActivitiesCount = activeProgressByActivity.size
-      const totalProgressPercentSum = Array.from(activeProgressByActivity.values()).reduce((a, b) => a + b, 0)
-      const progress = uniqueActiveActivitiesCount > 0 ? Math.round(totalProgressPercentSum / uniqueActiveActivitiesCount) : 0
-      const age = client.birth_date ? (new Date().getFullYear() - new Date(client.birth_date).getFullYear()) : 0
 
       return {
-        id: client.id,
-        name: client.name,
-        email: client.email,
-        avatar_url: client.avatar_url,
-        meet_credits_available: meetCreditsAvailable,
-        progress: progress,
-        itemsPending: totalItemsPendientes,
-        age: age,
-        status: clientStatus,
-        totalRevenue,
-        lastActive: formatLastActive(lastActiveMap.get(client.id) || client.updated_at || ''),
-        activitiesCount: (client.activities || []).length,
-        todoCount,
-        hasAlert: maxAlertLevel > 0,
-        alertLabel: maxAlertLabel,
-        alertLevel: maxAlertLevel,
-        // Detailed Activity metrics for Rings
-        daysCompleted: totalDiasCompletados,
-        absentDays: totalDiasAtraso,
-        daysTotal: totalDiasRegistrados || 30,
-        completedExercises: totalItemsCompletados,
-        failedExercises: totalItemsPendientes,
-        totalExercises: totalItemsObjetivo,
-        streak: currentStreak,
-        // New Area Stats
-        fitStats,
-        nutriStats,
-        activities: (client.activities || []).map((a: any) => ({
-          id: a.id,
-          title: a.title,
-          type: a.type,
-          amountPaid: a.amountPaid || a.price || 0
-        }))
+        id: client.id, name: client.name, email: client.email, avatar_url: client.avatar_url, age: client.birth_date ? (new Date().getFullYear() - new Date(client.birth_date).getFullYear()) : 0,
+        meet_credits_available: meetCreditsAvailableByClient.get(String(client.id)) || 0,
+        progress: activeProgressByActivity.size > 0 ? Math.round(Array.from(activeProgressByActivity.values()).reduce((a,b)=>a+b,0) / activeProgressByActivity.size) : 0,
+        status: clientStatus, totalRevenue, lastActive: formatLastActive(lastActiveMap.get(client.id) || ''),
+        activitiesCount: client.activities.length, todoCount: pendingCountMap.get(String(client.id)) || 0,
+        alertLevel: maxAlert, hasAlert: maxAlert > 0, daysCompleted: d_ok, absentDays: d_late, daysTotal: d_reg || 30,
+        completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: currentStreak, fitStats, nutriStats, 
+        activities: client.activities.map((a: any) => ({ id: a.id, title: a.title, type: a.type, amountPaid: paidByEnrollmentId.get(client.enrollments.find((e:any)=>Number(e.activity_id)===Number(a.id))?.id) || 0 }))
       }
     }))
 
-    const coachActivityIdsSample = coachActivityIds.slice(0, 5).map((id: any) => ({ value: id, type: typeof id }))
-    const enrollmentsSample = (enrollments || []).slice(0, 5).map((e: any) => ({
-      id: e.id,
-      activity_id: e.activity_id,
-      activity_id_type: typeof e.activity_id,
-      status: e.status
-    }))
-
-    return NextResponse.json({
-      success: true,
-      clients: basicClients,
-      debug: {
-        coachId: user.id,
-        coachActivitiesCount: coachActivityIds.length,
-        enrollmentsCount: enrollments?.length || 0,
-        enrollmentStatuses,
-        clientsMapCount: clientsMap.size,
-        usedFallback: usedLedgerFallback,
-        coachActivityIdsSample,
-        enrollmentsSample
-      }
-    })
-
+    return NextResponse.json({ success: true, clients: basicClients })
   } catch (error: any) {
-    console.error('[coach-clients] Unhandled error:', error)
-    return NextResponse.json({
-      success: true,
-      clients: [],
-      warning: 'Error interno',
-      debug: {
-        message: error?.message,
-        name: error?.name,
-        totalActivitiesInTable: (await supabase.from('activities').select('*', { count: 'exact', head: true })).count,
-        totalEnrollmentsInTable: (await supabase.from('activity_enrollments').select('*', { count: 'exact', head: true })).count
-      }
-    })
+    console.error('[coach-clients] Error:', error)
+    return NextResponse.json({ success: false, error: 'Error interno' }, { status: 500 })
   }
 }

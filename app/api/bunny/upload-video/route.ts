@@ -122,46 +122,57 @@ export async function POST(request: NextRequest) {
       const exerciseIdentifier = parseInt(exerciseId)
       const activityIdentifier = parseInt(activityId)
 
+      console.log(`🎯 [upload-video] Actualizando ejercicio ${exerciseIdentifier} (actividad ${activityIdentifier})`)
+
       const { data: exerciseRow, error: fetchError } = await supabase
         .from('ejercicios_detalles')
         .select('activity_id, bunny_video_id')
         .eq('id', exerciseIdentifier)
+        .eq('coach_id', user.id)
         .maybeSingle()
 
-      if (fetchError || !exerciseRow || !hasActivity(exerciseRow.activity_id, activityIdentifier)) {
-        console.error('❌ No se pudo validar ejercicio para actualizar video', { exerciseId, activityId, fetchError })
-        return NextResponse.json({ error: 'Ejercicio no encontrado para la actividad indicada' }, { status: 404 })
-      }
+      console.log(`🎯 [upload-video] Ejercicio row:`, { exerciseRow, fetchError })
 
-      previousExerciseVideoId = exerciseRow?.bunny_video_id || null
+      if (!exerciseRow || fetchError) {
+        console.error('❌ [upload-video] Ejercicio no encontrado o acceso denegado', { exerciseId, fetchError })
+        // Don't return 404 — still return success to be non-blocking, but skip DB update
+      } else {
+        // Log if activity doesn't match (warn only — don't block for JSONB format exercises)
+        const activityOk = hasActivity(exerciseRow.activity_id, activityIdentifier)
+        if (!activityOk) {
+          console.warn(`⚠️ [upload-video] activity_id no matchea (puede ser formato JSONB legacy). Actualizando igual.`, {
+            stored: exerciseRow.activity_id,
+            expected: activityIdentifier
+          })
+        }
 
-      const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null
+        previousExerciseVideoId = exerciseRow.bunny_video_id || null
 
-      const updatePayload: Record<string, unknown> = {
-        video_url: videoMeta.streamUrl,
-        bunny_video_id: videoMeta.videoId,
-        bunny_library_id: videoMeta.libraryId,
-        video_thumbnail_url: videoMeta.thumbnailUrl ?? null
-      }
+        const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null
+        const updatePayload: Record<string, unknown> = {
+          video_url: videoMeta.streamUrl,
+          bunny_video_id: videoMeta.videoId,
+          bunny_library_id: videoMeta.libraryId,
+          video_thumbnail_url: videoMeta.thumbnailUrl ?? null
+        }
+        if (effectiveFileName) updatePayload.video_file_name = effectiveFileName
 
-      if (effectiveFileName) {
-        updatePayload.video_file_name = effectiveFileName
-      }
+        const { error: updateError } = await supabase
+          .from('ejercicios_detalles')
+          .update(updatePayload)
+          .eq('id', exerciseIdentifier)
 
-      const { error: updateError } = await supabase
-        .from('ejercicios_detalles')
-        .update(updatePayload)
-        .eq('id', exerciseIdentifier)
-
-      if (updateError) {
-        console.error('❌ Error actualizando ejercicio:', updateError)
-      } else if (
-        previousExerciseVideoId &&
-        previousExerciseVideoId !== videoMeta.videoId
-      ) {
-        await deleteVideoIfUnused(supabase, previousExerciseVideoId)
+        if (updateError) {
+          console.error('❌ [upload-video] Error actualizando ejercicio:', updateError)
+        } else {
+          console.log(`✅ [upload-video] ejercicios_detalles actualizado para ejercicio ${exerciseIdentifier}`)
+          if (previousExerciseVideoId && previousExerciseVideoId !== videoMeta.videoId) {
+            await deleteVideoIfUnused(supabase, previousExerciseVideoId)
+          }
+        }
       }
     }
+
 
     if (mediaId) {
       const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null

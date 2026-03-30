@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { Play, Volume2, VolumeX } from "lucide-react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { Play, Volume2, VolumeX, Loader2 } from "lucide-react"
 import { cn } from '@/lib/utils/utils'
 import Hls from 'hls.js'
 
@@ -39,13 +39,13 @@ export function UniversalVideoPlayer({
   const [isLoading, setIsLoading] = useState(true)
   const [isMuted, setIsMuted] = useState(muted)
   const [hasEnded, setHasEnded] = useState(false)
+  // Bunny processing state
+  const [bunnyReady, setBunnyReady] = useState<boolean | null>(null) // null = unknown
+  const [bunnyProgress, setBunnyProgress] = useState(0)
+  const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  // En desarrollo evitamos el iframe de Bunny (carga rum.js/metrics y puede fallar DNS),
-  // y preferimos HLS directo con hls.js. Pero algunos entornos bloquean el HLS por CORS,
-  // entonces permitimos forzar iframe en previews/modales.
-  // FORCED: Siempre usar iframe para evitar problemas de CORS con HLS directo en local.
-  const useIframeForBunny = true // forceIframeForBunny || process.env.NODE_ENV !== 'development'
+  const useIframeForBunny = true
 
   const inferredBunny = (() => {
     if (!videoUrl) return null
@@ -55,6 +55,47 @@ export function UniversalVideoPlayer({
     if (!match?.[1] || !match?.[2]) return null
     return { libraryId: match[1], videoId: match[2] }
   })()
+
+  // Poll Bunny processing status
+  const checkBunnyStatus = useCallback(async (videoId: string) => {
+    try {
+      const res = await fetch(`/api/bunny/video-status?videoId=${videoId}`)
+      const data = await res.json()
+      setBunnyProgress(data.progress ?? 0)
+      if (data.isReady) {
+        setBunnyReady(true)
+        if (pollingRef.current) clearInterval(pollingRef.current)
+      } else {
+        setBunnyReady(false)
+      }
+    } catch {
+      // On error, assume ready and let iframe handle it
+      setBunnyReady(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    const effectiveBunnyId = bunnyVideoId || inferredBunny?.videoId
+    if (!effectiveBunnyId) {
+      setBunnyReady(true) // Non-Bunny video — skip check
+      return
+    }
+    // Initial check
+    checkBunnyStatus(effectiveBunnyId)
+    // Poll every 10 seconds while processing
+    pollingRef.current = setInterval(() => {
+      // Stop polling once ready
+      if (bunnyReady) {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        return
+      }
+      checkBunnyStatus(effectiveBunnyId)
+    }, 10000)
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current)
+    }
+  }, [bunnyVideoId, inferredBunny?.videoId])
 
   // Determinar la URL del video a usar
   const getVideoSrc = () => {
@@ -204,6 +245,27 @@ export function UniversalVideoPlayer({
   if (useIframeForBunny && effectiveBunnyVideoId) {
     const libraryId = resolveBunnyLibraryId()
     const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${effectiveBunnyVideoId}?autoplay=${autoPlay ? 'true' : 'false'}&loop=${loop ? 'true' : 'false'}&muted=${isMuted ? 'true' : 'false'}&preload=true&controls=${controls ? 'true' : 'false'}`
+
+    // Show processing overlay while Bunny is encoding
+    if (bunnyReady === false) {
+      return (
+        <div className={cn("relative w-full h-full bg-black flex flex-col items-center justify-center gap-4 min-h-[200px]", className)}>
+          <Loader2 className="text-[#FF7939] animate-spin" size={36} />
+          <div className="text-center px-4">
+            <p className="text-white font-bold text-sm mb-1">Procesando video...</p>
+            <p className="text-zinc-500 text-xs">Bunny está codificando el video. Puede tardar 1-5 minutos.</p>
+          </div>
+          {bunnyProgress > 0 && (
+            <div className="w-full max-w-[200px] h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#FF7939] rounded-full transition-all duration-500"
+                style={{ width: `${bunnyProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )
+    }
 
     return (
       <div className={cn("relative w-full h-full bg-black", className)}>

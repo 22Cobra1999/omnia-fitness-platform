@@ -1,172 +1,97 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
+import { NextRequest, NextResponse } from 'next/server'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
-/**
- * GET /api/client/progress-summary
- * Obtiene el resumen de progreso del cliente usando la query SQL
- */
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-
-    // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'No autenticado' },
-        { status: 401 }
-      );
+    const supabase = await createRouteHandlerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url);
-    const clienteId = searchParams.get('cliente_id') || user.id;
-    const startDate = searchParams.get('start_date'); // YYYY-MM-DD
-    const endDate = searchParams.get('end_date'); // YYYY-MM-DD
+    const searchParams = request.nextUrl.searchParams
+    const startDate = searchParams.get('start_date')
+    const endDate = searchParams.get('end_date')
+    const targetClientId = searchParams.get('cliente_id') || user.id
 
-    if (!startDate || !endDate) {
-      return NextResponse.json(
-        { error: 'Missing start_date/end_date' },
-        { status: 400 }
-      );
-    }
-
-    const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
-    const safeDiv = (a: number, b: number) => (b > 0 ? a / b : 0);
-
-    // Consultar la tabla optimizada 'progreso_diario_actividad'
-    const { data: rows, error: summaryError } = await supabase
+    // Consulta principal incluyendo fit_kcal
+    const { data: progressData, error: progressError } = await supabase
       .from('progreso_diario_actividad')
-      .select('fecha, tipo, area, items_objetivo, items_completados, calorias, minutos, proteinas, carbohidratos, grasas, calorias_objetivo, minutos_objetivo')
-      .eq('cliente_id', clienteId)
-      .gte('fecha', startDate)
-      .lte('fecha', endDate)
-      .order('fecha', { ascending: true });
+      .select('fecha, fit_items_c, fit_items_o, fit_mins_c, fit_mins_o, fit_kcal_c, fit_kcal_o, nut_items_c, nut_items_o, nut_kcal_c, nut_kcal_o, nut_macros')
+      .eq('cliente_id', targetClientId)
+      .gte('fecha', startDate || '2000-01-01')
+      .lte('fecha', endDate || '2100-01-01')
+      .order('fecha', { ascending: true })
 
-    if (summaryError) {
-      console.error('Error obteniendo daily summary:', summaryError);
-      return NextResponse.json(
-        { error: 'Error obteniendo daily summary', details: summaryError.message },
-        { status: 500 }
-      );
+    if (progressError) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `ERROR_DB: ${progressError.message}`,
+        code: progressError.code
+      }, { status: 500 })
     }
 
-    // Agrupar por fecha
-    const byDate: Record<string, any> = {}
-
-    // Inicializar estructura base
-    const getBaseStats = () => ({
-      platos_objetivo: 0,
-      platos_completados: 0,
-      platos_pendientes: 0,
-      nutri_kcal: 0,
-      nutri_mins: 0,
-      nutri_kcal_objetivo: 0,
-      nutri_mins_objetivo: 0,
-      nutri_p: 0,
-      nutri_c: 0,
-      nutri_f: 0,
-
-      ejercicios_objetivo: 0,
-      ejercicios_completados: 0,
-      ejercicios_pendientes: 0,
-      fitness_kcal: 0,
-      fitness_mins: 0,
-      fitness_kcal_objetivo: 0,
-      fitness_mins_objetivo: 0
-    });
-
-    (rows || []).forEach((r: any) => {
-      const dateKey = String(r.fecha).slice(0, 10);
-      if (!byDate[dateKey]) {
-        byDate[dateKey] = getBaseStats();
+    const aggregated = (progressData || []).reduce((acc: any, curr: any) => {
+      const date = curr.fecha
+      if (!acc[date]) {
+        acc[date] = {
+          fecha: date,
+          fit_items_c: 0, fit_items_o: 0,
+          fit_mins_c: 0, fit_mins_o: 0,
+          fit_kcal_c: 0, fit_kcal_o: 0,
+          nut_items_c: 0, nut_items_o: 0,
+          nut_kcal_c: 0, nut_kcal_o: 0,
+          nut_macros: { p: { c: 0, o: 0 }, c: { c: 0, o: 0 }, f: { c: 0, o: 0 } }
+        }
       }
-
-      const stats = byDate[dateKey];
-      const itemsObj = Number(r.items_objetivo) || 0;
-      const itemsComp = Number(r.items_completados) || 0;
-      const itemsPend = Math.max(0, itemsObj - itemsComp);
-      const cals = Number(r.calorias) || 0;
-      const mins = Number(r.minutos) || 0;
-      const calsObj = Number(r.calorias_objetivo) || 0;
-      const minsObj = Number(r.minutos_objetivo) || 0;
-
-      if (r.area === 'nutricion') {
-        stats.platos_objetivo += itemsObj;
-        stats.platos_completados += itemsComp;
-        stats.platos_pendientes += itemsPend;
-        stats.nutri_kcal += cals;
-        stats.nutri_mins += mins;
-        stats.nutri_kcal_objetivo += calsObj;
-        stats.nutri_mins_objetivo += minsObj;
-        stats.nutri_p += Number(r.proteinas) || 0;
-        stats.nutri_c += Number(r.carbohidratos) || 0;
-        stats.nutri_f += Number(r.grasas) || 0;
-      } else if (r.area === 'fitness') {
-        stats.ejercicios_objetivo += itemsObj;
-        stats.ejercicios_completados += itemsComp;
-        stats.ejercicios_pendientes += itemsPend;
-        stats.fitness_kcal += cals;
-        stats.fitness_mins += mins;
-        stats.fitness_kcal_objetivo += calsObj;
-        stats.fitness_mins_objetivo += minsObj;
+      acc[date].fit_items_c += (Number(curr.fit_items_c) || 0)
+      acc[date].fit_items_o += (Number(curr.fit_items_o) || 0)
+      acc[date].fit_mins_c += (Number(curr.fit_mins_c) || 0)
+      acc[date].fit_mins_o += (Number(curr.fit_mins_o) || 0)
+      acc[date].fit_kcal_c += (Number(curr.fit_kcal_c) || 0)
+      acc[date].fit_kcal_o += (Number(curr.fit_kcal_o) || 0)
+      acc[date].nut_items_c += (Number(curr.nut_items_c) || 0)
+      acc[date].nut_items_o += (Number(curr.nut_items_o) || 0)
+      acc[date].nut_kcal_c += (Number(curr.nut_kcal_c) || 0)
+      acc[date].nut_kcal_o += (Number(curr.nut_kcal_o) || 0)
+      if (curr.nut_macros) {
+        const m = curr.nut_macros
+        if (m.p) { acc[date].nut_macros.p.c += (m.p.c || 0); acc[date].nut_macros.p.o += (m.p.o || 0) }
+        if (m.c) { acc[date].nut_macros.c.c += (m.c.c || 0); acc[date].nut_macros.c.o += (m.c.o || 0) }
+        if (m.f) { acc[date].nut_macros.f.c += (m.f.c || 0); acc[date].nut_macros.f.o += (m.f.o || 0) }
       }
-      // Ignoramos 'general' / 'taller' para este resumen específico si solo muestra fitness/nutrición
-    });
+      return acc
+    }, {})
 
-    const start = new Date(`${startDate}T00:00:00`)
-    const end = new Date(`${endDate}T00:00:00`)
-    const out: any[] = []
+    const data = Object.values(aggregated).map((day: any) => ({
+      fecha: day.fecha,
+      cliente_id: targetClientId,
+      // Fitness
+      ejercicios_completados: day.fit_items_c,
+      ejercicios_objetivo: day.fit_items_o,
+      fitness_mins: day.fit_mins_c,
+      fitness_mins_objetivo: day.fit_mins_o,
+      fitness_kcal: day.fit_kcal_c,
+      fitness_kcal_objetivo: day.fit_kcal_o,
+      // Nutrición
+      platos_completados: day.nut_items_c,
+      platos_objetivo: day.nut_items_o,
+      nutri_kcal: day.nut_kcal_c,
+      nutri_kcal_objetivo: day.nut_kcal_o,
+      // Extras
+      ejercicios_pendientes: Math.max(0, day.fit_items_o - day.fit_items_c),
+      platos_pendientes: Math.max(0, day.nut_items_o - day.nut_items_c),
+      nutri_mins: day.fit_mins_c,
+      nutri_mins_objetivo: day.fit_mins_o
+    }))
 
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const y = d.getFullYear()
-      const m = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
-      const key = `${y}-${m}-${day}`
-
-      const r = byDate[key] || getBaseStats();
-
-      // Completar campos derivados y cálculo de progreso
-      out.push({
-        fecha: key,
-        cliente_id: clienteId,
-
-        platos_objetivo: r.platos_objetivo,
-        platos_completados: r.platos_completados,
-        platos_pendientes: r.platos_pendientes,
-        nutri_kcal: r.nutri_kcal,
-        nutri_mins: r.nutri_mins,
-        nutri_kcal_objetivo: r.nutri_kcal_objetivo,
-        nutri_mins_objetivo: r.nutri_mins_objetivo,
-        nutri_p: r.nutri_p,
-        nutri_c: r.nutri_c,
-        nutri_f: r.nutri_f,
-
-        ejercicios_objetivo: r.ejercicios_objetivo,
-        ejercicios_completados: r.ejercicios_completados,
-        ejercicios_pendientes: r.ejercicios_pendientes,
-        fitness_kcal: r.fitness_kcal,
-        fitness_mins: r.fitness_mins,
-        fitness_kcal_objetivo: r.fitness_kcal_objetivo,
-        fitness_mins_objetivo: r.fitness_mins_objetivo,
-
-        // Progreso se mide por items
-        platos_progress: clamp01(safeDiv(r.platos_completados, r.platos_objetivo)),
-        ejercicios_progress: clamp01(safeDiv(r.ejercicios_completados, r.ejercicios_objetivo))
-      })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: out
-    });
-
+    return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    console.error('Error en progress-summary:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor', details: error.message },
-      { status: 500 }
-    );
+    console.error('[progress-summary] Fatal Error:', error)
+    return NextResponse.json({ success: false, error: 'FATAL_ERROR', message: error.message }, { status: 500 })
   }
 }
-

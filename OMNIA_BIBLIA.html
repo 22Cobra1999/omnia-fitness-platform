@@ -1348,8 +1348,43 @@
     </div>
   </div>
 
+  <div class="logic-container" style="background: #0f1218; border: 1px solid #FF7939;">
+    <div class="logic-title" style="color: #FF7939;">🚀 3. Arquitectura de Alto Rendimiento: Flat Progress (v4.0)</div>
+    <p style="color: #ccc; margin-bottom: 10px;">Migración de mapas JSONB anidados a <strong>Columnas Planas</strong> para máxima velocidad en Rings de Actividad y Calendarios.</p>
+    
+    <div class="logic-layer">
+      <span class="layer-label">Sincronización (Triggers)</span>
+      <div class="node hook-node">update_daily_progress_from_program</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">Calcula sumatorias de minutos y kcal (JSONB maps) en tiempo real y aplana a:
+          <br/><code>fit_mins_c</code>, <code>fit_mins_o</code>, <code>fit_kcal_c</code>, <code>fit_kcal_o</code>...
+        </div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">Agregación en Runtime (API)</span>
+      <div class="node api-node">GET /api/client/progress-summary</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">Agrupa múltiples registros por FECHA (Fitness + Nutrición + Talleres) 
+          garantizando que un día no tenga duplicados visuales.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">Consumo en Frontend</span>
+      <div class="node hook-node">useClientMetrics.ts</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node ux-node">Mapeo a llaves españolas (ej: <code>fitness_mins</code>) compatible con hooks legacy.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="logic-container">
-    <div class="logic-title">🧹 3. Vencimiento y Purga de Datos (Cosecha del Progreso)</div>
+    <div class="logic-title">🧹 4. Vencimiento y Purga de Datos (Cosecha del Progreso)</div>
     <div class="logic-layer">
       <span class="layer-label">Vencimiento</span>
       <div class="node ux-node">La fecha actual cruza el "end_date" del activity_enrollment</div>

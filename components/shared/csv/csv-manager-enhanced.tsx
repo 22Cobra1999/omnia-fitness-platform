@@ -348,6 +348,12 @@ export function CSVManagerEnhanced({
         onClose={() => setShowMediaSourceModal(false)}
         onMediaSelected={handleVideoSelection}
         mediaType="video"
+        activityId={activityId > 0 ? activityId : undefined}
+        exerciseId={
+          editingExerciseIndex !== null && allData[editingExerciseIndex]?.id
+            ? allData[editingExerciseIndex].id
+            : undefined
+        }
       />
 
       {mode === 'csv' && (

@@ -5,7 +5,11 @@ export function useMediaSelectionLogic(
     isOpen: boolean,
     mediaType: MediaType,
     onMediaSelected: (url: string, type: MediaType, file?: File, name?: string) => void,
-    onClose: () => void
+    onClose: () => void,
+    // Context IDs — when provided, the upload API will also update ejercicios_detalles/activity_media in DB
+    exerciseId?: string | number | null,
+    activityId?: string | number | null,
+    mediaId?: string | number | null
 ) {
     const [media, setMedia] = useState<CoachMedia[]>([])
     const [loading, setLoading] = useState(false)
@@ -144,6 +148,13 @@ export function useMediaSelectionLogic(
     }, [media, pendingUploadUrl, pendingUploadFileName, mediaType])
 
     const handleUploadFile = async (file: File) => {
+        console.log('⬆️ [upload] Iniciando subida a Bunny...', { 
+            fileName: file.name, 
+            fileSize: file.size,
+            exerciseId: exerciseId ?? 'NO PROVISTO',
+            activityId: activityId ?? 'NO PROVISTO',
+            mediaId: mediaId ?? 'NO PROVISTO'
+        })
         setUploading(true)
         setError(null)
         try {
@@ -151,6 +162,12 @@ export function useMediaSelectionLogic(
             formData.append('file', file)
             formData.append('mediaType', mediaType)
             formData.append('category', 'product')
+            // Pass DB context IDs so the API can update ejercicios_detalles / activity_media directly
+            if (exerciseId) formData.append('exerciseId', String(exerciseId))
+            if (activityId) formData.append('activityId', String(activityId))
+            if (mediaId) formData.append('mediaId', String(mediaId))
+
+            console.log('⬆️ [upload] FormData params:', { exerciseId, activityId, mediaId })
 
             // Usar endpoint de Bunny para videos, Supabase para el resto
             const endpoint = mediaType === 'video' ? '/api/bunny/upload-video' : '/api/upload-organized'
@@ -160,6 +177,8 @@ export function useMediaSelectionLogic(
                 body: formData
             })
             const data = await response.json()
+
+            console.log('⬆️ [upload] Respuesta API:', { ok: response.ok, status: response.status, data })
 
             if (!response.ok) throw new Error(data.error || 'Error al subir')
 
@@ -188,11 +207,13 @@ export function useMediaSelectionLogic(
             loadCoachMedia()
             
             // Retornar la URL final para uso inmediato
-            return mediaType === 'video' ? data.streamUrl : data.url
-        } catch (error: any) {
-            console.error('❌ [useMediaSelectionLogic] Upload error:', error)
-            setError(error.message || 'Error al subir el archivo')
-            throw error
+            const resultUrl = mediaType === 'video' ? data.streamUrl : data.url
+            console.log('✅ [upload] Subida completada. URL:', resultUrl)
+            return resultUrl
+        } catch (uploadErr: any) {
+            console.error('❌ [upload] Error en subida:', uploadErr)
+            setError(uploadErr.message || 'Error al subir el archivo')
+            throw uploadErr
         } finally {
             setUploading(false)
         }
@@ -203,7 +224,7 @@ export function useMediaSelectionLogic(
         if (file) {
             const objectUrl = URL.createObjectURL(file)
             
-            // Creamos un item temporal para la previsualización inmediata
+            // Show local preview immediately — upload happens ONLY on confirm
             const tempItem: CoachMedia = {
                 id: `temp-${Date.now()}`,
                 activity_id: 0,
@@ -217,54 +238,68 @@ export function useMediaSelectionLogic(
                 type: file.type || (mediaType === 'image' ? 'image/jpeg' : 'video/mp4')
             }
 
-            if (mediaType === 'video') {
-                const videoEl = document.createElement('video')
-                videoEl.preload = 'metadata'
-                videoEl.src = objectUrl
-                videoEl.onloadedmetadata = () => {
-                    if (videoEl.duration > 30) {
-                        setError('El video puede durar como máximo 30 segundos.')
-                        return
-                    }
-                    setNewMediaFile(file)
-                    setMedia(prev => [tempItem, ...prev])
-                    setPreviewImage(tempItem)
-                    setSelectedMedia(tempItem.id)
-                    // Iniciamos la subida en segundo plano mientras previsualiza
-                    handleUploadFile(file).catch(console.error)
-                }
-            } else {
-                setNewMediaFile(file)
-                setMedia(prev => [tempItem, ...prev])
-                setPreviewImage(tempItem)
-                setSelectedMedia(tempItem.id)
-                // Iniciamos la subida en segundo plano mientras previsualiza
-                handleUploadFile(file).catch(console.error)
-            }
+            setNewMediaFile(file)
+            setPreviewImage(tempItem)
+            setSelectedMedia(tempItem.id)
         }
     }
 
     const handleConfirm = async () => {
-        console.log('✅ [useMediaSelectionLogic] handleConfirm triggered', { mediaType, selectedMedia, uploading })
+        console.log('✅ [useMediaSelectionLogic] handleConfirm triggered', { 
+            mediaType, selectedMedia, newMediaFile: !!newMediaFile, uploading,
+            exerciseId: exerciseId ?? 'NONE', activityId: activityId ?? 'NONE'
+        })
         
-        // Si ya está subiendo, esperamos a que termine (handleUploadFile actualiza previewImage y selectedMedia)
-        if (uploading) {
-            // Esperar un momento a que termine o simplemente dejar que el spinner lo indique al usuario
-            // En nuestra lógica, handleConfirm se llamará de nuevo o podemos esperar aquí si guardamos la promesa
+        if (uploading) return
+
+        // Case 1: New file selected — upload NOW on confirm
+        if (newMediaFile && previewImage) {
+            const localBlobUrl = mediaType === 'video' ? previewImage.video_url : previewImage.image_url
+
+            // Validate video duration before uploading (use local flag, NOT React state which is stale)
+            let durationError: string | null = null
+            if (mediaType === 'video') {
+                durationError = await new Promise<string | null>((resolve) => {
+                    const videoEl = document.createElement('video')
+                    videoEl.preload = 'metadata'
+                    videoEl.src = localBlobUrl || URL.createObjectURL(newMediaFile)
+                    videoEl.onloadedmetadata = () => {
+                        if (videoEl.duration > 30) {
+                            resolve('El video puede durar como máximo 30 segundos.')
+                        } else {
+                            resolve(null)
+                        }
+                    }
+                    videoEl.onerror = () => resolve(null) // On error, allow upload anyway
+                    // Timeout fallback — if metadata never loads after 3s, proceed
+                    setTimeout(() => resolve(null), 3000)
+                })
+            }
+
+            if (durationError) {
+                setError(durationError)
+                return
+            }
+
+            console.log('⬆️ [useMediaSelectionLogic] Iniciando upload on confirm...')
+
+            try {
+                const realUrl = await handleUploadFile(newMediaFile)
+                console.log('✅ [useMediaSelectionLogic] Upload completado, URL:', realUrl)
+                if (realUrl) {
+                    onMediaSelected(realUrl, mediaType, newMediaFile, previewImage.filename)
+                } else if (localBlobUrl) {
+                    onMediaSelected(localBlobUrl, mediaType, newMediaFile, previewImage.filename)
+                }
+                onClose()
+            } catch (e) {
+                console.error('❌ [useMediaSelectionLogic] Upload falló:', e)
+                // Error is already set by handleUploadFile
+            }
             return
         }
 
-        // Al finalizar la subida, previewImage ya no será el tempItem, sino el de Bunny/Supabase con URL real
-        if (previewImage && !previewImage.id.toString().startsWith('temp-')) {
-            const finalUrl = mediaType === 'image' ? previewImage.image_url : mediaType === 'video' ? previewImage.video_url : previewImage.pdf_url
-            if (finalUrl) {
-                onMediaSelected(finalUrl, mediaType, undefined, previewImage.filename)
-                onClose()
-                return
-            }
-        }
-
-        // Si es una selección de la galería persistente
+        // Case 2: Gallery selection
         if (selectedMedia && !selectedMedia.toString().startsWith('temp-')) {
             const selectedItem = media.find(item => item.id === selectedMedia)
             const url = selectedItem
@@ -286,6 +321,7 @@ export function useMediaSelectionLogic(
         selectedMedia,
         setSelectedMedia,
         newMediaFile,
+        setNewMediaFile,
         uploading,
         previewImage,
         setPreviewImage,
