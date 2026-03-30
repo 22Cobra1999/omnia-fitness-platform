@@ -9,7 +9,9 @@ export function useMediaSelectionLogic(
     // Context IDs — when provided, the upload API will also update ejercicios_detalles/activity_media in DB
     exerciseId?: string | number | null,
     activityId?: string | number | null,
-    mediaId?: string | number | null
+    mediaId?: string | number | null,
+    // Background upload callback — called AFTER modal closes so upload doesn't block the UI
+    onBackgroundVideoUpload?: (file: File, localBlobUrl: string, localDuration?: number) => void
 ) {
     const [media, setMedia] = useState<CoachMedia[]>([])
     const [loading, setLoading] = useState(false)
@@ -245,35 +247,36 @@ export function useMediaSelectionLogic(
     }
 
     const handleConfirm = async () => {
-        console.log('✅ [useMediaSelectionLogic] handleConfirm triggered', { 
-            mediaType, selectedMedia, newMediaFile: !!newMediaFile, uploading,
-            exerciseId: exerciseId ?? 'NONE', activityId: activityId ?? 'NONE'
-        })
+        console.log('✅ [handleConfirm]', { mediaType, hasNewFile: !!newMediaFile, exerciseId: exerciseId ?? 'NONE', activityId: activityId ?? 'NONE' })
         
         if (uploading) return
 
-        // Case 1: New file selected — upload NOW on confirm
+        // ─── Case 1: New file selected ──────────────────────────────────────
         if (newMediaFile && previewImage) {
             const localBlobUrl = mediaType === 'video' ? previewImage.video_url : previewImage.image_url
 
-            // Validate video duration before uploading (use local flag, NOT React state which is stale)
+            // Read duration from local blob (fast, no network) before closing
+            let localDuration: number | undefined
             let durationError: string | null = null
-            if (mediaType === 'video') {
-                durationError = await new Promise<string | null>((resolve) => {
+
+            if (mediaType === 'video' && localBlobUrl) {
+                const result = await new Promise<{ duration?: number; error?: string }>((resolve) => {
                     const videoEl = document.createElement('video')
                     videoEl.preload = 'metadata'
-                    videoEl.src = localBlobUrl || URL.createObjectURL(newMediaFile)
+                    videoEl.src = localBlobUrl
                     videoEl.onloadedmetadata = () => {
-                        if (videoEl.duration > 30) {
-                            resolve('El video puede durar como máximo 30 segundos.')
+                        const dur = videoEl.duration
+                        if (dur > 30) {
+                            resolve({ error: 'El video puede durar como máximo 30 segundos.' })
                         } else {
-                            resolve(null)
+                            resolve({ duration: isFinite(dur) ? dur : undefined })
                         }
                     }
-                    videoEl.onerror = () => resolve(null) // On error, allow upload anyway
-                    // Timeout fallback — if metadata never loads after 3s, proceed
-                    setTimeout(() => resolve(null), 3000)
+                    videoEl.onerror = () => resolve({}) // allow if metadata unreadable
+                    setTimeout(() => resolve({}), 3000) // timeout fallback
                 })
+                localDuration = result.duration
+                durationError = result.error ?? null
             }
 
             if (durationError) {
@@ -281,20 +284,21 @@ export function useMediaSelectionLogic(
                 return
             }
 
-            console.log('⬆️ [useMediaSelectionLogic] Iniciando upload on confirm...')
+            // ✅ Immediate: show local blob in UI + close modal — no waiting for Bunny
+            console.log('⚡ [handleConfirm] Closing modal immediately, passing local blob')
+            onMediaSelected(localBlobUrl ?? '', mediaType, newMediaFile, previewImage.filename)
+            onClose()
 
-            try {
-                const realUrl = await handleUploadFile(newMediaFile)
-                console.log('✅ [useMediaSelectionLogic] Upload completado, URL:', realUrl)
-                if (realUrl) {
-                    onMediaSelected(realUrl, mediaType, newMediaFile, previewImage.filename)
-                } else if (localBlobUrl) {
-                    onMediaSelected(localBlobUrl, mediaType, newMediaFile, previewImage.filename)
-                }
-                onClose()
-            } catch (e) {
-                console.error('❌ [useMediaSelectionLogic] Upload falló:', e)
-                // Error is already set by handleUploadFile
+            // 🔄 Background: delegate to parent (persists after modal unmounts)
+            if (onBackgroundVideoUpload && localBlobUrl) {
+                console.log('🔄 [handleConfirm] Triggering background upload via callback')
+                onBackgroundVideoUpload(newMediaFile, localBlobUrl, localDuration)
+            } else if (!onBackgroundVideoUpload) {
+                // Fallback: upload inline if no background handler provided (e.g. images/pdfs)
+                try {
+                    const realUrl = await handleUploadFile(newMediaFile)
+                    if (realUrl) onMediaSelected(realUrl, mediaType, newMediaFile, previewImage.filename)
+                } catch { /* error shown in UI */ }
             }
             return
         }

@@ -250,6 +250,51 @@ export function CSVManagerEnhanced({
     setNewlyAddedIds: state.setNewlyAddedIds
   })
 
+  // Background video upload state — placed AFTER useCsvActions so allData and handleVideoSelection are available
+  const [uploadStatus, setUploadStatus] = React.useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
+  const uploadStatusTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const handleBackgroundVideoUpload = useCallback(async (
+    file: File,
+    localBlobUrl: string,
+    localDuration?: number
+  ) => {
+    setUploadStatus('uploading')
+    try {
+      const currentExerciseId = editingExerciseIndex !== null && allData[editingExerciseIndex]?.id
+        ? allData[editingExerciseIndex].id
+        : undefined
+
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('mediaType', 'video')
+      formData.append('category', 'product')
+      if (activityId > 0) formData.append('activityId', String(activityId))
+      if (currentExerciseId) formData.append('exerciseId', String(currentExerciseId))
+      if (localDuration !== undefined) formData.append('videoDuration', String(Math.round(localDuration)))
+      formData.append('title', file.name)
+
+      console.log('🔄 [background-upload] Subida a Bunny en segundo plano...', { file: file.name, currentExerciseId, activityId })
+      const response = await fetch('/api/bunny/upload-video', { method: 'POST', body: formData })
+      const data = await response.json()
+      console.log('🔄 [background-upload] Respuesta:', { ok: response.ok, data })
+
+      if (response.ok && data.streamUrl) {
+        handleVideoSelection(data.streamUrl, 'video', undefined, file.name)
+        setUploadStatus('done')
+      } else {
+        console.error('❌ [background-upload] Error:', data)
+        setUploadStatus('error')
+      }
+    } catch (err) {
+      console.error('❌ [background-upload] Error:', err)
+      setUploadStatus('error')
+    } finally {
+      if (uploadStatusTimerRef.current) clearTimeout(uploadStatusTimerRef.current)
+      uploadStatusTimerRef.current = setTimeout(() => setUploadStatus('idle'), 4000)
+    }
+  }, [activityId, editingExerciseIndex, allData, handleVideoSelection])
+
   // Duplicate logic removal and sync effects
   useEffect(() => {
     if (!coachId || coachId === '') return
@@ -354,7 +399,27 @@ export function CSVManagerEnhanced({
             ? allData[editingExerciseIndex].id
             : undefined
         }
+        onBackgroundVideoUpload={handleBackgroundVideoUpload}
       />
+
+      {/* Background upload status indicator */}
+      {uploadStatus !== 'idle' && (
+        <div className={`fixed bottom-6 right-4 z-[200] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl transition-all duration-300 ${
+          uploadStatus === 'uploading' ? 'bg-zinc-900 border border-[#FF7939]/30 text-[#FF7939]' :
+          uploadStatus === 'done' ? 'bg-zinc-900 border border-emerald-500/30 text-emerald-400' :
+          'bg-zinc-900 border border-red-500/30 text-red-400'
+        }`}>
+          {uploadStatus === 'uploading' && (
+            <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Subiendo video...</>
+          )}
+          {uploadStatus === 'done' && (
+            <><svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>Video guardado ✓</>
+          )}
+          {uploadStatus === 'error' && (
+            <><svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Error al subir—reinténtalo</>
+          )}
+        </div>
+      )}
 
       {mode === 'csv' && (
         <CsvUploadArea

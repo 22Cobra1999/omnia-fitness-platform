@@ -29,6 +29,12 @@ export interface MediaSelectionModalProps {
     exerciseId?: string | number | null
     activityId?: string | number | null
     mediaId?: string | number | null
+    /**
+     * Background upload callback — called AFTER the modal closes with the local File.
+     * The parent component should handle the Bunny upload asynchronously and update
+     * local state with the real URL when done. localDuration is read from the blob before closing.
+     */
+    onBackgroundVideoUpload?: (file: File, localBlobUrl: string, localDuration?: number) => void
 }
 
 export type SourceFilter = 'all' | 'cover' | 'catalog'
