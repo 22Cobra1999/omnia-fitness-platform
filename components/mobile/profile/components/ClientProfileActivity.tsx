@@ -31,8 +31,8 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
     activityRings,
 }) => {
     return (
-        <div className="bg-[#000000] rounded-2xl p-6">
-            <div className="mb-6">
+        <div className="bg-black w-full py-6">
+            <div className="mb-6 px-4">
                 <DailyActivityRings
                     userId={user?.id} selectedDate={selectedDay?.date} category={activityFilter} currentWeek={ringsWeek}
                     onWeekChange={setRingsWeek}
@@ -48,8 +48,8 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
                 />
             </div>
 
-            <div className="flex items-center justify-between mt-8">
-                <div className="relative w-52 h-52 flex items-center justify-center">
+            <div className="flex items-center justify-between mt-4 px-4">
+                <div className="relative w-48 h-48 flex items-center justify-center">
                     <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 120 120">
                         <defs>
                             {activityRings.map((ring: any, index: number) => (
@@ -62,21 +62,21 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
                         {activityRings.map((ring: any, index: number) => {
                             const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
                             const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
-                            const radius = 52 - (index * 13)
+                            const radius = 54 - (index * 12)
                             const circumference = 2 * Math.PI * radius
                             const strokeDashoffset = circumference - (percentage / 100) * circumference
                             return (
                                 <g key={index}>
-                                    <circle cx="60" cy="60" r={radius} stroke="rgba(255,255,255,0.03)" strokeWidth="8" fill="none" />
+                                    <circle cx="60" cy="60" r={radius} stroke="rgba(255,255,255,0.02)" strokeWidth="9" fill="none" />
                                     <circle
                                         cx="60" cy="60" r={radius}
-                                        stroke={`url(#grad-big-${index})`}
-                                        strokeWidth="8" fill="none"
+                                        stroke={ring.color}
+                                        strokeWidth="9" fill="none"
                                         strokeDasharray={circumference}
                                         strokeDashoffset={strokeDashoffset}
                                         strokeLinecap="round"
                                         className="transition-all duration-1000 ease-out"
-                                        style={{ filter: `drop-shadow(0 0 6px ${ring.color}50)` }}
+                                        style={{ filter: `drop-shadow(0 0 8px ${ring.color}40)` }}
                                     />
                                 </g>
                             )

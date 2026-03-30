@@ -283,7 +283,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   if (!isMounted) return null
 
   return (
-    <div className="p-4 text-white w-full max-w-full overflow-x-hidden">
+    <div className="p-0 text-white w-full max-w-full overflow-x-hidden">
       {loading ? (
         <div className="flex items-center justify-center h-full min-h-[400px]">
           <OmniaLoader />

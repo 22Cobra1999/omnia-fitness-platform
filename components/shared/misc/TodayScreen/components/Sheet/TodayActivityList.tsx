@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Flame, ChevronDown, ChevronUp, MessageSquare, Check, Play, Clock, ArrowRight, CalendarClock } from 'lucide-react';
+import { Flame, ChevronDown, ChevronUp, MessageSquare, Check, Play, Clock, ArrowRight, CalendarClock, UtensilsCrossed, CheckCircle2, Circle, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { parseSeries } from '../../utils/parsers';
 import { cn } from "@/lib/utils/utils";
@@ -65,17 +65,18 @@ interface TodayActivityListProps {
     blockNames: Record<string, string>;
     collapsedBlocks: Set<number>;
     toggleBlock: (n: number) => void;
-    toggleBlockCompletion: (n: number) => void;
+    toggleBlockCompletion: (n: number, d?: Date) => void;
     isBlockCompleted: (n: number) => boolean;
     programInfo: any;
     enrollment: any;
     openVideo: (url: string, ...args: any[]) => void;
-    toggleExerciseSimple: (id: string) => void;
+    toggleExerciseSimple: (id: string, d?: Date) => void;
     isExpired?: boolean;
     isRated?: boolean;
     handleOpenSurveyModal?: () => void;
     meetCreditsAvailable?: number | null;
     onScheduleMeet?: () => void;
+    selectedDate?: Date;
 }
 
 export function TodayActivityList({
@@ -93,7 +94,8 @@ export function TodayActivityList({
     isRated = false,
     handleOpenSurveyModal,
     meetCreditsAvailable = null,
-    onScheduleMeet
+    onScheduleMeet,
+    selectedDate = new Date()
 }: TodayActivityListProps) {
 
     const groupedActivities = useMemo(() => {
@@ -139,7 +141,16 @@ export function TodayActivityList({
     const survey = enrollment?.activity_surveys?.[0] || enrollment?.activity_surveys;
     const rating = survey?.coach_method_rating || 0;
     const feedback = survey?.comments || '';
-    const isNutri = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
+    const isNutriGlobal = [
+        String(programInfo?.categoria).toLowerCase(),
+        String(programInfo?.categoria_id).toLowerCase(),
+        String(enrollment?.activity?.categoria).toLowerCase(),
+        String(enrollment?.activity?.categoria_id).toLowerCase()
+    ].some(s => s.includes('nutricion') || s === '7' || s === 'nutrición') || activities.some(a => 
+        String(a.categoria).toLowerCase().includes('nutricion') || 
+        String(a.categoria_id) === '7' ||
+        String(a.category).toLowerCase().includes('nutrition')
+    );
 
     return (
         <div style={{ paddingBottom: 100 }}>
@@ -149,7 +160,7 @@ export function TodayActivityList({
                 const blockNumber = parseInt(blockNum);
                 const isCollapsed = collapsedBlocks.has(blockNumber);
                 const completedInBlock = blockActivities.filter(a => a.done).length;
-                const isNutri = String(programInfo?.categoria).toLowerCase() === 'nutricion';
+                const isNutri = isNutriGlobal;
                 const isActiveBlock = activeBlock === blockNumber;
                 const allDone = completedInBlock === blockActivities.length;
 
@@ -179,18 +190,20 @@ export function TodayActivityList({
                                 <div
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        toggleBlockCompletion(blockNumber);
+                                        toggleBlockCompletion(blockNumber, selectedDate);
                                     }}
                                     className={cn(
-                                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer",
-                                        allDone ? "bg-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]" : "bg-white/5 border border-white/10 hover:border-[#FF7939]/30"
+                                        "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer",
+                                        allDone ? "" : "bg-white/5 border border-white/10 hover:border-[#FF7939]/30"
                                     )}
                                 >
-                                    <Flame
-                                        size={22}
-                                        className={cn(allDone ? "text-white" : "text-white/20")}
-                                        fill={allDone ? "currentColor" : "none"}
-                                    />
+                                    {allDone ? (
+                                        <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-black/20">
+                                            <Flame size={24} fill="#FF7939" stroke="#FF7939" strokeWidth={2.5} />
+                                        </div>
+                                    ) : (
+                                        isNutri ? <UtensilsCrossed size={22} className="text-white/20" /> : <Zap size={22} className="text-white/20" />
+                                    )}
                                 </div>
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
@@ -245,24 +258,26 @@ export function TodayActivityList({
                                                                                     style={{ filter: isExpired ? 'grayscale(1)' : 'none' }}
                                                                                 >
                                                                                     {/* Status Circle */}
-                                                                                    <div
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            toggleExerciseSimple(group.id);
-                                                                                        }}
-                                                                                        className={cn(
-                                                                                            "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
-                                                                                            isDone
-                                                                                                ? "bg-[#FF7939] border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]"
-                                                                                                : "bg-white/5 border-white/10 hover:border-[#FF7939]/30"
-                                                                                        )}
-                                                                                    >
-                                                                                        <Flame
-                                                                                            size={22}
-                                                                                            className={cn(isDone ? "text-white" : "text-white/20")}
-                                                                                            fill={isDone ? "currentColor" : "none"}
-                                                                                        />
-                                                                                    </div>
+                                                                                        <div
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleExerciseSimple(group.id, selectedDate);
+                                                        }}
+                                                        className={cn(
+                                                            "w-12 h-12 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 active:scale-90",
+                                                            isDone
+                                                                ? "bg-transparent border-none shadow-none"
+                                                                : "bg-white/5 border border-white/10 hover:border-[#FF7939]/30"
+                                                        )}
+                                                    >
+                                                        {isDone ? (
+                                                            <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-black/20">
+                                                                <Flame size={20} fill="#FF7939" stroke="#FF7939" strokeWidth={2.5} />
+                                                            </div>
+                                                        ) : (
+                                                            isNutri ? <UtensilsCrossed size={20} className="text-white/20" /> : <Zap size={22} className="text-white/20" />
+                                                        )}
+                                                    </div>
 
                                                                                     <div className="flex-1 min-w-0">
                                                                                         <div className="flex flex-col gap-1.5 text-left">
@@ -281,12 +296,14 @@ export function TodayActivityList({
                                                                                                         <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest leading-none">{group.calorias} kcal</span>
                                                                                                     </div>
                                                                                                 )}
-                                                                                                {group.minutos != null && group.minutos > 0 && (
-                                                                                                    <div className="flex items-center gap-1 opacity-60">
-                                                                                                        <Clock size={11} className="text-white/30" />
-                                                                                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none">{group.minutos} min</span>
-                                                                                                    </div>
-                                                                                                )}
+                                                                                                {(group.minutos != null || group.duration != null || group.duracion_min != null) && (
+                                                                      <div className="flex items-center gap-1 opacity-60">
+                                                                          <Clock size={11} className="text-white/30" />
+                                                                          <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none">
+                                                                              {group.minutos ?? group.duration ?? group.duracion_min} min
+                                                                          </span>
+                                                                      </div>
+                                                                  )}
 
                                                                                                 {isNutri ? (
                                                                                                     <div className="flex items-center gap-3">

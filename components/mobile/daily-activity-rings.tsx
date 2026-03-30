@@ -164,7 +164,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
     const gradientId = `grad-${color.replace('#', '')}`
 
     return (
-      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <div className="relative flex items-center justify-center pointer-events-none" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="transform -rotate-90 block">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -177,7 +177,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="rgba(255, 255, 255, 0.05)"
+            stroke="rgba(255, 255, 255, 0.03)"
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -186,17 +186,20 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={`url(#${gradientId})`}
+            stroke={color}
             strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
-            style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+            style={{ 
+                transition: 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)',
+                filter: `drop-shadow(0 0 4px ${color}40)` 
+            }}
           />
         </svg>
         {label && (
-          <div className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">
+          <div className="absolute inset-0 flex items-center justify-center text-[8px] font-black italic text-white/90">
             {label}
           </div>
         )}
@@ -255,7 +258,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
           return (
             <div
               key={day.date}
-              className={`text-center cursor-pointer flex flex-col items-center rounded-lg p-1 transition-all ${isHighlighted ? 'bg-blue-600/20 ring-2 ring-blue-400' : 'hover:bg-gray-800/50'
+              className={`text-center cursor-pointer flex flex-col items-center rounded-lg p-1 transition-all ${isHighlighted ? '' : 'hover:bg-white/5'
                 }`}
               onClick={() => {
                 /*
@@ -268,8 +271,8 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
                 if (onSelectDay) onSelectDay(day)
               }}
             >
-              {/* Inicial del día - Perfectamente centrada arriba */}
-              <div className="text-gray-400 text-xs font-medium mb-2 h-3 flex items-center justify-center w-full">
+              {/* Inicial del día - Naranja si está seleccionado */}
+              <div className={`${isHighlighted ? 'text-[#FF7939]' : 'text-gray-500'} text-xs font-black uppercase italic mb-2 h-3 flex items-center justify-center w-full`}>
                 {day.dayName.charAt(0)}
               </div>
 
@@ -286,26 +289,23 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
                   strokeWidth={3}
                 />
 
-                {/* Anillo medio - Minutos (solo si aplica) */}
-                {shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <ActivityRing
-                      progress={minutesProgress}
-                      color="#E65100"
-                      size={34}
-                      strokeWidth={3}
-                    />
-                  </div>
-                )}
+                {/* Anillo medio - Minutos */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ActivityRing
+                    progress={minutesProgress}
+                    color="#E65100"
+                    size={33}
+                    strokeWidth={3}
+                  />
+                </div>
 
                 {/* Anillo interior - Ejercicios/Platos */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <ActivityRing
                     progress={exercisesProgress}
                     color={category === 'fitness' ? "#FF7939" : "#FACC15"}
-                    size={shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 24 : 34}
+                    size={22}
                     strokeWidth={3}
-                    label={category === 'nutricion' && day.exercisesTarget > 0 ? `${day.exercises}` : undefined}
                   />
                 </div>
               </div>

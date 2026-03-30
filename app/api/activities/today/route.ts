@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     // NO crear registros automticamente basndose en la planificacion
     const tablaProgreso = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente'
     const camposProgreso = categoria === 'nutricion'
-      ? 'id, fecha, ejercicios_completados, ejercicios_pendientes, macros, ingredientes'
+      ? 'id, fecha, ejercicios_completados, ejercicios_pendientes, macros, ingredientes, recetas'
       : 'id, fecha, ejercicios_completados, ejercicios_pendientes, informacion, minutos, calorias, peso, series, reps, descanso, descanso_bloques'
 
     // Buscar progreso
@@ -156,10 +156,31 @@ export async function GET(request: NextRequest) {
       registros_encontrados: progressRecords?.length || 0
     });
 
-    // Si hay error o no hay registros, intentar fallback a la planificacion (PROXIMAMENTE: crear registro auto)
+    // Si no hay error o no hay registros, intentar fallback a la planificacion (PROXIMAMENTE: crear registro auto)
     if (progressError || !progressRecords || progressRecords.length === 0) {
-      console.log(' No existe registro de progreso real para fecha:', today, '. Intentando fallback a planificacion...');
+      console.log(' [API Todiay] No existe registro de progreso real para fecha:', today);
 
+      // [FIX] Si es un cliente, NO mostrar actividades de la planificación si no hay progreso real.
+      // Esto evita que aparezcan actividades en días que el cliente no debería entrenar o en días pasados/futuros sin log.
+      
+      // Verificamos si es Coach para permitir el fallback (vista previa)
+      const { data: activity } = await supabase
+        .from('activities')
+        .select('coach_id')
+        .eq('id', activityId)
+        .single();
+      
+      const isUserCoach = activity?.coach_id === clientId;
+
+      if (!isUserCoach) {
+        console.log(' [API Todiay] User is client and no progress record exists. Returning empty activities.');
+        return NextResponse.json({
+          success: true,
+          data: { activities: [], count: 0, date: today, message: 'Día sin actividad registrada' }
+        });
+      }
+
+      console.log(' [API Todiay] User is coach. Falling back to planning for preview...');
       if (dia) {
         // Calcular en qu semana estamos para el fallback
         let targetWeek = 1;
@@ -211,7 +232,7 @@ export async function GET(request: NextRequest) {
           activities: [],
           count: 0,
           date: today,
-          message: 'Da sin actividad registradia y sin planificacion disponible'
+          message: 'Día sin actividad registrada y sin planificación disponible'
         }
       });
     }
@@ -278,6 +299,21 @@ export async function GET(request: NextRequest) {
           } catch (err) {
             console.error('Error parseando macros:', err);
           }
+
+          // Parsear columna recetas (mapeo ejercicio_id -> receta_id)
+          try {
+            if ((progressRecord as any).recetas) {
+              const recetasParsed = typeof (progressRecord as any).recetas === 'string'
+                ? JSON.parse((progressRecord as any).recetas)
+                : (progressRecord as any).recetas;
+              
+              // Los recetaLookup se poblarn luego con los detalles de la DB, 
+              // pero guardamos estos IDs como prioridad
+              (progressRecord as any)._recetasIds = recetasParsed;
+            }
+          } catch (err) {
+            console.error('Error parseando recetas:', err);
+          }
         } else {
           // Combinar informacion y detalles_series para obtener diatos completos
           const rawInfo = (typeof progressRecord.informacion === 'string' ? JSON.parse(progressRecord.informacion) : (progressRecord.informacion || {}));
@@ -331,77 +367,80 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const res: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
+
       // Handle 'ejercicios' as Array
       if (raw && typeof raw === 'object' && Array.isArray((raw as any).ejercicios)) {
-        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
         ;((raw as any).ejercicios || []).forEach((x: any, idx: number) => {
-          const id = Number(x?.id ?? x)
-          const orden = Number(x?.orden ?? (idx + 1))
-          const bloque = Number(x?.bloque ?? 1)
-          if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-          const key = `${id}_${bloque}_${orden}`
-          map[key] = { ejercicio_id: id, orden, bloque }
+          if (typeof x === 'number' || typeof x === 'string') {
+            const id = Number(x)
+            const key = `${id}_1_${idx + 1}`
+            res[key] = { ejercicio_id: id, bloque: 1, orden: idx + 1 }
+            return
+          }
+          const id = Number(x?.id || x?.ejercicio_id)
+          if (Number.isFinite(id)) {
+            const b = Number(x?.bloque || 1)
+            const o = Number(x?.orden || idx + 1)
+            res[`${id}_${b}_${o}`] = { ejercicio_id: id, bloque: b, orden: o }
+          }
         })
-        return map
+        return res
       }
 
       // Handle 'ejercicios' as Object (Map)
       if (raw && typeof raw === 'object' && (raw as any).ejercicios && typeof (raw as any).ejercicios === 'object' && !Array.isArray((raw as any).ejercicios)) {
-        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
-        Object.values((raw as any).ejercicios).forEach((x: any, idx: number) => {
-          const id = Number(x?.id ?? x)
-          const orden = Number(x?.orden ?? (idx + 1))
-          const bloque = Number(x?.bloque ?? 1)
-          if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-          const key = `${id}_${bloque}_${orden}`
-          map[key] = { ejercicio_id: id, orden, bloque }
+        Object.keys((raw as any).ejercicios).forEach((k: string) => {
+          const x = (raw as any).ejercicios[k]
+          const id = Number(x?.id || x?.ejercicio_id || k.split('_')[0])
+          const b = Number(x?.bloque || k.split('_')[1] || 1)
+          const o = Number(x?.orden || k.split('_')[2] || 1)
+          res[k] = { ejercicio_id: id, bloque: b, orden: o }
         })
-        return map
+        return res
       }
 
+      // Root is already an array of strings/numbers
       if (Array.isArray(raw)) {
-        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
-        raw.forEach((k: any) => {
+        raw.forEach((k: any, idx: number) => {
           const key = String(k)
           const parts = key.split('_')
           if (parts.length >= 2) {
             const id = Number(parts[0])
-            const bloque = parts.length >= 3 ? Number(parts[1]) : 1
-            const orden = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
-            if (Number.isFinite(id) && Number.isFinite(bloque) && Number.isFinite(orden)) {
-              map[key] = { ejercicio_id: id, orden, bloque }
-            }
+            const b = parts.length >= 3 ? Number(parts[1]) : 1
+            const o = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
+            res[key] = { ejercicio_id: id, bloque: b, orden: o }
+          } else if (Number.isFinite(Number(key))) {
+            const id = Number(key)
+            res[`${id}_1_${idx+1}`] = { ejercicio_id: id, bloque: 1, orden: idx+1 }
           }
         })
-        return map
+        return res
       }
 
       if (raw && typeof raw === 'object') {
-        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
         Object.keys(raw).forEach((key) => {
           if (key === 'blockCount' || key === 'blockNames' || key === 'ejercicios') return
-
           const v = (raw as any)[key]
           if (v && typeof v === 'object') {
             const ejercicio_id = Number(v?.ejercicio_id ?? v?.id ?? key.split('_')[0])
             const parts = key.split('_')
             const bloque = Number(v?.bloque ?? (parts.length >= 3 ? parts[1] : 1))
             const orden = Number(v?.orden ?? (parts.length >= 3 ? parts[2] : (parts.length === 2 ? parts[1] : 1)))
-            if (!Number.isFinite(ejercicio_id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-            map[String(key)] = { ejercicio_id, orden, bloque }
+            if (Number.isFinite(ejercicio_id)) {
+              res[String(key)] = { ejercicio_id, orden, bloque }
+            }
           } else {
             const parts = String(key).split('_')
             if (parts.length >= 2) {
               const id = Number(parts[0])
-              const bloque = parts.length >= 3 ? Number(parts[1]) : 1
-              const orden = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
-              if (Number.isFinite(id) && Number.isFinite(bloque) && Number.isFinite(orden)) {
-                map[String(key)] = { ejercicio_id: id, orden, bloque }
-              }
+              const b = parts.length >= 3 ? Number(parts[1]) : 1
+              const o = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
+              res[String(key)] = { ejercicio_id: id, orden: o, bloque: b }
             }
           }
         })
-        return map
+        return res
       }
 
       return {}
@@ -421,11 +460,25 @@ export async function GET(request: NextRequest) {
       if (raw && typeof raw === 'object' && Array.isArray((raw as any).ejercicios)) {
         const set = new Set<string>()
           ; ((raw as any).ejercicios || []).forEach((x: any) => {
+            if (typeof x === 'number' || typeof x === 'string') {
+              const sid = String(x)
+              set.add(sid) // "753"
+              if (!sid.includes('_')) {
+                set.add(`${sid}_1_1`) // "753_1_1" fallback
+              }
+              return
+            }
             const id = Number(x?.id)
             const orden = Number(x?.orden)
             const bloque = Number(x?.bloque)
-            if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-            set.add(`${id}_${bloque}_${orden}`)
+            if (Number.isFinite(id)) {
+              if (Number.isFinite(bloque) && Number.isFinite(orden)) {
+                set.add(`${id}_${bloque}_${orden}`)
+              } else {
+                set.add(String(id))
+                set.add(`${id}_1_1`)
+              }
+            }
           })
         return set
       }
@@ -433,11 +486,12 @@ export async function GET(request: NextRequest) {
       // Handle 'ejercicios' as Object (Map)
       if (raw && typeof raw === 'object' && (raw as any).ejercicios && typeof (raw as any).ejercicios === 'object' && !Array.isArray((raw as any).ejercicios)) {
         const set = new Set<string>()
-        Object.values((raw as any).ejercicios).forEach((x: any) => {
-          const id = Number(x?.id)
-          const orden = Number(x?.orden)
-          const bloque = Number(x?.bloque)
-          if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
+        Object.keys((raw as any).ejercicios).forEach((k: string) => {
+          set.add(k)
+          const x = (raw as any).ejercicios[k]
+          const id = Number(x?.id || k.split('_')[0])
+          const orden = Number(x?.orden || k.split('_')[2] || 1)
+          const bloque = Number(x?.bloque || k.split('_')[1] || 1)
           set.add(`${id}_${bloque}_${orden}`)
         })
         return set
@@ -447,6 +501,7 @@ export async function GET(request: NextRequest) {
         const set = new Set<string>()
         raw.forEach((k: any) => {
           const key = String(k)
+          set.add(key)
           const parts = key.split('_')
           if (parts.length >= 2) {
             const id = Number(parts[0])
@@ -645,9 +700,10 @@ export async function GET(request: NextRequest) {
 
       // 2) Lookup en recetas usando los receta_id obtenidos
       try {
-        const recetaIds = nutritionDetails
-          .map(d => d.receta_id)
-          .filter(id => id != null)
+        const detailRecetaIds = nutritionDetails.map(d => d.receta_id).filter(id => id != null);
+        const progressRecetaIds = Object.values((progressRecord as any)._recetasIds || {}).map(id => Number(id)).filter(id => !isNaN(id));
+        
+        const recetaIds = [...new Set([...detailRecetaIds, ...progressRecetaIds])];
 
         if (recetaIds.length > 0) {
           const { data: recetasRows, error: recetasError } = await adminSupabase
@@ -666,6 +722,21 @@ export async function GET(request: NextRequest) {
                 recetasByEjercicioId[String(detail.id)] = {
                   id: String(receta.id),
                   ejercicio_id: String(detail.id),
+                  nombre: receta.nombre || null,
+                  receta: receta.receta || null
+                }
+              }
+            })
+
+            // 2. Sobrescribir con IDs de la columna "recetas" (Prioridad override)
+            const overrideIds = (progressRecord as any)._recetasIds || {}
+            Object.keys(overrideIds).forEach(key => {
+              const rid = overrideIds[key]
+              const receta = (recetasRows || []).find(r => String(r.id) === String(rid))
+              if (receta) {
+                recetasByEjercicioId[key] = {
+                  id: String(receta.id),
+                  ejercicio_id: key,
                   nombre: receta.nombre || null,
                   receta: receta.receta || null
                 }
@@ -950,7 +1021,7 @@ export async function GET(request: NextRequest) {
         : { data: [] };
       
       const ingsDict: Record<number, {nombre: string, unidad: string}> = {};
-      dictItems?.forEach(d => { ingsDict[d.id] = { nombre: d.nombre, unidad: d.unidad }; });
+      dictItems?.forEach((d: any) => { ingsDict[d.id] = { nombre: d.nombre, unidad: d.unidad }; });
       (progressRecord as any)._ingsDict = ingsDict; // Store for the loop
     }
 
@@ -1017,7 +1088,9 @@ export async function GET(request: NextRequest) {
       // Verificar si est completado usando el key nico y soporte para varios formatos
       const isCompleted = (() => {
         if (categoria === 'nutricion') {
-          return nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`) : false;
+          const key_ibo = `${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`;
+          const key_i = String(detalle.ejercicio_id);
+          return nutritionCompletionKeySet ? (nutritionCompletionKeySet.has(key_ibo) || nutritionCompletionKeySet.has(key_i)) : false;
         }
 
         if (!completados) return false;
@@ -1096,7 +1169,7 @@ export async function GET(request: NextRequest) {
             carbohidratos: macrosData.c,
             grasas: macrosData.g,
             receta_id: macrosData.rid,
-            minutos: macrosData.m !== undefined ? macrosData.m : (macrosData.minutos || 0),
+            minutos: macrosData.m !== undefined ? macrosData.m : (macrosData.minutos !== undefined ? macrosData.minutos : null),
             nombre: macrosData.nombre || null
           }
 
@@ -1183,7 +1256,7 @@ export async function GET(request: NextRequest) {
 
         minutosFinal = (macrosData?.minutos !== null && macrosData?.minutos !== undefined)
           ? Number(macrosData.minutos)
-          : (nutritionFallback?.minutos !== undefined ? Number(nutritionFallback.minutos) : null);
+          : (nutritionFallback?.minutos != null ? Number(nutritionFallback.minutos) : null);
 
       } else {
         // Para fitness: usar key actual (id_bloque_orden o id_orden), id_orden explcito o ejercicio.duracion_min
@@ -1251,7 +1324,9 @@ export async function GET(request: NextRequest) {
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || (detalle as any).equipo || null),
         equipment: categoria === 'nutricion' ? null : (ejercicio?.equipo || (detalle as any).equipo || null),
         body_parts: categoria === 'nutricion' ? null : (ejercicio?.body_parts || (detalle as any).body_parts || null),
-        muscles: categoria === 'nutricion' ? null : (ejercicio?.body_parts || (detalle as any).body_parts || null)
+        muscles: categoria === 'nutricion' ? null : (ejercicio?.body_parts || (detalle as any).body_parts || null),
+        completed: isCompleted,
+        done: isCompleted
       };
 
       // Campos especificos para nutricion
@@ -1285,7 +1360,10 @@ export async function GET(request: NextRequest) {
             const ingsDict = (progressRecord as any)._ingsDict || {};
             return raw.map((i: any) => {
               const found = ingsDict[i.id];
-              if (found) return `${found.nombre} ${i.cnt || ''} ${found.unidad || ''}`.trim();
+              if (found) {
+                const unt = i.unt || i.unit || i.unidad || found.unidad || '';
+                return `${found.nombre} ${i.cnt || i.valor || ''} ${unt}`.trim();
+              }
               return `Ingrediente ${i.id}`;
             });
           }

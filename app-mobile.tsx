@@ -36,6 +36,7 @@ const AutoUsageTracker = dynamic(() => import('@/components/shared/admin/auto-us
 const ProfileEditModal = dynamic(() => import("@/components/mobile/profile-edit-modal").then(m => m.ProfileEditModal), { ssr: false })
 import { MercadoPagoOnboardingModal } from "@/components/coach/MercadoPagoOnboardingModal"
 import { useCoachOnboarding } from "@/hooks/coach/useCoachOnboarding"
+import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 
 
 import AdminFinanceDashboard from "@/components/shared/admin/AdminFinanceDashboard"
@@ -475,11 +476,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
   // Mostrar loading solo si no ha pasado el timeout
   if (shouldShowLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <p className="text-white">Cargando...</p>
-      </div>
-    )
+    return <OmniaLoader />
   }
 
   // ✅ SMART-SWITCH: Si el usuario es ADMIN, lo detectamos aquí al final (después de todos los hooks)
@@ -573,9 +570,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
 export default function MobileApp(props: MobileAppProps) {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-black">
-      <p className="text-white">Cargando...</p>
-    </div>}>
+    <Suspense fallback={<OmniaLoader />}>
       <MobileAppContent {...props} />
     </Suspense>
   )

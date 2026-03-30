@@ -200,7 +200,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
 
   if (!clientId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#121212]">
+      <div className="flex items-center justify-center h-screen bg-black">
         <div className="text-white">Por favor inicia sesión para ver tu calendario</div>
       </div>
     )
@@ -208,7 +208,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
 
   if (activityIds.length === 0) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#121212]">
+      <div className="flex items-center justify-center h-screen bg-black">
         <div className="text-white text-center">
           <p className="mb-4">No tienes actividades activas</p>
           <p className="text-sm text-gray-400">Contacta a tu coach para inscribirte en un programa</p>
@@ -218,7 +218,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   }
 
   return (
-    <div className="bg-[#121212]">
+    <div className="bg-black">
       <CalendarView
         activityIds={activityIds}
         onActivityClick={handleActivityClick}

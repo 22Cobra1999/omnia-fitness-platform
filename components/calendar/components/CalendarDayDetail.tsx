@@ -2,7 +2,7 @@
 import React from 'react'
 import { format, isToday } from "date-fns"
 import { es } from "date-fns/locale"
-import { Flame, Utensils, Video, GraduationCap, Zap, Users, RotateCcw } from "lucide-react"
+import { Flame, Utensils, Video, GraduationCap, Zap, Users, RotateCcw, Clock } from "lucide-react"
 import { formatMinutes } from "../utils"
 
 interface CalendarDayDetailProps {
@@ -71,8 +71,8 @@ export function CalendarDayDetail({
                             </div>
                         )}
                         {meetMinutes > 0 && (
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
-                                <Video className="h-3 w-3" />
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#E6BE8A]/40 bg-[#E6BE8A]/10 text-[#E6BE8A] text-[10px] font-bold">
+                                {mins?.hasWorkshop ? <GraduationCap className="h-3 w-3" /> : <Video className="h-3 w-3" />}
                                 {formatMinutes(meetMinutes)}
                             </div>
                         )}
@@ -80,276 +80,163 @@ export function CalendarDayDetail({
                 )}
             </div>
 
-            {meets.length > 0 && (
-                <div className="mb-4">
-                    <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET - DETAIL TEST</div>
-                    <div className="space-y-2">
-                        {meets.map((m) => {
-                            const start = new Date(m.start_time)
-                            const end = m.end_time ? new Date(m.end_time) : null
-                            const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
-                            const rsvp = String((m as any)?.rsvp_status || 'pending')
-                            const status = m.status || 'scheduled'
-                            const isTodayEvent = isToday(start)
+            <div className="mb-4">
+                <div className="text-[11px] tracking-widest text-white/45 mb-2 uppercase">Programación</div>
+                <div className="space-y-3">
+                    {(() => {
+                        const itemsToRender: any[] = [];
+                        const consumedActivityIds = new Set<string>();
+                        const consumedMeetIds = new Set<string>();
 
-                            // Status Logic
-                            let statusLabel = null
-                            let statusColor = 'text-white/50'
+                        // 1. Try to merge activities with corresponding meets
+                        selectedDayActivityItems.forEach((it: any) => {
+                            const isWorkshop = it.tipo === 'taller' || it.activityTypeLabel === 'TALLER';
+                            const relatedMeet = meets.find(m => String(m.activity_id) === String(it.activityId) || (isWorkshop && m.event_type === 'workshop' && (m.activity_title === it.activityTitle || m.workshop_name === it.activityTitle)));
 
-                            const isMeCancelled = m.cancelled_by_user_id === authUserId
-                            const coachParticipant = (m.participants || []).find((p: any) => p.user_id === m.coach_id)
-                            const coachName = coachParticipant ? (coachParticipant.name || coachParticipant.full_name) : 'el coach'
-
-                            if (status === 'cancelled') {
-                                statusColor = 'text-red-500'
-                                statusLabel = (
-                                    <span className="text-[10px] font-bold uppercase text-red-500">
-                                        {isMeCancelled ? 'Cancelaste meet' : 'Canceló meet'}
-                                    </span>
-                                )
-                            } else if (rsvp === 'declined' || rsvp === 'cancelled') {
-                                statusColor = 'text-red-500'
-                                statusLabel = (
-                                    <span className="text-[10px] font-bold uppercase text-red-500">
-                                        Rechazada
-                                    </span>
-                                )
-                            } else if (rsvp === 'pending' || (rsvp === 'confirmed' && status === 'scheduled' && (m.participants || []).some((p: any) => p.user_id === m.coach_id && (p.rsvp_status === 'pending' || p.rsvp_status === 'invited')))) {
-                                statusColor = 'text-[#FFB366]'
-                                const isCoachPending = (m.participants || []).some((p: any) => p.user_id === m.coach_id && (p.rsvp_status === 'pending' || p.rsvp_status === 'invited'))
-
-                                statusLabel = (
-                                    <span className="text-[10px] font-bold uppercase text-[#FFB366]">
-                                        {rsvp === 'pending'
-                                            ? (m.invited_by_user_id === authUserId ? 'Pendiente de que confirmes tú' : 'Solicitó meet')
-                                            : 'Pendiente de que confirme'}
-                                    </span>
-                                )
+                            if (relatedMeet) {
+                                itemsToRender.push({ type: 'merged', activity: it, meet: relatedMeet });
+                                consumedActivityIds.add(String(it.activityId));
+                                consumedMeetIds.add(String(relatedMeet.id));
+                            } else {
+                                itemsToRender.push({ type: 'activity', activity: it });
                             }
-                            else if (status === 'rescheduled') {
-                                statusLabel = (
-                                    <span className="text-[10px] font-bold uppercase text-blue-400 flex items-center gap-1">
-                                        <RotateCcw className="h-3 w-3" />
-                                        REPROGRAMADA
-                                    </span>
-                                )
-                            } else if (rsvp === 'confirmed' || rsvp === 'accepted') {
-                                statusLabel = (
-                                    <span className="text-[10px] font-bold uppercase text-[#FF7939] flex items-center gap-1">
-                                        <Video className="h-3 w-3" />
-                                        CONFIRMADA
-                                    </span>
-                                )
+                        });
+
+                        // 2. Add remaining meets that weren't merged
+                        meets.forEach((m: any) => {
+                            if (!consumedMeetIds.has(String(m.id))) {
+                                itemsToRender.push({ type: 'meet', meet: m });
                             }
+                        });
 
-                            if (m.pending_reschedule) {
-                                statusLabel = (
-                                    <span className="text-[10px] font-bold uppercase text-red-500 animate-pulse">
-                                        CAMBIO SOLICITADO
-                                    </span>
-                                )
-                            }
-
-                            // Button Logic
-                            // Only show 'Unirse' if: Today AND (Confirmed OR Accepted) AND Scheduled
-                            const canJoin = (rsvp === 'confirmed' || rsvp === 'accepted') && status === 'scheduled' && m.meet_link
-
-                            const handleEnter = () => {
-                                if (canJoin && m.meet_link) {
-                                    try {
-                                        window.open(String(m.meet_link), '_blank', 'noopener,noreferrer')
-                                        return
-                                    } catch { }
+                        return itemsToRender.map((item, idx) => {
+                            if (item.type === 'merged' || item.type === 'meet') {
+                                const m = item.meet;
+                                const it = item.activity;
+                                const start = new Date(m.start_time);
+                                const end = m.end_time ? new Date(m.end_time) : null;
+                                const timeLabel = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`;
+                                const rsvp = String((m as any)?.rsvp_status || 'pending');
+                                const status = m.status || 'scheduled';
+                                const isCancelled = status === 'cancelled' || rsvp === 'declined';
+                                
+                                let statusLabel = null;
+                                if (status === 'cancelled') statusLabel = <span className="text-[10px] font-bold uppercase text-red-500">Cancelada</span>;
+                                else if (rsvp === 'declined') statusLabel = <span className="text-[10px] font-bold uppercase text-red-500">Rechazada</span>;
+                                else if (rsvp === 'pending') statusLabel = <span className="text-[10px] font-bold uppercase text-red-500">Pendiente</span>;
+                                else if (rsvp === 'confirmed' || rsvp === 'accepted') {
+                                    statusLabel = <span className="text-[10px] font-bold uppercase text-[#FF7939] flex items-center gap-1"><Video className="h-3 w-3" />CONFIRMADA</span>;
                                 }
-                            }
 
-                            const handleOpenDetail = () => {
-                                setSelectedMeetEvent(m)
-                            }
+                                const isWorkshop = m.event_type === 'workshop' || (it && (it.tipo === 'taller' || it.activityTypeLabel === 'TALLER'));
+                                const canJoin = (rsvp === 'confirmed' || rsvp === 'accepted') && status === 'scheduled' && m.meet_link;
 
-                            const isCancelled = status === 'cancelled' || rsvp === 'declined'
-
-                            // Participant Logic
-                            const isGroup = m.event_type === 'workshop' || (m.participants?.length || 0) > 2
-                            const otherParty = (m.participants || []).find((p: any) => p.user_id !== (m as any).coach_id) // Simplistic: non-coach participant
-                            // Actually, simpler: just exclude the current viewer if possible, but we don't have authUserId easily here without prop drilling.
-                            // However, we can check coach_id. If current view is Coach, show Client. If Client, show Coach.
-                            // We don't know "who am I" easily here?
-                            // Wait, 'activitiesByDate' context implies we are viewing *my* schedule.
-                            // If I created the event, or am a participant.
-                            // BUT, we can just show "Con [Name]" if 1:1.
-                            // If 1:1, usually 2 participants. One is coach, one is client.
-                            // If I am observing, I see both names?
-                            // Let's try to show the *Other* name.
-                            // If I am the coach, I want to see the client name.
-                            // The `m` object has `coach_id`.
-                            // If `m.coach_id` exists.
-                            // Let's blindly pick the participant that is NOT the coach_id?
-                            // Failure case: I am the coach.
-
-                            let displayParticipant = ''
-                            if (!isGroup) {
-                                const isMeCoach = String(m.coach_id) === String(authUserId)
-                                if (isMeCoach) {
-                                    const other = (m.participants || []).find((p: any) => String(p.user_id) !== String(authUserId))
-                                    if (other) displayParticipant = ` – ${other.full_name || other.name || 'Cliente'}`
-                                } else {
-                                    // 1. Try to find coach name in participants
-                                    const coachPart = (m.participants || []).find((p: any) => String(p.user_id) === String(m.coach_id));
-
-                                    // 2. Try to find coach name in passed coachProfiles prop
-                                    const profileFound = coachProfiles?.find(cp => String(cp.id) === String(m.coach_id));
-
-                                    const coachName = m.coach_name || profileFound?.full_name || coachPart?.name || coachPart?.full_name || 'Coach';
-                                    displayParticipant = ` – ${coachName}`
-                                }
-                            }
-
-                            return (
-                                <div
-                                    key={m.id}
-                                    onClick={handleOpenDetail}
-                                    className={
-                                        `w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200 select-none ` +
-                                        (isCancelled
-                                            ? 'border-red-500/20 bg-red-500/5 opacity-80 backdrop-blur-md'
-                                            : 'border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md hover:border-white/20 active:scale-[0.98]')
-                                    }
-                                    role="button"
-                                    tabIndex={0}
-                                >
-                                    <div className="flex items-center gap-3 w-full">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${m.event_type === 'workshop' ? 'bg-[#FADADD]/10 text-[#FADADD] border border-[#FADADD]/30' : (isCancelled ? 'bg-red-500/10 text-red-400 border border-red-500/30' : (rsvp === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'))}`}>
-                                            {m.event_type === 'workshop' ? <GraduationCap className="h-5 w-5" /> : <Video className="h-5 w-5" />}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex flex-col gap-1 min-w-0">
-                                                {/* Row 1: Title */}
-                                                <div className="text-sm font-bold text-white truncate leading-snug">
-                                                    {m.title ? String(m.title).replace(/^(Taller|Consulta|Meet|Workshop|Consultation):\s*/i, '').replace(/^(Taller|Consulta|Meet|Workshop|Consultation)\s+/i, '') : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
+                                return (
+                                    <button
+                                        key={m.id}
+                                        onClick={() => setSelectedMeetEvent(m)}
+                                        className={`w-full text-left p-3 rounded-xl border relative backdrop-blur-md transition-all ${isCancelled ? 'border-red-500/20 bg-red-500/5' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isWorkshop ? 'bg-[#E6BE8A]/10 text-[#E6BE8A] border border-[#E6BE8A]/30' : (isCancelled || rsvp === 'pending' ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20')}`}>
+                                                    {isWorkshop ? <GraduationCap className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                                                 </div>
-
-                                                {/* Row 2: Info and Button */}
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2 min-w-0">
-                                                        <div className={`text-[11px] font-medium ${statusColor}`}>
-                                                            {label}
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-col">
+                                                        <div className="text-sm font-bold text-white truncate">
+                                                            {isWorkshop 
+                                                                ? (m.title ? String(m.title).replace(/^(Taller|Workshop):\s*/i, '') : 'Tema')
+                                                                : (m.title ? String(m.title).replace(/^(Meet|Consulta):\s*/i, '') : 'Meet')
+                                                            }
                                                         </div>
-                                                        {displayParticipant && (
-                                                            <div className="text-[11px] text-[#FF7939] font-bold truncate">
-                                                                · {displayParticipant.replace(/^ – /, '')}
+                                                        {isWorkshop && (
+                                                            <div className="text-[10px] text-white/60 truncate mt-0.5 font-medium italic">
+                                                                - {it?.activityTitle || m.activity_title || m.workshop_name || 'Workshop'}
                                                             </div>
                                                         )}
-                                                        {isGroup ? (
-                                                            <Users className="w-3 h-3 text-white/40" />
-                                                        ) : (
-                                                            <span className="text-[9px] font-bold text-white/30 bg-white/5 px-1.5 rounded uppercase leading-none py-0.5">1:1</span>
-                                                        )}
                                                     </div>
-
-                                                    <div className="flex-shrink-0">
-                                                        {!canJoin && statusLabel}
-                                                        {canJoin && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleEnter()
-                                                                }}
-                                                                className="h-7 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]"
-                                                            >
-                                                                {(() => {
-                                                                    const end = m.end_time ? new Date(m.end_time) : new Date(new Date(m.start_time).getTime() + 60 * 60000);
-                                                                    const bufferTime = new Date(end.getTime() + 120 * 60000); // 2h buffer
-                                                                    if (new Date() < bufferTime) return 'Unirse';
-                                                                    return 'Finalizada';
-                                                                })()}
-                                                            </button>
-                                                        )}
+                                                    <div className="text-xs text-white/50 truncate flex items-center gap-2 mt-0.5 font-medium">
+                                                        <span>{timeLabel}</span>
+                                                        {statusLabel}
                                                     </div>
                                                 </div>
                                             </div>
+                                            
+                                            <div className="flex items-center gap-2">
+                                                {it && (
+                                                    <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center bg-[#FF7939] text-black shadow-lg">
+                                                        <div className="flex items-center gap-0.5">
+                                                            <Flame className="w-2.5 h-2.5" fill="black" />
+                                                            <span className="text-[10px] font-bold leading-none">{it.totalCount - it.pendingCount}/{it.totalCount}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {canJoin && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); if (m.meet_link) window.open(m.meet_link, '_blank', 'noopener,noreferrer'); }}
+                                                        className="h-7 px-3 rounded-full text-[9px] font-bold uppercase border border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 shadow-lg"
+                                                    >
+                                                        Unirse
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
+                                    </button>
+                                );
+                            } else {
+                                const it = item.activity;
+                                const isNutri = String(it.area || '').toLowerCase().includes('nutri') || String(it.activityTypeLabel || '').toLowerCase().includes('nutri');
+                                const isWorkshop = it.tipo === 'taller' || it.activityTypeLabel === 'TALLER';
 
-            {selectedDayActivityItems.length > 0 && (
-                <div className="mb-4">
-                    <div className="text-[11px] tracking-widest text-white/45 mb-2 uppercase">Programación</div>
-                    <div className="space-y-3">
-                        {selectedDayActivityItems.map((it: any) => {
-                            const isNutri = String(it.area || '').toLowerCase().includes('nutri') || String(it.activityTypeLabel || '').toLowerCase().includes('nutri')
-                            const isCompleted = it.pendingCount === 0 && it.pendingMinutes === 0;
-
-                            return (
-                                <button
-                                    key={it.activityId}
-                                    type="button"
-                                    onClick={() => onActivityClick(it.activityId, selectedDate || undefined)}
-                                    className={`w-full text-left p-3 rounded-xl border relative ${it.borderClass} ${it.bgClass} hover:bg-white/5 transition-colors`}
-                                >
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            {it.tipo === 'taller' || it.activityTypeLabel === 'TALLER' ? (
-                                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FADADD]/10 text-[#FADADD] border border-[#FADADD]/30">
-                                                    <GraduationCap className="h-5 w-5" />
-                                                </div>
-                                            ) : isNutri ? (
-                                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FFB366]/10 text-[#FFB366] border border-[#FFB366]/20">
-                                                    <Utensils className="h-5 w-5" />
-                                                </div>
-                                            ) : (
-                                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20">
-                                                    <Zap className="h-5 w-5" />
-                                                </div>
-                                            )}
-                                            <div className="min-w-0">
-                                                <div className="text-sm font-semibold text-white truncate">{it.activityTitle}</div>
-                                                <div className="text-xs text-white/65 truncate flex items-center gap-2">
-                                                    <span className="uppercase tracking-wider font-bold text-[9px] opacity-80">
-                                                        {String(it.area || '').toUpperCase()} · {String(it.tipo || '').toUpperCase()}
-                                                    </span>
-                                                    <span className={`${isCompleted ? 'text-green-500 bg-green-500/10' : 'text-[#FFB366] bg-[#FF7939]/10'} px-1.5 rounded text-[10px] font-bold`}>
-                                                        {isCompleted
-                                                            ? 'Completado por hoy'
-                                                            : (isNutri
-                                                                ? `${it.pendingCount}`
-                                                                : (formatMinutes(it.pendingMinutes) || '0m') + ' restante'
-                                                            )
+                                return (
+                                    <button
+                                        key={it.activityId}
+                                        onClick={() => onActivityClick(it.activityId, selectedDate || undefined)}
+                                        className={`w-full text-left p-3 rounded-xl border relative ${it.borderClass} ${it.bgClass} hover:bg-white/5 transition-colors`}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                {isWorkshop ? (
+                                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#E6BE8A]/10 text-[#E6BE8A] border border-[#E6BE8A]/30">
+                                                        <GraduationCap className="h-5 w-5" />
+                                                    </div>
+                                                ) : isNutri ? (
+                                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FFB366]/10 text-[#FFB366] border border-[#FFB366]/20">
+                                                        <Utensils className="h-5 w-5" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20">
+                                                        <Zap className="h-5 w-5" />
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0">
+                                                    <div className="text-sm font-semibold text-white truncate">{it.activityTitle}</div>
+                                                    <div className="text-xs text-white/50 truncate flex items-center gap-1.5 mt-0.5 font-medium">
+                                                        <Clock className="h-3 w-3" />
+                                                        {isNutri
+                                                            ? `${formatMinutes(it.totalMinutes)} total`
+                                                            : (formatMinutes(it.pendingMinutes + (it.totalCount - it.pendingCount) * 10) || '0m') + ' total' 
                                                         }
-                                                    </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center transition-all bg-[#FF7939] text-black shadow-lg">
+                                                <div className="flex items-center gap-0.5">
+                                                    <Flame className="w-2.5 h-2.5" fill="black" />
+                                                    <span className="text-[10px] font-bold leading-none">{it.totalCount - it.pendingCount}/{it.totalCount}</span>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {it.pendingCount > 0 && (
-                                            <div
-                                                className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
-                                                style={{
-                                                    background: '#FF7939',
-                                                    color: '#000'
-                                                }}
-                                            >
-                                                <div className="flex items-center gap-0.5">
-                                                    <Flame className="w-2.5 h-2.5 text-black" fill="black" />
-                                                    <span className="text-[10px] font-bold text-black leading-none">
-                                                        {it.pendingCount}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </button>
-                            )
-                        })}
-                    </div>
+                                    </button>
+                                );
+                            }
+                        });
+                    })()}
                 </div>
-            )}
+            </div>
 
             {(() => {
                 const hasMeets = meets.length > 0

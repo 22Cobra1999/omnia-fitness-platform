@@ -48,7 +48,7 @@ export function ProfileScreen() {
   } = logic
 
   return (
-    <div className="min-h-screen bg-[#0F1012] text-white p-4 space-y-6">
+    <div className="min-h-screen bg-black text-white p-4 space-y-6">
       {isCoach ? (
         <CoachProfileView logic={logic} />
       ) : (

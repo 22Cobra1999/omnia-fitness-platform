@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Flame, Clock, Zap } from 'lucide-react';
+import { Flame, Clock, Zap, UtensilsCrossed } from 'lucide-react';
 import { getWeekNumber } from '../../utils/calendar-utils';
 import { parseSeries } from '../../utils/parsers';
 
@@ -11,6 +11,8 @@ interface SheetHeaderProps {
     handlePrevDay?: () => void;
     handleNextDay?: () => void;
     title?: string;
+    programInfo?: any;
+    enrollment?: any;
 }
 
 export function SheetHeader({
@@ -20,8 +22,21 @@ export function SheetHeader({
     goToToday,
     handlePrevDay,
     handleNextDay,
-    title
+    title,
+    programInfo,
+    enrollment
 }: SheetHeaderProps) {
+    const isNutrition = [
+        String(programInfo?.categoria).toLowerCase(),
+        String(programInfo?.categoria_id).toLowerCase(),
+        String(enrollment?.activity?.categoria).toLowerCase(),
+        String(enrollment?.activity?.categoria_id).toLowerCase()
+    ].some(s => s.includes('nutricion') || s === '7' || s === 'nutrición') || activities.some(a => 
+        String(a.categoria).toLowerCase().includes('nutricion') || 
+        String(a.categoria_id) === '7' ||
+        String(a.category).toLowerCase().includes('nutrition')
+    );
+
     return (
         <div style={{ padding: '8px 20px 0px' }}>
             <div style={{
@@ -57,27 +72,39 @@ export function SheetHeader({
                             <Flame size={12} color="#FF7939" fill="#FF7939" />
                             <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
                                 {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
-                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>KCAL</span>
+                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>KCAL</span>
                             </span>
                         </div>
-                        {/* PRS Stat (Total Series for the day) */}
+                        {/* PRS / PLATOS Stat */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Zap size={12} color="#FF7939" fill="#FF7939" />
-                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                {activities.reduce((acc: number, curr: any) => {
-                                    const parsed = parseSeries(curr.detalle_series || curr.series);
-                                    const seriesCount = parsed.reduce((as: number, cs: any) => as + (Number(cs.sets) || 1), 0);
-                                    return acc + seriesCount;
-                                }, 0)}
-                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>PRS</span>
-                            </span>
+                            {isNutrition ? (
+                                <>
+                                    <UtensilsCrossed size={12} color="#FF7939" fill="#FF7939" />
+                                    <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
+                                        {activities.length}
+                                        <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>/PLATOS</span>
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <Zap size={12} color="#FF7939" fill="#FF7939" />
+                                    <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
+                                        {activities.reduce((acc: number, curr: any) => {
+                                            const parsed = parseSeries(curr.detalle_series || curr.series);
+                                            const seriesCount = parsed.reduce((as: number, cs: any) => as + (Number(cs.sets) || 1), 0);
+                                            return acc + seriesCount;
+                                        }, 0)}
+                                        <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>/PRS</span>
+                                    </span>
+                                </>
+                            )}
                         </div>
                         {/* MIN Stat */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
                             <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
                                 {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
-                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>MIN</span>
+                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>MI</span>
                             </span>
                         </div>
                     </div>

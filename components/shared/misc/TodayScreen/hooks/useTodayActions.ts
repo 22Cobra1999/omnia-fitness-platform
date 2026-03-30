@@ -26,13 +26,14 @@ export function useTodayActions({
     fetchActivities
 }: UseTodayActionsProps) {
 
-    const toggleExerciseSimple = React.useCallback(async (activityKey: string, selectedDate: Date) => {
+    const toggleExerciseSimple = React.useCallback(async (activityKey: string, dateArg?: Date) => {
         if (!user) return;
+        const sDate = dateArg || new Date();
 
         // Robust lookup: try direct ID match, then composite key match
         const activity = activities.find((a: Activity) =>
-            a.id === activityKey ||
-            `${a.exercise_id}_${a.bloque}_${a.orden}` === activityKey
+            String(a.id) === String(activityKey) ||
+            `${a.exercise_id}_${a.bloque || 1}_${a.orden || 1}` === String(activityKey)
         );
 
         if (!activity) {
@@ -42,7 +43,18 @@ export function useTodayActions({
 
         try {
             const { getBuenosAiresDateString } = require('@/utils/date-utils');
-            const currentDate = getBuenosAiresDateString(selectedDate);
+            const currentDate = getBuenosAiresDateString(sDate);
+
+            const isNutrition = [
+                String((programInfo as any)?.categoria).toLowerCase(),
+                String((programInfo as any)?.categoria_id).toLowerCase(),
+                String((enrollment as any)?.activity?.categoria).toLowerCase(),
+                String((enrollment as any)?.activity?.categoria_id).toLowerCase()
+            ].some(s => s.includes('nutricion') || s === '7' || s === 'nutrición') || activities.some(a => 
+                String((a as any).categoria).toLowerCase().includes('nutricion') || 
+                String((a as any).categoria_id) === '7' ||
+                String((a as any).type).toLowerCase() === 'nutricion'
+            );
 
             const payload = {
                 executionId: activity.ejercicio_id || activity.exercise_id,
@@ -51,7 +63,8 @@ export function useTodayActions({
                 fecha: currentDate,
                 categoria: programInfo?.categoria || enrollment?.activity?.categoria,
                 activityId: Number(activityId),
-                enrollmentId: enrollment?.id
+                enrollmentId: enrollment?.id,
+                isNutrition
             };
 
             console.log('🔄 [toggleExerciseSimple] Toggling exercise:', payload);
@@ -104,16 +117,20 @@ export function useTodayActions({
         }
     }, [user, activities, activityId, enrollment, programInfo, setActivities, refreshDayStatuses, fetchActivities]);
 
-    const toggleBlockCompletion = React.useCallback(async (blockNumber: number, selectedDate: Date) => {
-        const blockActivities = activities.filter((a: any) => a.bloque === blockNumber);
+    const toggleBlockCompletion = React.useCallback(async (blockNumber: number, dateArg?: Date) => {
+        const sDate = dateArg || new Date();
+        const blockActivities = activities.filter((a: any) => String(a.bloque) === String(blockNumber));
         if (blockActivities.length === 0) return;
 
         const isCurrentlyCompleted = blockActivities.every((a: any) => a.done);
+        console.log('🔄 [toggleBlockCompletion] Block:', blockNumber, 'Activities found:', blockActivities.length, 'IsCompleted:', isCurrentlyCompleted);
 
         // 1. OPTIMISTIC BULK UPDATE
-        setActivities((prev: any) => prev.map((a: any) =>
-            a.bloque === blockNumber ? { ...a, done: !isCurrentlyCompleted } : a
-        ));
+        setActivities((prev: any) => prev.map((a: any) => {
+            const match = String(a.bloque) === String(blockNumber);
+            if (match) console.log('✅ [toggleBlockCompletion] Matching activity:', a.id, 'New done:', !isCurrentlyCompleted);
+            return match ? { ...a, done: !isCurrentlyCompleted } : a;
+        }));
 
         // 2. BACKGROUND BULK SYNC
         const syncBulk = async () => {
@@ -122,7 +139,7 @@ export function useTodayActions({
                 const getBADate = (d: Date) => {
                     try { return require('@/utils/date-utils').getBuenosAiresDateString(d); } catch { return d.toISOString().split('T')[0]; }
                 };
-                const currentDate = getBADate(selectedDate);
+                const currentDate = getBADate(sDate);
 
                 const exercises = blockActivities.map(a => ({
                     id: a.ejercicio_id || a.exercise_id,
@@ -137,6 +154,7 @@ export function useTodayActions({
                     activityId: Number(activityId),
                     enrollmentId: enrollment?.id
                 };
+                console.log('🚀 [toggleBlockCompletion] Sending payload:', payload);
 
                 const response = await fetch(`/api/toggle-exercise`, {
                     method: 'POST',
@@ -144,11 +162,16 @@ export function useTodayActions({
                     body: JSON.stringify(payload)
                 });
 
+                const result = await response.json();
+                console.log('🏁 [toggleBlockCompletion] API Response:', response.status, result);
+
                 if (!response.ok) {
-                    // Revert if failed
+                    console.error('❌ [toggleBlockCompletion] Sync failed:', result.error);
+                    // Rollback or refetch
                     setActivities((prev: any) => prev.map((a: any) =>
-                        a.bloque === blockNumber ? { ...a, done: isCurrentlyCompleted } : a
+                        String(a.bloque) === String(blockNumber) ? { ...a, done: isCurrentlyCompleted } : a
                     ));
+                    if (fetchActivities) fetchActivities({ silent: true });
                 } else {
                     refreshDayStatuses();
                     if (fetchActivities) fetchActivities({ silent: true });
@@ -156,7 +179,7 @@ export function useTodayActions({
             } catch (e) {
                 console.error('❌ Bulk sync failed:', e);
                 setActivities((prev: any) => prev.map((a: any) =>
-                    a.bloque === blockNumber ? { ...a, done: isCurrentlyCompleted } : a
+                    String(a.bloque) === String(blockNumber) ? { ...a, done: isCurrentlyCompleted } : a
                 ));
             }
         };

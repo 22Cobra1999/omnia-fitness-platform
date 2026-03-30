@@ -399,24 +399,18 @@ export function WeeklyCalendar({
             {/* Legend */}
             <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.1)', width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-around', gap: 10, flexWrap: 'wrap' }}>
-                    {dayCounts.pending > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 40, 40)', border: '1px solid rgba(255, 255, 255, 0.4)' }}></div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#FF4444' }}>Por hacer ({dayCounts.pending})</span>
-                        </div>
-                    )}
-                    {dayCounts.started > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 180, 0)', border: '1px solid rgba(255, 255, 255, 0.5)' }}></div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#FFB400' }}>Incompletos ({dayCounts.started})</span>
-                        </div>
-                    )}
-                    {dayCounts.completed > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 106, 0)', border: '1px solid rgba(255, 255, 255, 0.6)' }}></div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#FF6A00' }}>Completos ({dayCounts.completed})</span>
-                        </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 40, 40)', border: '1px solid rgba(255, 255, 255, 0.4)' }}></div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#FF4444' }}>Por hacer ({dayCounts.pending})</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 180, 0)', border: '1px solid rgba(255, 255, 255, 0.5)' }}></div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#FFB400' }}>Incompletos ({dayCounts.started})</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 106, 0)', border: '1px solid rgba(255, 255, 255, 0.6)' }}></div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#FF6A00' }}>Completos ({dayCounts.completed})</span>
+                    </div>
                 </div>
             </div>
 

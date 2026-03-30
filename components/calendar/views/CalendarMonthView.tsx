@@ -1,5 +1,4 @@
 
-import { Card, CardContent } from "@/components/ui/card"
 import { CalendarMonthGrid } from "../components/CalendarMonthGrid"
 import { CalendarEditOverlay } from "../components/CalendarEditOverlay"
 import { CalendarDayDetail } from "../components/CalendarDayDetail"
@@ -44,27 +43,25 @@ export function CalendarMonthView({
 }: CalendarMonthViewProps) {
     return (
         <>
-            <Card className="bg-zinc-900 border-zinc-800 w-full sm:max-w-none mt-4">
-                <CardContent className="p-4">
-                    <CalendarEditOverlay
+            <div className="w-full mt-4">
+                <CalendarEditOverlay
+                    isEditing={isEditing}
+                    sourceDate={sourceDate}
+                />
+                <div className="mt-4">
+                    <CalendarMonthGrid
+                        currentDate={currentDate}
+                        activitiesByDate={activitiesByDate}
+                        dayMinutesByDate={dayMinutesByDate}
+                        meetEventsByDate={meetEventsByDate}
+                        availableSlotsCountByDay={availableSlotsCountByDay}
+                        selectedDate={selectedDate!!}
+                        onSelectDate={onSelectDate}
                         isEditing={isEditing}
                         sourceDate={sourceDate}
                     />
-                    <div className="mt-4">
-                        <CalendarMonthGrid
-                            currentDate={currentDate}
-                            activitiesByDate={activitiesByDate}
-                            dayMinutesByDate={dayMinutesByDate}
-                            meetEventsByDate={meetEventsByDate}
-                            availableSlotsCountByDay={availableSlotsCountByDay}
-                            selectedDate={selectedDate!!}
-                            onSelectDate={onSelectDate}
-                            isEditing={isEditing}
-                            sourceDate={sourceDate}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             <CalendarDayDetail
                 selectedDate={selectedDate}

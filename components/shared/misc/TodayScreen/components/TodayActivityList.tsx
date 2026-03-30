@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Check, Flame, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, Check, Flame, Clock, ChevronDown, UtensilsCrossed, CheckCircle2, Circle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils/utils';
 
 interface ActivityItem {
@@ -22,6 +22,17 @@ interface TodayActivityListProps {
     isLoading: boolean;
     onActivityClick: (activity: ActivityItem) => void;
     onToggleActivity: (id: string) => void;
+    
+    // New Props for Block Management
+    blockNames?: Record<number, string>;
+    collapsedBlocks?: Record<number, boolean>;
+    toggleBlock?: (num: number) => void;
+    toggleBlockCompletion?: (num: number) => void;
+    isBlockCompleted?: (num: number) => boolean;
+    programInfo?: any;
+    enrollment?: any;
+    openVideo?: (url: string, activity: any) => void;
+    toggleExerciseSimple?: (id: string) => void;
 }
 
 const formatSubtitle = (subtitle: string) => {
@@ -56,10 +67,28 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
     activities,
     isLoading,
     onActivityClick,
-    onToggleActivity
+    onToggleActivity,
+    blockNames,
+    collapsedBlocks,
+    toggleBlock,
+    toggleBlockCompletion,
+    isBlockCompleted,
+    programInfo,
+    enrollment,
+    toggleExerciseSimple
 }) => {
+    const isNutrition = [
+        String(programInfo?.categoria).toLowerCase(),
+        String(programInfo?.categoria_id).toLowerCase(),
+        String(enrollment?.activity?.categoria).toLowerCase(),
+        String(enrollment?.activity?.categoria_id).toLowerCase()
+    ].some(s => s.includes('nutricion') || s === '7' || s === 'nutrición') || activities.some(a => 
+        String((a as any).categoria).toLowerCase().includes('nutricion') || 
+        String((a as any).categoria_id) === '7' ||
+        String(a.type).toLowerCase() === 'nutricion'
+    );
     const activitiesByBlock: Record<number, ActivityItem[]> = {};
-    const [expandedBlocks, setExpandedBlocks] = useState<Record<number, boolean>>({});
+    const [localExpandedBlocks, setLocalExpandedBlocks] = useState<Record<number, boolean>>({});
     const [isInitialized, setIsInitialized] = useState(false);
 
     activities.forEach(act => {
@@ -74,13 +103,17 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
             Object.keys(activitiesByBlock).forEach(k => {
                 initial[Number(k)] = true;
             });
-            setExpandedBlocks(initial);
+            setLocalExpandedBlocks(initial);
             setIsInitialized(true);
         }
-    }, [activities, isInitialized]);
+    }, [activities, isInitialized, activitiesByBlock]);
 
-    const toggleBlock = (blockId: number) => {
-        setExpandedBlocks(prev => ({ ...prev, [blockId]: !prev[blockId] }));
+    const handleToggleBlock = (blockId: number) => {
+        if (toggleBlock) {
+            toggleBlock(blockId);
+        } else {
+            setLocalExpandedBlocks(prev => ({ ...prev, [blockId]: !prev[blockId] }));
+        }
     };
 
     if (isLoading) {
@@ -110,7 +143,7 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
             <div className="flex items-center justify-between mb-6 px-1">
                 <div className="flex flex-col">
                     <h2 className="text-2xl font-black text-white tracking-tight uppercase italic">
-                        Training
+                        {isNutrition ? 'Nutrition' : 'Training'}
                     </h2>
                     <div className="h-1 w-8 bg-[#FF7939] rounded-full mt-1" />
                 </div>
@@ -126,48 +159,60 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
             {Object.keys(activitiesByBlock).sort().map((blockIdStr) => {
                 const blockId = Number(blockIdStr);
                 const blockActivities = activitiesByBlock[blockId];
-                const isExpanded = expandedBlocks[blockId] ?? true;
+                const isExpanded = collapsedBlocks ? !collapsedBlocks[blockId] : (localExpandedBlocks[blockId] ?? true);
                 const completedCount = blockActivities.filter(a => a.done).length;
-                const isBlockCompleted = completedCount === blockActivities.length;
-                const isActiveBlock = !isBlockCompleted && isExpanded;
+                const isBlockCompletedState = completedCount === blockActivities.length;
+                const isActiveBlock = !isBlockCompletedState && isExpanded;
 
                 return (
                     <div key={blockId} className="mb-6">
                         <div
-                            onClick={() => toggleBlock(blockId)}
                             className={cn(
-                                "flex items-center justify-between p-4 rounded-3xl transition-all duration-300 cursor-pointer mb-3",
+                                "flex items-center justify-between p-4 rounded-3xl transition-all duration-300 mb-3",
                                 isActiveBlock
                                     ? "bg-white/10 border border-[#FF7939]/30 shadow-[0_8px_20px_rgba(255,121,57,0.1)]"
                                     : "bg-white/5 border border-white/5"
                             )}
                         >
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300",
-                                    isBlockCompleted ? "bg-[#FF7939]/20" : "bg-white/5"
-                                )}>
-                                    <span className={cn(
-                                        "text-sm font-black",
-                                        isBlockCompleted ? "text-[#FF7939]" : "text-white/40"
-                                    )}>
-                                        {blockId}
-                                    </span>
+                            <div 
+                                onClick={() => handleToggleBlock(blockId)}
+                                className="flex items-center gap-4 cursor-pointer flex-1"
+                            >
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleBlockCompletion?.(blockId);
+                                    }}
+                                    className={cn(
+                                        "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                                        isBlockCompletedState ? "" : "bg-white/5 border border-white/10"
+                                    )}
+                                >
+                                    {isBlockCompletedState ? (
+                                        <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-black/20">
+                                            <Flame size={18} fill="#FF7939" stroke="#FF7939" strokeWidth={2.5} />
+                                        </div>
+                                    ) : (
+                                        isNutrition ? <UtensilsCrossed size={18} className="text-white/20" /> : <Zap size={18} className="text-white/20" />
+                                    )}
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-xs font-black text-[#FF7939]/60 uppercase tracking-widest leading-none mb-1">
                                         Bloque
                                     </span>
                                     <span className="text-sm font-bold text-white tracking-tight">
-                                        {blockActivities.length} {blockActivities.length === 1 ? 'Ejercicio' : 'Ejercicios'}
+                                        {blockActivities.length} {blockActivities.length === 1 ? (isNutrition ? 'Plato' : 'Ejercicio') : (isNutrition ? 'Platos' : 'Ejercicios')}
                                     </span>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-3">
+                                <div className="h-6 w-[1px] bg-white/10 mx-1" />
                                 <div className="flex flex-col items-end mr-1">
                                     <div className="text-[10px] font-black text-white/20 uppercase tracking-widest">Progreso</div>
-                                    <div className="text-xs font-bold text-white/60">{completedCount}/{blockActivities.length}</div>
+                                    <div className="text-sm font-black text-[#FF7939]">
+                                        {blockActivities.filter(a => a.done).length}/{blockActivities.length}
+                                    </div>
                                 </div>
                                 <div className={cn(
                                     "p-1.5 rounded-full transition-all duration-300",
@@ -189,7 +234,6 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
                                             key={activity.id}
                                             className="relative flex items-center group"
                                         >
-                                            {/* Line connector */}
                                             {idx < blockActivities.length - 1 && (
                                                 <div className="absolute left-[23px] top-[40px] w-0.5 h-full bg-white/5 group-hover:bg-[#FF7939]/20 transition-all" />
                                             )}
@@ -201,25 +245,25 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
                                                     isDone ? "bg-white/[0.02]" : "bg-white/5 hover:bg-white/[0.08]"
                                                 )}
                                             >
-                                                {/* Status Indicator */}
                                                 <div
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onToggleActivity(activity.id);
+                                                        if (toggleExerciseSimple) toggleExerciseSimple(activity.id);
+                                                        else onToggleActivity(activity.id);
                                                     }}
                                                     className={cn(
-                                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-500",
-                                                        isDone
-                                                            ? "bg-[#FF7939] border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]"
-                                                            : "bg-black/20 border-white/10 text-white/20"
+                                                        "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300",
+                                                        isDone ? "bg-transparent border-none shadow-none" : "bg-white/5 border border-white/10"
                                                     )}
                                                 >
-                                                    {isDone ? (
-                                                        <Check size={20} className="text-white stroke-[3]" />
-                                                    ) : (
-                                                        <Play size={18} className="text-white/40 group-hover:text-white transition-colors" />
-                                                    )}
-                                                </div>
+                                                {activity.done ? (
+                                                    <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-1.5 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-black/20">
+                                                        <Flame size={18} fill="#FF7939" stroke="#FF7939" strokeWidth={2.5} />
+                                                    </div>
+                                                ) : (
+                                                    isNutrition ? <UtensilsCrossed size={18} className="text-white/40 group-hover:text-white transition-colors" /> : <Zap size={18} className="text-white/40 group-hover:text-white transition-colors" />
+                                                )}
+                                            </div>
 
                                                 <div className="flex-1 min-w-0 py-1">
                                                     <div className="flex flex-col gap-0.5">
@@ -249,10 +293,12 @@ export const TodayActivityList: React.FC<TodayActivityListProps> = ({
                                                                 <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">{activity.calorias} kcal</span>
                                                             </div>
                                                         )}
-                                                        {(activity.minutos || activity.duration) && (
+                                                        {(activity.minutos !== null && activity.minutos !== undefined || activity.duration !== null && activity.duration !== undefined) && (
                                                             <div className="flex items-center gap-1">
                                                                 <Clock size={12} className="text-white/20" />
-                                                                <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">{activity.minutos || activity.duration} min</span>
+                                                                <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                                                                    {activity.minutos ?? activity.duration} min
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>

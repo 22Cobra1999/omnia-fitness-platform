@@ -156,6 +156,8 @@ export function DraggableSheet({
                         activities={activities}
                         isSheetExpanded={expandedState}
                         selectedDate={selectedDate}
+                        programInfo={programInfo}
+                        enrollment={enrollment}
                         goToToday={goToToday}
                         handlePrevDay={handlePrevDay}
                         handleNextDay={handleNextDay}
@@ -181,6 +183,7 @@ export function DraggableSheet({
                                         handleOpenSurveyModal={handleOpenSurveyModal}
                                         meetCreditsAvailable={meetCreditsAvailable}
                                         onScheduleMeet={onScheduleMeet}
+                                        selectedDate={selectedDate}
                                     />
                                 )}
                             </>

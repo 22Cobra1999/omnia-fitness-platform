@@ -26,7 +26,7 @@ export function CalendarHeader({
     isAddSectionOpen = false
 }: CalendarHeaderProps) {
     return (
-        <div className="flex items-center justify-between mb-6 px-1">
+        <div className="flex items-center justify-between mb-6 px-1 mt-4">
             {/* Esquina Izquierda: Notificaciones */}
             <div className="flex-1 flex justify-start">
                 <button
@@ -43,7 +43,7 @@ export function CalendarHeader({
             </div>
 
             {/* Centro: Navegación de Mes */}
-            <div className="flex items-center gap-3 sm:gap-6 bg-zinc-900/50 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/5">
+            <div className="flex items-center gap-3 sm:gap-6 px-3 py-1.5 rounded-full">
                 <Button
                     variant="ghost"
                     onClick={onPrev}
