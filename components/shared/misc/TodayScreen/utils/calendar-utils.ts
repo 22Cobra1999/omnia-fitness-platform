@@ -126,7 +126,7 @@ export async function loadDayStatusesAsMap(userId: string, activityId: string, e
     try {
         const { data: records, error } = await supabase
             .from('progreso_diario_actividad')
-            .select('fecha, items_objetivo, items_completados')
+            .select('fecha, fit_items_c, fit_items_o, nut_items_c, nut_items_o')
             .eq('cliente_id', userId)
             .eq('enrollment_id', enrollment.id);
 
@@ -139,8 +139,9 @@ export async function loadDayStatusesAsMap(userId: string, activityId: string, e
             if (!record.fecha) return;
             const dateKey = record.fecha.split('T')[0];
 
-            const obj = Number(record.items_objetivo) || 0;
-            const comp = Number(record.items_completados) || 0;
+            // Sum both fitness and nutrition to determine overall day status
+            const obj = (Number(record.fit_items_o) || 0) + (Number(record.nut_items_o) || 0);
+            const comp = (Number(record.fit_items_c) || 0) + (Number(record.nut_items_c) || 0);
 
             if (obj === 0) return;
 

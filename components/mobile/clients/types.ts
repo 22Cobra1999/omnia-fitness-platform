@@ -31,4 +31,5 @@ export interface Client {
     streak?: number
     fitStats?: { completed: number; total: number; absent: number }
     nutriStats?: { completed: number; total: number; absent: number }
+    birth_date?: string
 }

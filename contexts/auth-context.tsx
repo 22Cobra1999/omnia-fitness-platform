@@ -70,6 +70,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
+    // 🛡️ FAIL-SAFE: Seguro de vida para evitar que el usuario se quede bloqueado en "Validando"
+    let lifeInsurance: NodeJS.Timeout | null = null;
+    
+    const clearLifeInsurance = () => {
+      if (lifeInsurance) {
+        clearTimeout(lifeInsurance);
+        lifeInsurance = null;
+      }
+    };
+
     const loadUser = async () => {
       try {
         setLoading(true)
@@ -92,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const resultWithFlag = result as any
         if (resultWithFlag?.isTimeout) {
           if (process.env.NODE_ENV === 'development') {
-            console.warn("⏱️ [auth-context] Timeout real alcanzado esperando sesión - Continuando con sesión null")
+            console.warn("⏱️ [auth-context] Timeout alcanzado esperando sesión");
           }
         }
 
@@ -101,17 +111,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.warn("Session error:", error)
           setUser(null)
+          clearLifeInsurance();
           setLoading(false)
           return
         }
 
         if (data?.session?.user) {
           const supabaseUser = data.session.user;
-          // Primero seteamos el usuario con lo que tenemos para desbloquear la UI inmediatamente
           setUser(formatUser(supabaseUser));
+          clearLifeInsurance();
           setLoading(false);
 
-          // Luego, en SEGUNDO PLANO, buscamos el perfil de la DB
+          // Sincronizar perfil en segundo plano
           supabase
             .from('user_profiles')
             .select('role')
@@ -119,50 +130,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .maybeSingle()
             .then(({ data: profileData }: { data: any }) => {
               if (profileData && mounted) {
-                console.log("🔄 [auth-context] Perfil sincronizado en segundo plano:", profileData.role);
                 setUser(formatUser(supabaseUser, profileData));
               }
-            }).catch((e: any) => console.warn("Error en background profile fetch:", e));
+            }).catch((e: any) => console.warn("Error profiling:", e));
         } else {
-          if (process.env.NODE_ENV === 'development') {
-            console.log("ℹ️ No user found in session (user is probably logged out)");
-          }
           setUser(null);
+          clearLifeInsurance();
+          setLoading(false);
         }
-        setLoading(false);
-        setLoading(false)
       } catch (error) {
         console.error("Error loading user:", error)
         if (mounted) {
           setUser(null)
+          clearLifeInsurance();
           setLoading(false)
         }
       }
     }
 
-    // Set up listener for auth state changes - Optimizado
+    // Set up listener for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
       if (!mounted) return
 
-      // Log optimizado - solo en desarrollo
       if (process.env.NODE_ENV === 'development') {
         console.log("Auth state change:", event)
       }
 
       if (event === "SIGNED_OUT") {
         setUser(null)
+        clearLifeInsurance();
         setLoading(false)
         return
       }
 
       if (session?.user) {
-        // Desbloquear UI inmediatamente
         setUser(formatUser(session.user));
+        clearLifeInsurance();
         setLoading(false);
 
-        // Sincronizar en background
         supabase
           .from('user_profiles')
           .select('role')
@@ -173,26 +180,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUser(formatUser(session.user, profileData));
             }
           });
-      } else {
-        setUser(null)
-        setLoading(false)
+      } else if (event === "INITIAL_SESSION") {
+        // Si INITIAL_SESSION vino vacío, no hay usuario
+        clearLifeInsurance();
+        setLoading(false);
       }
     })
 
     loadUser()
 
-    // 🛡️ FAIL-SAFE: Seguro de vida para evitar que el usuario se quede bloqueado en "Validando"
-    const lifeInsurance = setTimeout(() => {
-      if (mounted) {
+    lifeInsurance = setTimeout(() => {
+      if (mounted && loading) { // Solo si sigue cargando
         console.warn("🛡️ [auth-context] FAIL-SAFE: Forzando fin de carga tras 7 segundos");
         setLoading(false);
       }
     }, 7000);
 
-    // Clean up subscription on unmount
     return () => {
       mounted = false
-      clearTimeout(lifeInsurance);
+      clearLifeInsurance();
       subscription.unsubscribe()
     }
   }, [supabase])

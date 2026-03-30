@@ -65,48 +65,6 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         return "otros"
     }
 
-    // --- ACTIONS ---
-
-    // Handle Activity Click
-    const handleActivityClick = useCallback((activityId: string, enrollmentId?: string) => {
-        setSelectedActivityId(activityId)
-        if (enrollmentId) {
-            setSelectedEnrollmentId(enrollmentId)
-
-            // Sync URL with Enrollment ID (UUID) instead of Activity ID to avoid ambiguity
-            const url = new URL(window.location.href)
-            url.searchParams.set('id', enrollmentId)
-            window.history.replaceState({ tab: 'activity', id: enrollmentId }, '', url.toString())
-            console.log("🔗 [useActivityScreenLogic] URL synced with enrollment ID:", enrollmentId)
-        }
-        setShowTodayScreen(true)
-    }, [])
-
-    // Handle Back Navigation
-    const handleBackToActivities = useCallback(() => {
-        setShowTodayScreen(false)
-        setSelectedActivityId(null)
-        setSelectedEnrollmentId(null)
-
-        // Clear ID from URL when going back to list
-        const url = new URL(window.location.href)
-        url.searchParams.delete('id')
-        window.history.replaceState({ tab: 'activity' }, '', url.toString())
-    }, [])
-
-    // Handle Coach Click
-    const handleCoachClick = useCallback((coachId: string) => {
-        const coach = coaches.find(c => c.id === coachId)
-        if (coach) {
-            setSelectedCoachForProfile(coach)
-            setIsCoachProfileModalOpen(true)
-        }
-    }, [coaches])
-
-    const closeCoachModal = useCallback(() => {
-        setIsCoachProfileModalOpen(false)
-        setSelectedCoachForProfile(null)
-    }, [])
 
     // --- DATA FETCHING ---
 
@@ -119,7 +77,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         // Fetch all progress records for these enrollments
         const { data, error } = await supabase
             .from('progreso_diario_actividad')
-            .select('enrollment_id, items_objetivo, items_completados')
+            .select('enrollment_id, fit_items_c, fit_items_o, nut_items_c, nut_items_o')
             .in('enrollment_id', enrollmentIds)
 
         if (error) {
@@ -136,8 +94,9 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             if (!acc[curr.enrollment_id]) {
                 acc[curr.enrollment_id] = { total: 0, completed: 0 }
             }
-            acc[curr.enrollment_id].total += (curr.items_objetivo || 0)
-            acc[curr.enrollment_id].completed += (curr.items_completados || 0)
+            // Sum both fitness and nutrition items
+            acc[curr.enrollment_id].total += (curr.fit_items_o || 0) + (curr.nut_items_o || 0)
+            acc[curr.enrollment_id].completed += (curr.fit_items_c || 0) + (curr.nut_items_c || 0)
             return acc
         }, {})
 
@@ -389,6 +348,48 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             })
             setMeetCredits(creditsMap)
         }
+    }, [supabase])
+
+    // --- ACTIONS ---
+
+    // Handle Activity Click
+    const handleActivityClick = useCallback((activityId: string, enrollmentId?: string) => {
+        setSelectedActivityId(activityId)
+        if (enrollmentId) {
+            setSelectedEnrollmentId(enrollmentId)
+            const url = new URL(window.location.href)
+            url.searchParams.set('id', enrollmentId)
+            window.history.replaceState({ tab: 'activity', id: enrollmentId }, '', url.toString())
+        }
+        setShowTodayScreen(true)
+    }, [])
+
+    // Handle Back Navigation
+    const handleBackToActivities = useCallback(() => {
+        setShowTodayScreen(false)
+        setSelectedActivityId(null)
+        setSelectedEnrollmentId(null)
+
+        const url = new URL(window.location.href)
+        url.searchParams.delete('id')
+        window.history.replaceState({ tab: 'activity' }, '', url.toString())
+
+        // 🔥 Trigger silent refresh
+        fetchUserEnrollments(true)
+    }, [fetchUserEnrollments])
+
+    // Handle Coach Click
+    const handleCoachClick = useCallback((coachId: string) => {
+        const coach = coaches.find(c => c.id === coachId)
+        if (coach) {
+            setSelectedCoachForProfile(coach)
+            setIsCoachProfileModalOpen(true)
+        }
+    }, [coaches])
+
+    const closeCoachModal = useCallback(() => {
+        setIsCoachProfileModalOpen(false)
+        setSelectedCoachForProfile(null)
     }, [])
 
     // --- EFFECTS ---

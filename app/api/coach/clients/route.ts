@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       lastProgress.forEach((p: any) => { if (!lastActiveMap.has(p.cliente_id)) lastActiveMap.set(p.cliente_id, p.fecha) })
     }
 
-    const enrollmentIdsAll = enrollments.map((e: any) => Number(e.id)).filter(id => id > 0)
+    const enrollmentIdsAll = enrollments.map((e: any) => Number(e.id)).filter((id: number) => id > 0)
     const { data: bancoData } = await supabase.from('banco').select('enrollment_id, seller_amount, amount_paid').in('enrollment_id', enrollmentIdsAll)
     const paidByEnrollmentId = new Map<number, number>()
     if (bancoData) {
@@ -152,7 +152,10 @@ export async function GET(request: NextRequest) {
       let t_ok = 0, t_pen = 0, t_obj = 0, d_ok = 0, d_late = 0, d_reg = 0, maxAlert = 0
       const fitStats = { completed: 0, total: 0, absent: 0 }, nutriStats = { completed: 0, total: 0, absent: 0 }
 
-      for (const e of client.enrollments || []) {
+      // Filter for ACTIVE ONLY in progress aggregation
+      const activeEnrollments = (client.enrollments || []).filter((e: any) => ['activa', 'active'].includes(String(e.status).toLowerCase()))
+
+      for (const e of activeEnrollments) {
         const agg = await computeProgressAggForActivity(client.id, Number(e.activity_id), Number(e.id))
         activeProgressByActivity.set(Number(e.activity_id), agg.progressPercent)
         t_ok += agg.itemsCompletados; t_pen += agg.itemsPendientes; t_obj += agg.itemsTotalesObjetivo
@@ -162,15 +165,20 @@ export async function GET(request: NextRequest) {
         if (agg.alertLevel > maxAlert) maxAlert = agg.alertLevel
       }
 
-      let currentStreak = 0
-      const recent = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(client.id) && d.fecha <= todayIso).sort((a,b) => b.fecha.localeCompare(a.fecha)).slice(0, 60)
-      if (recent.length > 0) {
-        const uniqueDates = Array.from(new Set(recent.map((d: any) => d.fecha))).sort((a,b) => b.localeCompare(a))
+      // Cumulative Streak: Total unique days where ALL assigned items were completed
+      let totalCompletedDays = 0
+      const cDailyStats = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(client.id) && d.fecha <= todayIso)
+      if (cDailyStats.length > 0) {
+        const uniqueDates = Array.from(new Set(cDailyStats.map((d: any) => d.fecha)))
         for (const date of uniqueDates) {
-          const rows = recent.filter(r => r.fecha === date)
-          const ok = rows.every(r => ((r.fit_items_c || 0) + (r.nut_items_c || 0)) >= ((r.fit_items_o || 0) + (r.nut_items_o || 0)))
-          if (ok) currentStreak++
-          else { if (date === todayIso) continue; break }
+          const rowsInDate = cDailyStats.filter((r: any) => r.fecha === date)
+          // A day is "perfect" if ALL assigned items across ALL current activities were done
+          const totalObj = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_o || 0) + (r.nut_items_o || 0), 0)
+          const totalComp = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_c || 0) + (r.nut_items_c || 0), 0)
+          
+          if (totalObj > 0 && totalComp >= totalObj) {
+            totalCompletedDays++
+          }
         }
       }
 
@@ -181,7 +189,7 @@ export async function GET(request: NextRequest) {
         status: clientStatus, totalRevenue, lastActive: formatLastActive(lastActiveMap.get(client.id) || ''),
         activitiesCount: client.activities.length, todoCount: pendingCountMap.get(String(client.id)) || 0,
         alertLevel: maxAlert, hasAlert: maxAlert > 0, daysCompleted: d_ok, absentDays: d_late, daysTotal: d_reg || 30,
-        completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: currentStreak, fitStats, nutriStats, 
+        completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: totalCompletedDays, fitStats, nutriStats, 
         activities: client.activities.map((a: any) => ({ id: a.id, title: a.title, type: a.type, amountPaid: paidByEnrollmentId.get(client.enrollments.find((e:any)=>Number(e.activity_id)===Number(a.id))?.id) || 0 }))
       }
     }))

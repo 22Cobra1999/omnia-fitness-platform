@@ -401,6 +401,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     src={activity.coach_avatar_url}
                     alt={activity.coach_name || 'Coach'}
                     fill
+                    sizes="24px"
                     className="object-cover"
                   />
                 ) : (

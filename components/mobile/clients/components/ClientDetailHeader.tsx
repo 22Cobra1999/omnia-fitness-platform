@@ -49,8 +49,8 @@ export function ClientDetailHeader({
                             <div className="absolute -bottom-2 sm:-bottom-3 z-20 flex flex-col items-center justify-center">
                                 <div className="relative flex items-center justify-center">
                                     <Flame className="h-8 w-8 sm:h-10 sm:w-10 text-[#FF7939] drop-shadow-lg" fill="#FF7939" strokeWidth={1.5} />
-                                    <span className="absolute text-black font-bold text-[10px] sm:text-xs font-[var(--font-anton)] pt-1">
-                                        {(client.itemsPending ?? 0) + (client.todoCount ?? 0)}
+                                    <span className="absolute text-black font-black text-[12px] sm:text-sm font-[var(--font-anton)] pt-1">
+                                        {clientDetail?.client?.streak || client.streak || 0}
                                     </span>
                                 </div>
                             </div>
@@ -92,9 +92,13 @@ export function ClientDetailHeader({
 
                         <div className="flex items-center justify-center gap-3 mt-1 mb-4">
                             <span className="text-sm text-gray-400 font-medium">
-                                {clientDetail?.client?.physicalData?.birth_date
-                                    ? `${calculateAge(clientDetail.client.physicalData.birth_date)} años`
-                                    : (clientDetail?.client?.physicalData?.age ? `${clientDetail.client.physicalData.age} años` : '-')}
+                                {(() => {
+                                    const birthDate = clientDetail?.client?.physicalData?.birth_date || client.birth_date
+                                    if (birthDate) return `${calculateAge(birthDate)} años`
+                                    const age = clientDetail?.client?.physicalData?.age || (client as any).age
+                                    if (age) return `${age} años`
+                                    return '-'
+                                })()}
                             </span>
                             <span className="text-zinc-600">•</span>
                             <span className="text-sm text-[#FF7939] font-bold capitalize tracking-wide">

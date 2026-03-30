@@ -34,8 +34,16 @@ export async function POST(request: NextRequest) {
     const requestedTitle = typeof requestedTitleRaw === 'string' ? requestedTitleRaw.trim() : ''
     const title = (requestedTitle && requestedTitle.length > 0 ? requestedTitle : file.name)
     const exerciseId = formData.get('exerciseId') as string
+    const exerciseIdsRaw = formData.get('exerciseIds') as string
     const activityId = formData.get('activityId') as string
     const mediaId = formData.get('mediaId') as string // Para actualizar activity_media
+
+    // Resolver lista de IDs a actualizar
+    const targetExerciseIds = exerciseIdsRaw 
+      ? exerciseIdsRaw.split(',').map(id => parseInt(id)).filter(id => !isNaN(id))
+      : (exerciseId && exerciseId !== 'NONE' ? [parseInt(exerciseId)] : [])
+
+    // Metadatos iniciales ya resueltos arriba (targetExerciseIds, etc.)
 
     const normalizedFileName =
       typeof title === 'string' && title.trim().length > 0
@@ -94,6 +102,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log(`📡 [upload-video] Metadatos finales:`, { 
+      targetExerciseIds, 
+      activityId, 
+      mediaId,
+      videoLibraryId: videoMeta.libraryId,
+      videoId: videoMeta.videoId,
+      fileName: videoMeta.fileName,
+      reused: videoMeta.reused
+    })
+
     // Asegurar que el nombre que persistimos sea el mismo que Bunny (title oficial)
     let bunnyTitle: string | null = null
     try {
@@ -118,32 +136,33 @@ export async function POST(request: NextRequest) {
       previousMediaVideoId = mediaRow?.bunny_video_id || null
     }
 
-    if (exerciseId && activityId) {
-      const exerciseIdentifier = parseInt(exerciseId)
-      const activityIdentifier = parseInt(activityId)
+    if (targetExerciseIds.length > 0) {
+      const activityIdentifier = activityId ? parseInt(activityId) : null
 
-      console.log(`🎯 [upload-video] Actualizando ejercicio ${exerciseIdentifier} (actividad ${activityIdentifier})`)
+      console.log(`🎯 [upload-video] Iniciando actualización batch para IDs: ${targetExerciseIds.join(', ')}`)
 
-      const { data: exerciseRow, error: fetchError } = await supabase
-        .from('ejercicios_detalles')
-        .select('activity_id, bunny_video_id')
-        .eq('id', exerciseIdentifier)
-        .eq('coach_id', user.id)
-        .maybeSingle()
+      for (const exerciseIdentifier of targetExerciseIds) {
+        const { data: exerciseRow, error: fetchError } = await supabase
+          .from('ejercicios_detalles')
+          .select('activity_id, bunny_video_id')
+          .eq('id', exerciseIdentifier)
+          .eq('coach_id', user.id)
+          .maybeSingle()
 
-      console.log(`🎯 [upload-video] Ejercicio row:`, { exerciseRow, fetchError })
+        if (!exerciseRow || fetchError) {
+          console.error(`❌ [upload-video] Ejercicio ${exerciseIdentifier} no encontrado o sin acceso`, { fetchError })
+          continue
+        }
 
-      if (!exerciseRow || fetchError) {
-        console.error('❌ [upload-video] Ejercicio no encontrado o acceso denegado', { exerciseId, fetchError })
-        // Don't return 404 — still return success to be non-blocking, but skip DB update
-      } else {
-        // Log if activity doesn't match (warn only — don't block for JSONB format exercises)
-        const activityOk = hasActivity(exerciseRow.activity_id, activityIdentifier)
-        if (!activityOk) {
-          console.warn(`⚠️ [upload-video] activity_id no matchea (puede ser formato JSONB legacy). Actualizando igual.`, {
-            stored: exerciseRow.activity_id,
-            expected: activityIdentifier
-          })
+        // Warning si el activityId no coincide (si se proveyó activityId)
+        if (activityIdentifier) {
+          const activityOk = hasActivity(exerciseRow.activity_id, activityIdentifier)
+          if (!activityOk) {
+            console.warn(`⚠️ [upload-video] activity_id no coincide para ejercicio ${exerciseIdentifier}. Actualizando igual.`, {
+              stored: exerciseRow.activity_id,
+              expected: activityIdentifier
+            })
+          }
         }
 
         previousExerciseVideoId = exerciseRow.bunny_video_id || null
@@ -163,9 +182,9 @@ export async function POST(request: NextRequest) {
           .eq('id', exerciseIdentifier)
 
         if (updateError) {
-          console.error('❌ [upload-video] Error actualizando ejercicio:', updateError)
+          console.error(`❌ [upload-video] Error actualizando ejercicio ${exerciseIdentifier}:`, updateError)
         } else {
-          console.log(`✅ [upload-video] ejercicios_detalles actualizado para ejercicio ${exerciseIdentifier}`)
+          console.log(`✅ [upload-video] DB UPDATED: Ejercicio ${exerciseIdentifier} -> Library: ${videoMeta.libraryId}, Video: ${videoMeta.videoId}`)
           if (previousExerciseVideoId && previousExerciseVideoId !== videoMeta.videoId) {
             await deleteVideoIfUnused(supabase, previousExerciseVideoId)
           }

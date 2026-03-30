@@ -164,29 +164,6 @@ export function PurchasedActivityCardContent({
                     )}
                 </div>
 
-                {/* 3. Streak Counter (Racha) - Side-by-side design + RACHA label below */}
-                {(streak > 0 || (pendingCount === 0 && hasStarted)) && (
-                    <div className="flex flex-col items-center justify-center -mt-4 mb-2">
-                        <div className="relative group transition-all duration-500 active:scale-95 flex flex-col items-center">
-                            {/* Premium dark squircle frame */}
-                            <div className={cn(
-                                "bg-[#1A0F0A]/90 backdrop-blur-2xl rounded-2xl shadow-2xl transition-all duration-500 border border-[#FF7939]/20 shadow-black/80 flex items-center gap-2.5 px-3 py-1.5",
-                            )}>
-                                <Flame className="h-5 w-5 text-[#FF7939] fill-[#FF7939]" strokeWidth={2.5} />
-
-                                {streak > 1 && (
-                                    <span className="text-[#FF7939] font-black text-base leading-none translate-y-[0.5px]">
-                                        {streak}
-                                    </span>
-                                )}
-                            </div>
-                            {/* RACHA Label outside frame */}
-                            <span className="text-[#FF7939] font-black text-[8px] uppercase tracking-[0.25em] mt-1 opacity-90">
-                                RACHA
-                            </span>
-                        </div>
-                    </div>
-                )}
 
                 {/* Extra View states (Coach View / Finished) if applicable */}
                 {isCoachView && (

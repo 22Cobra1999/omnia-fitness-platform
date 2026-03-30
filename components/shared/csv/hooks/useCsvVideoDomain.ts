@@ -37,13 +37,22 @@ export function useCsvVideoDomain({
     editingExerciseIndex
 }: UseCsvVideoDomainProps) {
 
-    const handleVideoSelection = useCallback(async (mediaUrl: string, _mediaType: string, mediaFile?: File, fileName?: string) => {
+    const handleVideoSelection = useCallback(async (
+        mediaUrl: string,
+        _mediaType: string,
+        mediaFile?: File,
+        fileName?: string,
+        targetIndex?: number | number[],
+        targetId?: string | number | (string | number)[]
+    ) => {
         const derivedBunnyId = extractBunnyVideoIdFromUrl(mediaUrl)
         const videoFile = mediaFile || null
         const resolvedName = fileName || (videoFile?.name ?? '').trim() || (derivedBunnyId ? `video_${derivedBunnyId.slice(0, 12)}.mp4` : '')
 
         if (videoFile) {
-            const selectedIndices = Array.from(selectedRows)
+            const selectedIndices = targetIndex !== undefined 
+                ? (Array.isArray(targetIndex) ? targetIndex : [targetIndex]) 
+                : Array.from(selectedRows)
             const currentData = csvData.length > 0 ? csvData : (parentCsvData || [])
             selectedIndices.forEach((idx) => {
                 const exercise = currentData[idx]
@@ -61,20 +70,60 @@ export function useCsvVideoDomain({
             video_thumbnail_url: derivedBunnyId ? `${mediaUrl.split(derivedBunnyId)[0]}${derivedBunnyId}/thumbnail.jpg` : null
         })
 
-        setCsvData((prev: any) => prev.map((row: any, idx: number) => selectedRows.has(idx) ? applyVideo(row) : row))
-        if (parentSetCsvData) {
-            parentSetCsvData((parentCsvData || []).map((row: any, idx: number) => selectedRows.has(idx) ? applyVideo(row) : row))
-        }
-        setExistingData((prev: any) => prev.map((row: any) => {
-            const matchingIndex = Array.from(selectedRows).find(idx => {
-                const selectedRow = allData[idx]
-                return selectedRow && (String(selectedRow.id) === String(row.id) || selectedRow.tempRowId === row.tempRowId)
-            })
-            return matchingIndex !== undefined ? applyVideo(row) : row
+        // Optimized state update: favor targetIndex/targetId for background uploads
+        setCsvData((prev: any) => prev.map((row: any, idx: number) => {
+            let isMatch = false;
+            if (targetIndex !== undefined) {
+                isMatch = Array.isArray(targetIndex) ? targetIndex.includes(idx) : idx === targetIndex;
+            } else if (targetId !== undefined) {
+                const ids = Array.isArray(targetId) ? targetId.map(String) : [String(targetId)];
+                isMatch = ids.includes(String(row.id)) || ids.includes(String(row.tempRowId));
+            } else {
+                isMatch = selectedRows.has(idx);
+            }
+            return isMatch ? applyVideo(row) : row;
         }))
 
-        setSelectedRows(new Set())
-        if (parentSetSelectedRows) parentSetSelectedRows(new Set())
+        if (parentSetCsvData) {
+            parentSetCsvData((parentCsvData || []).map((row: any, idx: number) => {
+                let isMatch = false;
+                if (targetIndex !== undefined) {
+                    isMatch = Array.isArray(targetIndex) ? targetIndex.includes(idx) : idx === targetIndex;
+                } else if (targetId !== undefined) {
+                    const ids = Array.isArray(targetId) ? targetId.map(String) : [String(targetId)];
+                    isMatch = ids.includes(String(row.id)) || ids.includes(String(row.tempRowId));
+                } else {
+                    isMatch = selectedRows.has(idx);
+                }
+                return isMatch ? applyVideo(row) : row;
+            }))
+        }
+
+        setExistingData((prev: any) => prev.map((row: any) => {
+            let isMatch = false;
+            if (targetId !== undefined) {
+                const ids = Array.isArray(targetId) ? targetId.map(String) : [String(targetId)];
+                isMatch = ids.includes(String(row.id)) || ids.includes(String(row.tempRowId));
+            } else if (targetIndex !== undefined) {
+                const indices = Array.isArray(targetIndex) ? targetIndex : [targetIndex];
+                isMatch = indices.some(idx => {
+                    const selectedRow = allData[idx];
+                    return selectedRow && (String(selectedRow.id) === String(row.id) || selectedRow.tempRowId === row.tempRowId);
+                });
+            } else {
+                isMatch = Array.from(selectedRows).some(idx => {
+                    const selectedRow = allData[idx]
+                    return selectedRow && (String(selectedRow.id) === String(row.id) || selectedRow.tempRowId === row.tempRowId)
+                })
+            }
+            return isMatch ? applyVideo(row) : row
+        }))
+
+        // Only clear global selection if we were using it
+        if (targetIndex === undefined && targetId === undefined) {
+            setSelectedRows(new Set())
+            if (parentSetSelectedRows) parentSetSelectedRows(new Set())
+        }
     }, [selectedRows, csvData, parentCsvData, setCsvData, parentSetCsvData, setExistingData, onVideoFileSelected, parentSetSelectedRows, setSelectedRows, allData])
 
     const handleRemoveVideoFromManualForm = useCallback(() => {

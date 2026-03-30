@@ -260,27 +260,56 @@ export function CSVManagerEnhanced({
     localDuration?: number
   ) => {
     setUploadStatus('uploading')
-    try {
-      const currentExerciseId = editingExerciseIndex !== null && allData[editingExerciseIndex]?.id
-        ? allData[editingExerciseIndex].id
-        : undefined
+    const capturedIndex = editingExerciseIndex
+    const capturedIndices = capturedIndex === null ? Array.from(selectedRows) : [capturedIndex]
+    const capturedExerciseIds = capturedIndices
+      .map(idx => allData[idx]?.id)
+      .filter(id => typeof id === 'number')
+    
+    const capturedExerciseId = capturedIndex !== null && allData[capturedIndex]?.id
+      ? allData[capturedIndex].id
+      : undefined
 
+    try {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('mediaType', 'video')
       formData.append('category', 'product')
       if (activityId > 0) formData.append('activityId', String(activityId))
-      if (currentExerciseId) formData.append('exerciseId', String(currentExerciseId))
+      
+      if (capturedExerciseIds.length > 0) {
+        formData.append('exerciseIds', capturedExerciseIds.join(','))
+      }
+      if (capturedExerciseId) {
+        formData.append('exerciseId', String(capturedExerciseId))
+      }
+
       if (localDuration !== undefined) formData.append('videoDuration', String(Math.round(localDuration)))
       formData.append('title', file.name)
 
-      console.log('🔄 [background-upload] Subida a Bunny en segundo plano...', { file: file.name, currentExerciseId, activityId })
+      console.log('🔄 [background-upload] Subida a Bunny...', { 
+        file: file.name, 
+        capturedExerciseIds,
+        capturedExerciseId, 
+        capturedIndex, 
+        selectionSize: capturedIndices.length,
+        activityId 
+      })
+
       const response = await fetch('/api/bunny/upload-video', { method: 'POST', body: formData })
       const data = await response.json()
       console.log('🔄 [background-upload] Respuesta:', { ok: response.ok, data })
 
       if (response.ok && data.streamUrl) {
-        handleVideoSelection(data.streamUrl, 'video', undefined, file.name)
+        // Use captured context to update the correct row(s)
+        handleVideoSelection(
+          data.streamUrl, 
+          'video', 
+          undefined, 
+          file.name, 
+          capturedIndex !== null ? capturedIndex : (capturedIndices.length > 0 ? capturedIndices : undefined),
+          capturedExerciseId
+        )
         setUploadStatus('done')
       } else {
         console.error('❌ [background-upload] Error:', data)

@@ -60,17 +60,20 @@ export function ClientActivitiesTab({
                                        (expirationDate && expirationDate < today)
 
                         const isFinishedByStatus = ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(status)
+                        const isActiveByStatus = ['activa', 'active'].includes(status)
                         const is100Percent = (act.progressPercent || 0) >= 100
 
                         if (activitySubTab === 'en-curso') {
-                            // Exclude if past, or finished status, or 100% completed
-                            return !!act.start_date && !isPast && !isFinishedByStatus && !is100Percent
+                            // En curso: status active/activa AND not completed 100% AND not past
+                            return isActiveByStatus && !isFinishedByStatus && !is100Percent && !isPast
                         }
                         if (activitySubTab === 'por-empezar') {
-                            return !act.start_date && !isPast && !isFinishedByStatus && !is100Percent
+                            // Por empezar: status pending/pendiente AND not started (no start_date or not active yet)
+                            return (status.includes('pend') || status.includes('wait') || !act.start_date) && !isFinishedByStatus && !isActiveByStatus && !isPast
                         }
                         if (activitySubTab === 'finalizadas') {
-                            return isPast || isFinishedByStatus || is100Percent
+                            // Finalizadas: status finished/past OR 100% completed
+                            return isFinishedByStatus || is100Percent || isPast
                         }
                         return true
                     }) || []

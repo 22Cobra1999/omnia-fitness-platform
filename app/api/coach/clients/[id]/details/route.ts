@@ -111,9 +111,9 @@ export async function GET(
 
       if (isWorkshop) {
         const workshopDocs = tallerRes.data?.filter((t: any) => Number(t.enrollment_id) === eidNum) || []
-        d_ok = workshopDocs.filter(w => w.asistio && w.fecha_seleccionada <= todayIso).length
-        d_late = workshopDocs.filter(w => !w.asistio && w.fecha_seleccionada < todayIso).length
-        d_pro = workshopDocs.filter(w => w.fecha_seleccionada > todayIso).length
+        d_ok = workshopDocs.filter((w: any) => w.asistio && w.fecha_seleccionada <= todayIso).length
+        d_late = workshopDocs.filter((w: any) => !w.asistio && w.fecha_seleccionada < todayIso).length
+        d_pro = workshopDocs.filter((w: any) => w.fecha_seleccionada > todayIso).length
       }
 
       let progressPercent = 0
@@ -126,15 +126,48 @@ export async function GET(
       return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, progressPercent, upToDate: !(i_past_fail > 0 || s?.pending_atrasados > 0), daysCompleted: d_ok, daysMissed: d_late, daysRemainingFuture: d_pro, itemsCompletedTotal: i_past_ok, itemsDebtPast: i_past_fail, itemsPendingToday: i_rest }
     }).filter(Boolean)
 
+    const cumulativeStreak = (() => {
+      let totalCompletedDays = 0
+      const cDailyStats = (progressRes.data || []).filter((d: any) => d.fecha <= todayIso)
+      if (cDailyStats.length > 0) {
+        const uniqueDates = Array.from(new Set(cDailyStats.map((d: any) => d.fecha)))
+        for (const date of uniqueDates) {
+          const rowsInDate = cDailyStats.filter(r => r.fecha === date)
+          const totalObj = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_o || 0) + (r.nut_items_o || 0), 0)
+          const totalComp = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_c || 0) + (r.nut_items_c || 0), 0)
+          if (totalObj > 0 && totalComp >= totalObj) totalCompletedDays++
+        }
+      }
+      return totalCompletedDays
+    })()
+
     const activeProgressByActivity = new Map<number, number>()
-    activitiesDetails.forEach((a: any) => { if (a.progressPercent < 100 && a.status === 'active') activeProgressByActivity.set(Number(a.id), Math.max(activeProgressByActivity.get(Number(a.id)) || 0, a.progressPercent)) })
+    activitiesDetails.forEach((a: any) => { 
+      if (['activa', 'active'].includes(String(a.status).toLowerCase())) {
+        if (a.progressPercent < 100) {
+          activeProgressByActivity.set(Number(a.id), Math.max(activeProgressByActivity.get(Number(a.id)) || 0, a.progressPercent)) 
+        }
+      }
+    })
 
     const client = {
       id: clientId, name: profileRes.data?.full_name || 'Cliente', email: profileRes.data?.email || '', avatar_url: profileRes.data?.avatar_url,
-      activities: activitiesDetails, activitiesCount: activitiesDetails.length, progress: activeProgressByActivity.size > 0 ? Math.round(Array.from(activeProgressByActivity.values()).reduce((a,b)=>a+b,0) / activeProgressByActivity.size) : 0,
+      activities: activitiesDetails, 
+      activitiesCount: activitiesDetails.length, 
+      progress: activeProgressByActivity.size > 0 ? Math.round(Array.from(activeProgressByActivity.values()).reduce((a: number, b: number) => a + b, 0) / activeProgressByActivity.size) : 0,
+      streak: cumulativeStreak,
       injuries: injuriesRes.data || [], biometrics: biometricsRes.data || [], objectives: (objectivesRes.data || []).map((o: any) => ({ ...o, progress_percentage: o.objective > 0 ? Math.round((o.current_value / o.objective) * 100) : 0 })),
-      totalRevenue: activitiesDetails.reduce((acc: any, a: any) => acc + (Number(a.amount_paid) || 0), 0),
-      physicalData: { height: profileRes.data?.Height || null, weight: profileRes.data?.weight || null, age: profileRes.data?.birth_date ? (new Date().getFullYear() - new Date(profileRes.data.birth_date).getFullYear()) : (profileRes.data?.age || null), phone: profileRes.data?.phone || null, emergency_contact: clientTableRes.data?.emergency_contact || null, location: profileRes.data?.location || null, meet_credits: meetRes.data?.meet_credits_available || 0 },
+      totalRevenue: activitiesDetails.reduce((acc: number, a: any) => acc + (Number(a.amount_paid) || 0), 0),
+      physicalData: { 
+        height: profileRes.data?.Height || null, 
+        weight: profileRes.data?.weight || null, 
+        birth_date: profileRes.data?.birth_date || null,
+        age: profileRes.data?.birth_date ? (new Date().getFullYear() - new Date(profileRes.data.birth_date).getFullYear()) : (profileRes.data?.age || null), 
+        phone: profileRes.data?.phone || null, 
+        emergency_contact: clientTableRes.data?.emergency_contact || null, 
+        location: profileRes.data?.location || null, 
+        meet_credits: meetRes.data?.meet_credits_available || 0 
+      },
       onboarding: onboardingRes.data || null
     }
 
