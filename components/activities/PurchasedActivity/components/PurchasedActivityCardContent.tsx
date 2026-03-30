@@ -93,8 +93,8 @@ export function PurchasedActivityCardContent({
                         </div>
                     ) : daysInfo.isExpired ? (
                         <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left opacity-90">
-                            <CheckCircle2 className="w-3 h-3 text-white" />
-                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">VENCIDA</span>
+                            <Star className="w-3 h-3 text-white fill-white" />
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">CALIFICADO</span>
                         </div>
                     ) : pendingCount && pendingCount > 0 ? (
                         <div className="flex items-center gap-1.5 bg-[#FF7939]/40 backdrop-blur-xl border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
@@ -154,14 +154,6 @@ export function PurchasedActivityCardContent({
                         </div>
                     )}
 
-                    {/* Larger Progress Percent below dates - Only for "Finalizadas" */}
-                    {isFinished && typeof progress === 'number' && (
-                        <div className="flex items-center justify-center -mt-1">
-                            <span className="text-xl font-black text-orange-400 drop-shadow-md">
-                                {Math.round(progress)}%
-                            </span>
-                        </div>
-                    )}
                 </div>
 
 

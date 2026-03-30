@@ -21,15 +21,16 @@ BEGIN
     WHERE status IN ('activa', 'active')
       AND program_end_date < CURRENT_DATE;
 
-    -- 3. Unified lowercase normalization (Optional but recommended for consistency)
+    -- 3. Lowercase normalization (Ensuring we stay within allowed Spanish values)
     UPDATE public.activity_enrollments
     SET status = CASE 
-        WHEN status = 'activa' THEN 'active'
-        WHEN status = 'pendiente' THEN 'pending'
-        WHEN status = 'finalizada' THEN 'finished'
-        WHEN status = 'expirada' THEN 'expired'
-        ELSE status
+        WHEN status = 'active' THEN 'activa'
+        WHEN status = 'pending' THEN 'pendiente'
+        WHEN status = 'finished' THEN 'finalizada'
+        WHEN status = 'expired' THEN 'expirada'
+        WHEN status = 'completed' THEN 'finalizada'
+        ELSE LOWER(status)
     END
-    WHERE status IN ('activa', 'pendiente', 'finalizada', 'expirada');
+    WHERE status IN ('active', 'pending', 'finished', 'expired', 'completed', 'ACTIVA', 'PENDIENTE', 'FINALIZADA', 'EXPIRADA');
     
 END $$;
