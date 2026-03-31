@@ -85,15 +85,11 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     const isTargetForEdit = targetDayForEdit && date.toDateString() === targetDayForEdit.toDateString()
                     const isBlocked = !!(isSelectingNewDate && maxMoveDate && date > maxMoveDate)
 
-                    let bgClass = "bg-transparent/5"
+                    let bgClass = "bg-transparent"
                     if (isBlocked) {
                         bgClass = "bg-zinc-950/20 border border-zinc-800/10 text-zinc-700 opacity-30 grayscale cursor-not-allowed"
-                    } else if (hasOwned) {
-                        if (isAllCompleted) bgClass = "bg-[#FF7939]/20 backdrop-blur-[2px] border border-[#FF7939]/30 text-white"
-                        else if (isAbsent) bgClass = "bg-red-500/10 backdrop-blur-[2px] border border-red-500/20 text-white"
-                        else bgClass = "bg-yellow-500/10 backdrop-blur-[2px] border border-yellow-500/20 text-yellow-100"
-                    } else if (hasAnyEx) {
-                        bgClass = "bg-zinc-900/40 border border-zinc-800 text-gray-500 opacity-70"
+                    } else if (hasOwned || hasAnyEx) {
+                        bgClass = "bg-zinc-900/10 border border-zinc-800/20 text-white"
                     }
 
                     const selectionClass = isSelected ? "ring-2 ring-[#FF7939] shadow-[0_0_20px_rgba(255,121,57,0.4)] z-10 scale-[1.05] bg-[#FF7939]/10" : "hover:bg-white/5"
@@ -103,50 +99,68 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             key={index} 
                             onClick={() => !isBlocked && handleDayClick(date)} 
                             disabled={isBlocked}
-                            className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group ${!isCurrentMonth ? 'opacity-20' : ''} ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}
+                            className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[60px] flex flex-col items-center justify-start group ${!isCurrentMonth ? 'opacity-20' : ''} ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}
                         >
                             {isToday && (
                                 <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FF7939]" />
                             )}
-                            <div className="text-center font-semibold text-sm leading-none pt-1">{date.getDate()}</div>
-                            <div className="mt-1 min-h-[20px] w-full flex flex-col items-center justify-start gap-px">
-                                {/* Fitness bubble */}
-                                {ownedActs.some(e => !e.nutri_mins || (e.fitness_mins || e.total_mins) > 0) && ownedActs.length > 0 && (() => {
-                                    const fitMins = ownedActs
-                                        .filter(e => (e.fitness_mins || 0) > 0 || (!e.nutri_mins && e.total_mins > 0))
-                                        .reduce((a, e) => a + (Number(e.fitness_mins) || Number(e.total_mins) || 0), 0)
-                                    if (fitMins === 0) return null
+                            <div className="text-center font-semibold text-sm leading-none pt-1 mb-1">{date.getDate()}</div>
+                            
+                            <div className="w-full flex flex-wrap items-center justify-center gap-1 mt-auto">
+                                {/* Individual Activity Bubbles */}
+                                {ownedActs.map((act, actIdx) => {
+                                    const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(act.activity_id))
+                                    const completed = p && (Number(p.items_completados) || 0) >= (Number(p.items_objetivo) || 1)
+                                    const started = p && (Number(p.items_completados) || 0) > 0
+                                    
+                                    if (isSelected && p) {
+                                        console.log(`[CalendarGrid] Day ${date.getDate()} Act ${act.activity_id}: comp=${p.items_completados} obj=${p.items_objetivo} -> completed=${completed}`);
+                                    }
+
+                                    const isAbsentDay = isPast && !started
+                                    const isPending = !completed && (!isPast || started)
+                                    
+                                    const isNutri = act.area === 'nutricion' || (act.nutri_mins > 0 && act.fitness_mins === 0)
+                                    
+                                    let bubbleBg = isNutri ? "bg-yellow-500/20" : "bg-[#FF7939]/20"
+                                    let iconColor = isNutri ? "text-yellow-500/60" : "text-[#FF7939]/60"
+                                    
+                                    if (completed) {
+                                        bubbleBg = isNutri ? "bg-yellow-400" : "bg-[#FF7939]"
+                                        iconColor = "text-white"
+                                    } else if (isAbsentDay) {
+                                        bubbleBg = "bg-red-500/40"
+                                        iconColor = "text-white"
+                                    }
+
                                     return (
-                                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full leading-none text-[9px] font-bold ${isTargetForEdit ? 'bg-black text-white' : isAllCompleted ? 'bg-[#FF7939] text-white' : isAbsent ? 'bg-red-500/40 text-white' : 'bg-yellow-500/20 text-yellow-200'}`}>
-                                            <Zap className="w-2.5 h-2.5" />
-                                            <span>{formatMinutesCompact(fitMins)}</span>
+                                        <div 
+                                            key={`${act.activity_id}-${actIdx}`}
+                                            className={`p-1 rounded-full ${bubbleBg} transition-all duration-300 shadow-sm`}
+                                            title={act.activity_title || ''}
+                                        >
+                                            {isNutri ? (
+                                                <UtensilsCrossed className={`w-2.5 h-2.5 ${iconColor}`} />
+                                            ) : (
+                                                <Zap className={`w-2.5 h-2.5 ${iconColor}`} />
+                                            )}
                                         </div>
                                     )
-                                })()}
-                                {/* Nutrition bubble */}
-                                {ownedActs.some(e => (e.nutri_mins || 0) > 0) && (() => {
-                                    const nutMins = ownedActs.reduce((a, e) => a + (Number(e.nutri_mins) || 0), 0)
-                                    if (nutMins === 0) return null
-                                    return (
-                                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full leading-none text-[9px] font-bold ${isAllCompleted ? 'bg-blue-400/30 text-blue-200' : 'bg-blue-400/15 text-blue-300'}`}>
-                                            <UtensilsCrossed className="w-2.5 h-2.5" />
-                                            <span>{formatMinutesCompact(nutMins)}</span>
-                                        </div>
-                                    )
-                                })()}
-                                {/* Meets bubble */}
+                                })}
+
+                                {/* Meets bubble (keep as summary if many) */}
                                 {ownedMeets.length > 0 && (
-                                    <div className="flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/20">
+                                    <div className="p-1 rounded-full bg-[#FF7939]/20 border border-[#FF7939]/30">
                                         <Video className="w-2.5 h-2.5 text-[#FF7939]" />
-                                        {ownedMeets.length > 1 && (
-                                            <span className="text-[9px] font-bold text-[#FF7939] leading-none">{ownedMeets.length}</span>
-                                        )}
                                     </div>
                                 )}
+
+                                {/* Fallback for other coach activities */}
                                 {!hasOwned && hasAnyEx && (
-                                    <div className="text-[9px] bg-zinc-700/50 text-gray-400 px-1.5 py-0.5 rounded-full">{formatMinutesCompact(dayInfo.totalMinutes)}</div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
                                 )}
                             </div>
+                            
                             {hasAnyEx && <div className="absolute inset-0 rounded-lg border-2 border-transparent group-hover:border-[#FF7939]/30 transition-all duration-200 pointer-events-none"></div>}
                         </button>
                     )

@@ -90,19 +90,19 @@ export function ClientDetailHeader({
                             </p>
                         )}
 
-                        <div className="flex items-center justify-center gap-3 mt-1 mb-4">
-                            <span className="text-sm text-gray-400 font-medium">
+                        <div className="flex items-center justify-center gap-2 mt-1 mb-4 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/5 shadow-sm">
+                            <span className="text-[10px] text-[#FF7939] font-black uppercase tracking-widest">
+                                {clientDetail?.client?.physicalData?.activityLevel || 'Avanzado'}
+                            </span>
+                            <span className="text-zinc-600 font-bold">•</span>
+                            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
                                 {(() => {
                                     const birthDate = clientDetail?.client?.physicalData?.birth_date || client.birth_date
                                     if (birthDate) return `${calculateAge(birthDate)} años`
                                     const age = clientDetail?.client?.physicalData?.age || (client as any).age
                                     if (age) return `${age} años`
-                                    return '-'
+                                    return 'Edad -'
                                 })()}
-                            </span>
-                            <span className="text-zinc-600">•</span>
-                            <span className="text-sm text-[#FF7939] font-bold capitalize tracking-wide">
-                                {clientDetail?.client?.physicalData?.activityLevel || 'Avanzado'}
                             </span>
                         </div>
 

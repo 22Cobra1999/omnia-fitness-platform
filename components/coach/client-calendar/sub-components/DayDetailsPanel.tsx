@@ -47,6 +47,7 @@ interface DayDetailsPanelProps {
     setEditingFitnessValues: (values: any) => void
     onActivityExpanded?: (row: ClientDaySummaryRow) => void
     loading: boolean
+    dishNameMap?: Record<string, string>
 }
 
 export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
@@ -159,7 +160,7 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
                             <div className="mb-1">
                                 <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-black mb-1 px-0.5">Tus programas</p>
                                 {ownedProgramRows.map(r => (
-                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} />
+                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} dishNameMap={props.dishNameMap} />
                                 ))}
                             </div>
                         )}
@@ -168,7 +169,7 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
                             <div className="mb-1 pt-2">
                                 <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-black mb-1 px-0.5">Meets con vos</p>
                                 {myMeetRows.map(r => (
-                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} />
+                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} dishNameMap={props.dishNameMap} />
                                 ))}
                             </div>
                         )}

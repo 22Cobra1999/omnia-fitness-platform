@@ -1,6 +1,6 @@
 "use client"
 import React, { useRef, useEffect } from 'react'
-import { Video, ChevronRight, Clock, Calendar, Flame, ChevronDown, Edit2, Save, X, Trash2, Utensils, Repeat2 } from 'lucide-react'
+import { Video, ChevronRight, Clock, Calendar, Zap, Utensils, ChevronDown, Edit2, Save, X, Trash2, Repeat2 } from 'lucide-react'
 import { ClientDaySummaryRow as SummaryRowType, ExerciseExecution } from '../types'
 import { formatMinutesCompact } from '../utils/date-helpers'
 import { getSeriesBlocks, formatSeries } from '../utils/data-parsers'
@@ -47,27 +47,27 @@ interface DaySummaryRowProps {
     setEditingFitnessValues: (values: any) => void
     onActivityExpanded?: (row: SummaryRowType) => void
     loading: boolean
+    dishNameMap?: Record<string, string>
 }
-
 export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
     row, dayStr, allowExpand, currentCoachId, clientId,
     expandedActivityKeys, setExpandedActivityKeys,
     loadDayActivityDetails, loadEventDetails,
     eventDetailsByKey, activityDetailsByKey,
-    nutritionPlateOptionsByActivity,
+    nutritionPlateOptionsByActivity, dishNameMap,
     canEditNutritionForDay, canEditFitnessForDay,
     handleEditNutrition, editingExerciseId, editingOriginalExercise, setEditingExerciseId,
     setEditingOriginalExercise, loadAvailableExercises,
-    showExerciseDropdown, setShowExerciseDropdown,
-    availableExercises, handleChangeExercise,
-    editingNutritionId, editingNutritionPlateId, editingNutritionMacros,
-    setEditingNutritionPlateId, setEditingNutritionMacros,
+    showExerciseDropdown, setShowExerciseDropdown, availableExercises,
+    handleChangeExercise, editingNutritionId, editingNutritionPlateId,
+    editingNutritionMacros, setEditingNutritionPlateId, setEditingNutritionMacros,
     handleOpenIngredients, handleSaveNutrition, handleCancelNutrition,
-    setConfirmDeleteNutritionId, router,
-    handleEditFitness, handleSaveFitness, handleCancelFitness,
-    editingFitnessValues, setEditingFitnessValues, onActivityExpanded, loading
+    setConfirmDeleteNutritionId, router, handleEditFitness, handleSaveFitness,
+    handleCancelFitness, editingFitnessValues, setEditingFitnessValues,
+    onActivityExpanded, loading
 }) => {
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const isNutri = !!(row as any).nutri_mins || (row as any).area === 'nutricion' || row.activity_title?.toLowerCase().includes('nutri')
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -122,14 +122,14 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                     <div className={`w-0.5 h-5 rounded-full flex-shrink-0 transition-colors ${expanded ? 'bg-[#FF7939]' : 'bg-zinc-700 group-hover:bg-[#FF7939]/50'}`} />
                     {isMeet ? (
                         <Video className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
-                    ) : row.is_workshop ? (
-                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                    ) : isNutri ? (
+                        <Utensils className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
                     ) : (
-                        <Flame className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                        <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
                     )}
-                    <div className="flex flex-col items-start min-w-0">
-                        <span className="text-sm font-semibold text-gray-200 leading-snug line-clamp-2">{title}</span>
-                        {extraLabel && <span className="text-[9px] text-[#FF7939] uppercase tracking-widest font-black opacity-70 mt-0.5">{extraLabel}</span>}
+                    <div className="flex flex-col items-start min-w-0 min-h-[36px] justify-center">
+                        <span className="text-sm font-bold text-gray-100 leading-tight truncate w-full">{title}</span>
+                        {extraLabel && <span className="text-[10px] text-zinc-500 font-medium mt-0.5 uppercase tracking-wider">{extraLabel}</span>}
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -234,8 +234,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                     ) : exercise.is_workshop ? (
                                                         <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
                                                     ) : (
-                                                        <Flame className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`}
-                                                            fill={isCompleted ? '#FF7939' : 'transparent'} />
+                                                        <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
                                                     )}
 
                                                     {/* Exercise swap dropdown */}
@@ -271,7 +270,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                                                 }}
                                                                                 className={`w-full px-3 py-2 text-left text-xs hover:bg-zinc-800 transition-colors flex items-center gap-2 relative z-[1001] ${String(ex.id) === String(exercise.ejercicio_id) ? 'text-[#FF7939] bg-[#FF7939]/10' : 'text-gray-300'}`}
                                                                             >
-                                                                                <Flame className="h-3 w-3 flex-shrink-0 opacity-50" />
+                                                                                <Zap className="h-3 w-3 flex-shrink-0 opacity-50" />
                                                                                 {ex.nombre_ejercicio}
                                                                             </button>
                                                                         ))
@@ -282,7 +281,23 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <span className="text-sm font-semibold text-gray-200 truncate">{exercise.ejercicio_nombre}</span>
+                                                        <span className="text-sm font-semibold text-gray-200 truncate">
+                                                            {(() => {
+                                                                if (exercise.is_nutricion) {
+                                                                    // If name is numeric ID or looks like one, try lookup in options
+                                                                    const rawName = exercise.ejercicio_nombre || '';
+                                                                    const isNumeric = /^\d+$/.test(rawName);
+                                                                    if (isNumeric || !rawName) {
+                                                                        if (dishNameMap && dishNameMap[exercise.ejercicio_id]) return dishNameMap[exercise.ejercicio_id];
+                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === String(exercise.ejercicio_id));
+                                                                        if (opt?.nombre_plato) return opt.nombre_plato;
+                                                                        if (opt?.label) return opt.label;
+                                                                        return isNumeric ? `Plato ${rawName}` : 'Plato sin nombre';
+                                                                    }
+                                                                }
+                                                                return exercise.ejercicio_nombre;
+                                                            })()}
+                                                        </span>
                                                     )}
                                                 </div>
 
@@ -334,12 +349,12 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                             {exercise.is_nutricion && exercise.nutricion_macros && !isEditing && (
                                                 <div className="flex items-center gap-3 mt-1 ml-5">
                                                     {[
-                                                        { label: 'P', val: exercise.nutricion_macros.proteinas, unit: 'g' },
-                                                        { label: 'C', val: exercise.nutricion_macros.carbohidratos, unit: 'g' },
-                                                        { label: 'G', val: exercise.nutricion_macros.grasas, unit: 'g' },
+                                                        { label: 'Pg', val: exercise.nutricion_macros.proteinas, unit: '' },
+                                                        { label: 'Cg', val: exercise.nutricion_macros.carbohidratos, unit: '' },
+                                                        { label: 'Gg', val: exercise.nutricion_macros.grasas, unit: '' },
                                                     ].map(m => (
                                                         <span key={m.label} className="text-[10px] text-[#FF7939]/70 font-bold">
-                                                            {m.label} {m.val}{m.unit}
+                                                            {m.label} {m.val || '0'}{m.unit}
                                                         </span>
                                                     ))}
                                                 </div>

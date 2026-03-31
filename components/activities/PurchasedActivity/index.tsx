@@ -70,11 +70,11 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
             >
                 {/* 🌈 Streak Overlay (Premium Clean Design) */}
                 {(streak > 0 || (pendingCount === 0 && hasStarted)) && (
-                    <div className="absolute top-5 right-7 z-[100] flex items-center gap-1.5 drop-shadow-[0_0_15px_rgba(0,0,0,1)]">
+                    <div className="absolute top-5 left-7 z-[100] flex items-center gap-1.5 drop-shadow-[0_0_15px_rgba(0,0,0,1)]">
                         <span className="text-white font-[1000] text-lg leading-none tracking-tighter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                             {streak || (pendingCount === 0 && hasStarted ? 1 : 0)}
                         </span>
-                        <Flame className="h-6 w-6 text-[#FF7939] fill-[#FF7939] animate-pulse-slow" strokeWidth={2.5} />
+                        <Flame className="h-6 w-6 text-[#FF7939] fill-[#FF7939]" strokeWidth={2.5} />
                     </div>
                 )}
 

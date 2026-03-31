@@ -48,9 +48,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     dayData, summaryRowsByDate, filteredSummaryRows, activityDetailsByKey, setActivityDetailsByKey,
     monthlyProgress, eventDetailsByKey, activityFilterOptions,
     activeEnrollmentFilterId, setActiveEnrollmentFilterId,
-    loading: dataLoading, activityEndDates,
+    loading: dataLoading, activityEndDates, dishNameMap,
     fetchClientCalendarSummary, loadDayActivityDetails, loadEventDetails, getDayData
-  } = useCalendarData(supabase, clientId, currentDate, onLastWorkoutUpdate)
+  } = useCalendarData(supabase, clientId, currentDate, onLastWorkoutUpdate, currentCoachId)
 
   useEffect(() => {
     if (!dataLoading) setLoading(false)
@@ -368,6 +368,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 loadDayActivityDetails={loadDayActivityDetails} loadEventDetails={loadEventDetails}
                 eventDetailsByKey={eventDetailsByKey} activityDetailsByKey={activityDetailsByKey}
                 nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
+                dishNameMap={dishNameMap}
                 canEditNutritionForDay={canEditNutritionForDay} canEditFitnessForDay={canEditFitnessForDay}
                 handleEditNutrition={handleEditNutrition} editingExerciseId={editingExerciseId}
                 editingOriginalExercise={editingOriginalExercise}

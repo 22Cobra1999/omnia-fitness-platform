@@ -378,7 +378,7 @@ export function CSVManagerEnhanced({
 
   const handleDownloadTemplate = () => generateCsvTemplate({ productCategory: productCategory as any })
 
-  const duplicateNames = useMemo(() => {
+    const duplicateNames = useMemo(() => {
     const nameMap = new Map<string, string[]>()
     sortedData.forEach((item) => {
       const name = normalizeName(getExerciseName(item))
@@ -389,6 +389,12 @@ export function CSVManagerEnhanced({
     })
     return Array.from(nameMap.values()).filter(list => list.length > 1).map(list => list[0])
   }, [sortedData])
+
+  const selectedExerciseIds = useMemo(() => {
+    return Array.from(selectedRows)
+      .map(idx => allData[idx]?.id)
+      .filter(id => typeof id === 'number')
+  }, [selectedRows, allData])
 
   const exceedsActivitiesLimit = planLimits?.activitiesLimit !== undefined && sortedData.length > planLimits.activitiesLimit
 
@@ -428,6 +434,7 @@ export function CSVManagerEnhanced({
             ? allData[editingExerciseIndex].id
             : undefined
         }
+        exerciseIds={selectedExerciseIds.length > 0 ? selectedExerciseIds : null}
         onBackgroundVideoUpload={handleBackgroundVideoUpload}
       />
 

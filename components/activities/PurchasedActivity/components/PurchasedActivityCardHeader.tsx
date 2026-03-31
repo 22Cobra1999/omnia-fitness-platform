@@ -20,8 +20,8 @@ interface PurchasedActivityCardHeaderProps {
 export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, coachRating, size, isCoachView, isExpired, progress, isFinished, isFuture }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) {
         return (
-            <div className="pt-5 px-6 text-center">
-                <h3 className="text-white font-[1000] text-base leading-tight tracking-tight px-2">
+            <div className="pt-5 px-6 text-center min-h-[4.5rem] flex items-center justify-center">
+                <h3 className="text-white font-[1000] text-base leading-tight tracking-tight px-2 line-clamp-2">
                     {title || 'Sin título'}
                 </h3>
             </div>

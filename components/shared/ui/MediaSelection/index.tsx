@@ -16,6 +16,7 @@ export function MediaSelectionModal({
     mediaType,
     className,
     exerciseId,
+    exerciseIds,
     activityId,
     mediaId,
     onBackgroundVideoUpload
@@ -37,7 +38,7 @@ export function MediaSelectionModal({
         setSourceFilter,
         handleFileChange,
         handleConfirm
-    } = useMediaSelectionLogic(isOpen, mediaType, onMediaSelected, onClose, exerciseId, activityId, mediaId, onBackgroundVideoUpload)
+    } = useMediaSelectionLogic(isOpen, mediaType, onMediaSelected, onClose, exerciseId, activityId, mediaId, onBackgroundVideoUpload, exerciseIds)
     const [viewMode, setViewMode] = React.useState<'choice' | 'gallery' | 'preview'>('choice')
 
     React.useEffect(() => {

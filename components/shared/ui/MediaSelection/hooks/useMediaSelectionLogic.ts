@@ -11,7 +11,8 @@ export function useMediaSelectionLogic(
     activityId?: string | number | null,
     mediaId?: string | number | null,
     // Background upload callback — called AFTER modal closes so upload doesn't block the UI
-    onBackgroundVideoUpload?: (file: File, localBlobUrl: string, localDuration?: number) => void
+    onBackgroundVideoUpload?: (file: File, localBlobUrl: string, localDuration?: number) => void,
+    exerciseIds?: (string | number)[] | null
 ) {
     const [media, setMedia] = useState<CoachMedia[]>([])
     const [loading, setLoading] = useState(false)
@@ -310,8 +311,57 @@ export function useMediaSelectionLogic(
                 ? (mediaType === 'image' ? selectedItem.image_url : mediaType === 'video' ? selectedItem.video_url : selectedItem.pdf_url)
                 : null
 
-            if (url) {
-                onMediaSelected(url, mediaType, undefined, selectedItem?.filename)
+            if (url && selectedItem) {
+                // Persistent sync: If we have context IDs, update the DB so the selection isn't lost
+                const idsToUpdate = exerciseIds && exerciseIds.length > 0
+                    ? exerciseIds
+                    : (exerciseId ? [exerciseId] : [])
+
+                if (idsToUpdate.length > 0 || activityId) {
+                    console.log('🔄 [handleConfirm] Syncing gallery selection to DB...', { exerciseId, exerciseIds, activityId, count: idsToUpdate.length })
+                    
+                    try {
+                        // Batch update for exercises
+                        if (mediaType === 'video' && idsToUpdate.length > 0) {
+                            // We call the API for each ID (since the current API doesn't support arrays yet)
+                            idsToUpdate.forEach(id => {
+                                fetch('/api/coach/exercises', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        id,
+                                        category: 'fitness',
+                                        video_url: url,
+                                        bunny_video_id: selectedItem.bunny_video_id,
+                                        video_file_name: selectedItem.filename,
+                                        video_thumbnail_url: selectedItem.video_thumbnail_url
+                                    })
+                                }).catch(err => console.error(`❌ [handleConfirm] DB Sync Error (Exercise ${id}):`, err))
+                            })
+                        } else if (activityId || idsToUpdate.length > 0) {
+                            // Unified fallback for other media/activities
+                            const formData = new FormData()
+                            formData.append('url', url)
+                            if (selectedItem.id) formData.append('fileId', String(selectedItem.id))
+                            if (selectedItem.filename) formData.append('fileName', selectedItem.filename)
+                            if (activityId) formData.append('activityId', String(activityId))
+                            if (mediaId) formData.append('mediaId', String(mediaId))
+                            
+                            // If we have multiple exercise IDs but not a single one, we might need a better API
+                            // For now, if we have exerciseId (singular), use it
+                            if (exerciseId) formData.append('exerciseId', String(exerciseId))
+
+                            fetch('/api/upload-organized', {
+                                method: 'PATCH',
+                                body: formData
+                            }).catch(err => console.error('❌ [handleConfirm] DB Sync Error (Organized):', err))
+                        }
+                    } catch (e) {
+                        console.error('❌ [handleConfirm] Sync failed:', e)
+                    }
+                }
+
+                onMediaSelected(url, mediaType, undefined, selectedItem.filename)
                 onClose()
             }
         }

@@ -130,24 +130,45 @@ export async function GET(
       else { if (s?.items_total > 0) progressPercent = Math.round((s.items_ok / s.items_total) * 100) }
 
       const expiredSnapshot = expiredByEnrollment.get(eidNum)
-      if (expiredSnapshot) return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, progressPercent: expiredSnapshot.progreso_porcentaje || progressPercent, upToDate: (expiredSnapshot.items_no_logrados || 0) === 0, daysCompleted: expiredSnapshot.dias_completados, daysMissed: expiredSnapshot.dias_ausente, daysRemainingFuture: expiredSnapshot.dias_proximos, itemsCompletedTotal: expiredSnapshot.items_completados, itemsDebtPast: expiredSnapshot.items_no_logrados, itemsPendingToday: expiredSnapshot.items_restantes }
+      if (expiredSnapshot) return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, program_end_date: e.program_end_date, expiration_date: e.expiration_date, progressPercent: expiredSnapshot.progreso_porcentaje || progressPercent, upToDate: (expiredSnapshot.items_no_logrados || 0) === 0, daysCompleted: expiredSnapshot.dias_completados, daysMissed: expiredSnapshot.dias_ausente, daysRemainingFuture: expiredSnapshot.dias_proximos, itemsCompletedTotal: expiredSnapshot.items_completados, itemsDebtPast: expiredSnapshot.items_no_logrados, itemsPendingToday: expiredSnapshot.items_restantes }
 
-      return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, progressPercent, upToDate: !(i_past_fail > 0 || s?.pending_atrasados > 0), daysCompleted: d_ok, daysMissed: d_late, daysRemainingFuture: d_pro, itemsCompletedTotal: i_past_ok, itemsDebtPast: i_past_fail, itemsPendingToday: i_rest }
+      return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, program_end_date: e.program_end_date, expiration_date: e.expiration_date, progressPercent, upToDate: !(i_past_fail > 0 || s?.pending_atrasados > 0), daysCompleted: d_ok, daysMissed: d_late, daysRemainingFuture: d_pro, itemsCompletedTotal: i_past_ok, itemsDebtPast: i_past_fail, itemsPendingToday: i_rest }
     }).filter(Boolean)
 
     const cumulativeStreak = (() => {
-      let totalCompletedDays = 0
-      const cDailyStats = (progressRes.data || []).filter((d: any) => d.fecha <= todayIso)
-      if (cDailyStats.length > 0) {
-        const uniqueDates = Array.from(new Set(cDailyStats.map((d: any) => d.fecha)))
-        for (const date of uniqueDates) {
-          const rowsInDate = cDailyStats.filter((r: any) => r.fecha === date)
-          const totalObj = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_o || 0) + (r.nut_items_o || 0), 0)
-          const totalComp = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_c || 0) + (r.nut_items_c || 0), 0)
-          if (totalObj > 0 && totalComp >= totalObj) totalCompletedDays++
+      const dailyStats = (progressRes.data || []).sort((a: any, b: any) => b.fecha.localeCompare(a.fecha))
+      if (dailyStats.length === 0) return 0
+
+      const statsByDate = new Map<string, { tot: number; comp: number }>()
+      dailyStats.forEach((r: any) => {
+        const d = r.fecha
+        if (!statsByDate.has(d)) statsByDate.set(d, { tot: 0, comp: 0 })
+        const curr = statsByDate.get(d)!
+        curr.tot += (r.fit_items_o || 0) + (r.nut_items_o || 0)
+        curr.comp += (r.fit_items_c || 0) + (r.nut_items_c || 0)
+      })
+
+      const dates = Array.from(statsByDate.keys()).sort((a, b) => b.localeCompare(a))
+      let streak = 0
+      
+      // Start from yesterday or today if today is completed
+      for (const date of dates) {
+        if (date > todayIso) continue 
+        const s = statsByDate.get(date)!
+        if (s.tot === 0) continue // Rest day - skip it, streak continues
+
+        const isCompleted = s.comp >= s.tot
+        if (isCompleted) {
+          streak++
+        } else {
+          // If it's today and not completed, we don't break the streak yet
+          if (date === todayIso) continue
+          break // Broken
         }
       }
-      return totalCompletedDays
+      // If today is completed and yesterday was rest/completed, the streak is calculated correctly.
+      // If we haven't done today yet, the streak shows up to yesterday.
+      return streak
     })()
 
     const activeProgressByActivity = new Map<number, number>()

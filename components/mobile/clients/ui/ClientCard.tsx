@@ -160,17 +160,31 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
             </div>
 
             {/* Name and Streak at the bottom */}
-            <div className="flex flex-col items-center gap-1.5 w-full">
+            <div className="flex flex-col items-center gap-1 w-full mt-1">
                 <h4 className="text-[14px] font-bold text-white/70 leading-none tracking-tight group-hover:text-white transition-colors truncate w-full text-center">
                     {toTitleCase(client.name)}
                 </h4>
-                {/* Streak below the name */}
-                {client.streak !== undefined && (
-                    <div className="flex items-center gap-1 bg-[#FF7939]/10 text-[#FF7939] px-2 py-0.5 rounded-full border border-[#FF7939]/20 group-hover:bg-[#FF7939]/20 transition-colors">
-                        <Flame size={12} fill="currentColor" />
-                        <span className="text-[11px] font-black italic">{client.streak} {client.streak === 1 ? 'Día' : 'Días'}</span>
-                    </div>
-                )}
+                
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-0.5">
+                    {client.streak !== undefined && client.streak > 0 && (
+                        <div className="flex items-center gap-1 bg-[#FF7939]/10 text-[#FF7939] px-2 py-0.5 rounded-full border border-[#FF7939]/20 group-hover:bg-[#FF7939]/20 transition-colors">
+                            <Flame size={10} fill="currentColor" />
+                            <span className="text-[10px] font-black italic">{client.streak}</span>
+                        </div>
+                    )}
+                    
+                    {(client.itemsToday || 0) > 0 ? (
+                        <div className="bg-zinc-800/50 px-2 py-0.5 rounded-full border border-white/5">
+                            <span className="text-[9px] font-bold text-zinc-300 uppercase tracking-tighter ring-offset-zinc-900">Hoy: {client.itemsToday}</span>
+                        </div>
+                    ) : client.nextActivityDate ? (
+                        <div className="px-2 py-0.5 opacity-60">
+                            <span className="text-[9px] font-medium text-zinc-400 uppercase tracking-tighter">
+                                Próx: {new Date(client.nextActivityDate + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                            </span>
+                        </div>
+                    ) : null}
+                </div>
             </div>
         </div>
     )

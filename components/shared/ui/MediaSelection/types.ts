@@ -27,6 +27,7 @@ export interface MediaSelectionModalProps {
     className?: string
     // Optional DB context — when provided, Bunny upload will also update ejercicios_detalles / activity_media
     exerciseId?: string | number | null
+    exerciseIds?: (string | number)[] | null
     activityId?: string | number | null
     mediaId?: string | number | null
     /**

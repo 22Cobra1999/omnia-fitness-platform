@@ -266,6 +266,22 @@ export function useCsvActions(props: UseCsvActionsProps) {
         }
     }, [domainActions, props.activityId, props.csvData, persistence.handleProcess])
 
+    const handleVideoSelection = useCallback(async (...args: Parameters<typeof video.handleVideoSelection>) => {
+        await video.handleVideoSelection(...args)
+        
+        // Auto-persist in library mode
+        if (props.activityId === 0) {
+            console.log("🧬 [useCsvActions] Library Mode: Auto-persisting video selection...")
+            // We need to pass the LATEST state. Since setCsvData is async, 
+            // the safest way is to let handleProcess fetch from current state 
+            // or pass an override if we had it. handleProcess usually reads from props.csvData.
+            // Small delay to let React state update or use override.
+            setTimeout(() => {
+                persistence.handleProcess()
+            }, 100)
+        }
+    }, [video.handleVideoSelection, props.activityId, persistence.handleProcess])
+
     return {
         handleRowSelection: selection.handleRowSelection,
         handleEditExercise: domainActions.handleEditExercise,
@@ -273,7 +289,7 @@ export function useCsvActions(props: UseCsvActionsProps) {
         handleDeleteSelected: persistence.handleDeleteSelected,
         handleRemoveSelected: persistence.handleRemoveSelected,
         handleReactivateSelected: persistence.handleReactivateSelected,
-        handleVideoSelection: video.handleVideoSelection,
+        handleVideoSelection,
         handleRemoveVideoFromManualForm: video.handleRemoveVideoFromManualForm,
         handleProcess: persistence.handleProcess,
         handleReset: persistence.handleReset,

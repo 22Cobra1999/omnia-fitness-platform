@@ -182,17 +182,29 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return {
-        id: client.id, name: client.name, email: client.email, avatar_url: client.avatar_url, age: client.birth_date ? (new Date().getFullYear() - new Date(client.birth_date).getFullYear()) : 0,
-        meet_credits_available: meetCreditsAvailableByClient.get(String(client.id)) || 0,
-        progress: activeProgressByActivity.size > 0 ? Math.round(Array.from(activeProgressByActivity.values()).reduce((a,b)=>a+b,0) / activeProgressByActivity.size) : 0,
-        status: clientStatus, totalRevenue, lastActive: formatLastActive(lastActiveMap.get(client.id) || ''),
-        activitiesCount: client.activities.length, todoCount: pendingCountMap.get(String(client.id)) || 0,
-        alertLevel: maxAlert, hasAlert: maxAlert > 0, daysCompleted: d_ok, absentDays: d_late, daysTotal: d_reg || 30,
-        completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: totalCompletedDays, fitStats, nutriStats, 
-        activities: client.activities.map((a: any) => ({ id: a.id, title: a.title, type: a.type, amountPaid: paidByEnrollmentId.get(client.enrollments.find((e:any)=>Number(e.activity_id)===Number(a.id))?.id) || 0 }))
+        // Activities Today / Next
+        const clientDailyRows = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(client.id))
+        const todayRow = clientDailyRows.find((d: any) => d.fecha === todayIso)
+        const itemsToday = (todayRow?.fit_items_o || 0) + (todayRow?.nut_items_o || 0)
+        
+        const nextRows = clientDailyRows
+          .filter((d: any) => d.fecha > todayIso && ((d.fit_items_o || 0) + (d.nut_items_o || 0) > 0))
+          .sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))
+        const nextActivityDate = nextRows[0]?.fecha || null
+
+        return {
+          id: client.id, name: client.name, email: client.email, avatar_url: client.avatar_url, age: client.birth_date ? (new Date().getFullYear() - new Date(client.birth_date).getFullYear()) : 0,
+          meet_credits_available: meetCreditsAvailableByClient.get(String(client.id)) || 0,
+          progress: activeProgressByActivity.size > 0 ? Math.round(Array.from(activeProgressByActivity.values()).reduce((a,b)=>a+b,0) / activeProgressByActivity.size) : 0,
+          status: clientStatus, totalRevenue, lastActive: formatLastActive(lastActiveMap.get(client.id) || ''),
+          activitiesCount: client.activities.length, todoCount: pendingCountMap.get(String(client.id)) || 0,
+          alertLevel: maxAlert, hasAlert: maxAlert > 0, daysCompleted: d_ok, absentDays: d_late, daysTotal: d_reg || 30,
+          completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: totalCompletedDays, fitStats, nutriStats,
+          itemsToday, nextActivityDate,
+          activities: client.activities.map((a: any) => ({ id: a.id, title: a.title, type: a.type, amountPaid: paidByEnrollmentId.get(client.enrollments.find((e:any)=>Number(e.activity_id)===Number(a.id))?.id) || 0 }))
+        }
       }
-    }))
+))
 
     return NextResponse.json({ success: true, clients: basicClients })
   } catch (error: any) {
