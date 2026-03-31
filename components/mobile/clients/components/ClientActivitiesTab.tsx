@@ -63,17 +63,20 @@ export function ClientActivitiesTab({
                         const isActiveByStatus = ['activa', 'active'].includes(status)
                         const is100Percent = (act.progressPercent || 0) >= 100
 
+                        // New logic: If it's expired according to the dates, it's past.
+                        const isExpiredByDate = (expirationDate && expirationDate < today) || (programEndDate && programEndDate < today)
+
                         if (activitySubTab === 'en-curso') {
                             // En curso: status active/activa AND not completed 100% AND not past
-                            return isActiveByStatus && !isFinishedByStatus && !is100Percent && !isPast
+                            return isActiveByStatus && !isFinishedByStatus && !is100Percent && !isPast && !isExpiredByDate
                         }
                         if (activitySubTab === 'por-empezar') {
                             // Por empezar: status pending/pendiente AND not started (no start_date or not active yet)
-                            return (status.includes('pend') || status.includes('wait') || !act.start_date) && !isFinishedByStatus && !isActiveByStatus && !isPast
+                            return (status.includes('pend') || status.includes('wait') || !act.start_date) && !isFinishedByStatus && !isActiveByStatus && !isPast && !isExpiredByDate
                         }
                         if (activitySubTab === 'finalizadas') {
-                            // Finalizadas: status finished/past OR 100% completed
-                            return isFinishedByStatus || is100Percent || isPast
+                            // Finalizadas: status finished/past OR 100% completed OR expired
+                            return isFinishedByStatus || is100Percent || isPast || isExpiredByDate
                         }
                         return true
                     }) || []

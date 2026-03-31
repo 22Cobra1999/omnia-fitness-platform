@@ -135,13 +135,15 @@ export function PurchasedActivityCardContent({
                                 {isFuture ? 'Compra' : 'Inicio'}
                             </span>
                             <span className="text-zinc-400 font-extrabold text-[11px] h-[14px]">
-                                {isFuture ? formatDM(enrollment.created_at) : formatDM(enrollment.start_date)}
+                                {isFuture ? formatDM(enrollment.created_at) : (formatDM(enrollment.start_date || enrollment.created_at))}
                             </span>
                         </div>
 
                         <div className="flex flex-col items-end">
                             <span className="text-zinc-500 font-bold uppercase text-[6px] tracking-[0.2em] opacity-40 text-right">Fin</span>
-                            <span className="text-zinc-400 font-extrabold text-[11px] h-[14px] text-right">{formatDM(enrollment.program_end_date)}</span>
+                            <span className="text-zinc-400 font-extrabold text-[11px] h-[14px] text-right">
+                                {formatDM(enrollment.program_end_date || enrollment.expiration_date)}
+                            </span>
                         </div>
                     </div>
 
@@ -161,8 +163,8 @@ export function PurchasedActivityCardContent({
                 {isCoachView && (
                     <div className="flex flex-col gap-4 mt-auto pt-4 border-t border-white/5 mx-1">
                         {/* Days Section */}
-                        <div className="flex flex-col gap-1.5 px-0.5">
-                            <h4 className="text-[8px] font-[1000] text-white/20 uppercase tracking-[0.2em]">Días</h4>
+                        <div className="flex flex-col gap-1 px-0.5">
+                            <h4 className="text-[7.5px] font-medium text-white/40 uppercase tracking-[0.2em]">Días</h4>
                             <div className="flex items-center justify-between border-l border-white/10 pl-3 py-0.5">
                                 <StatItem label="OK" value={daysCompleted} color="text-[#FF7939]" />
                                 <div className="h-4 w-[1px] bg-white/5" />
@@ -170,13 +172,13 @@ export function PurchasedActivityCardContent({
                                 <div className="h-4 w-[1px] bg-white/5" />
                                 <StatItem label="AUS" value={daysMissed} color="text-red-500" />
                                 <div className="h-4 w-[1px] bg-white/5" />
-                                <StatItem label="PEN" value={daysRemainingFuture} color="text-white" />
+                                <StatItem label="PEN" value={daysRemainingFuture} color="text-zinc-500" />
                             </div>
                         </div>
 
                         {/* Items Section */}
-                        <div className="flex flex-col gap-1.5 px-0.5">
-                            <h4 className="text-[8px] font-[1000] text-white/20 uppercase tracking-[0.2em]">
+                        <div className="flex flex-col gap-1 px-0.5">
+                            <h4 className="text-[7.5px] font-medium text-white/40 uppercase tracking-[0.2em]">
                                 {isNutrition ? 'Platos' : 'Ejercicios'}
                             </h4>
                             <div className="flex items-center justify-between border-l border-white/10 pl-3 py-0.5">
@@ -184,7 +186,7 @@ export function PurchasedActivityCardContent({
                                 <div className="h-4 w-[1px] bg-white/5" />
                                 <StatItem label="NO" value={itemsDebtPast} color="text-red-500" />
                                 <div className="h-4 w-[1px] bg-white/5" />
-                                <StatItem label="PEN" value={itemsPendingToday} color="text-white" />
+                                <StatItem label="PEN" value={itemsPendingToday} color="text-zinc-500" />
                             </div>
                         </div>
                     </div>
@@ -199,8 +201,8 @@ export function PurchasedActivityCardContent({
 function StatItem({ label, value, color }: { label: string, value: number | undefined, color: string }) {
     return (
         <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[7.5px] text-white/20 font-black uppercase tracking-tight">{label}</span>
-            <span className={cn("text-sm font-[1000] leading-none", color)}>{value ?? 0}</span>
+            <span className="text-[7px] text-white/15 font-medium uppercase tracking-tight">{label}</span>
+            <span className={cn("text-[13px] font-[900] leading-none", color)}>{value ?? 0}</span>
         </div>
     )
 }

@@ -80,6 +80,15 @@ export async function GET(
       })
     }
 
+    if (docsRes.data) {
+      docsRes.data.forEach((r: any) => {
+        const eid = Number(r.enrollment_id); if (!eid) return
+        const curr = getStats(eid)
+        if (r.visto) curr.doc_items_ok++
+        curr.doc_items_total++
+      })
+    }
+
     const bancoRecords = bancoRes.data || [], expiredByEnrollment = new Map<number, any>()
     const bancoByEnrollment = new Map<number, any>(), bancoByActivity = new Map<number, any>()
     bancoRecords.forEach((b: any) => { if (b.enrollment_id) bancoByEnrollment.set(Number(b.enrollment_id), b); if (b.activity_id) bancoByActivity.set(Number(b.activity_id), b) })
@@ -132,7 +141,7 @@ export async function GET(
       if (cDailyStats.length > 0) {
         const uniqueDates = Array.from(new Set(cDailyStats.map((d: any) => d.fecha)))
         for (const date of uniqueDates) {
-          const rowsInDate = cDailyStats.filter(r => r.fecha === date)
+          const rowsInDate = cDailyStats.filter((r: any) => r.fecha === date)
           const totalObj = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_o || 0) + (r.nut_items_o || 0), 0)
           const totalComp = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_c || 0) + (r.nut_items_c || 0), 0)
           if (totalObj > 0 && totalComp >= totalObj) totalCompletedDays++
