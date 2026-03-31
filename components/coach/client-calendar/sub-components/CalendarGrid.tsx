@@ -35,7 +35,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
             <div className="grid grid-cols-7 gap-1">
                 {days.map((date, index) => {
-                    const dateStr = date.toISOString().split('T')[0]
+                    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
                     const isCurrentMonth = date.getMonth() === currentDate.getMonth()
                     const isToday = date.toDateString() === new Date().toDateString()
                     const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()

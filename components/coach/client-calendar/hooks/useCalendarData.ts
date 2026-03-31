@@ -27,7 +27,13 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
 
-            if (!error && data) setMonthlyProgress(data)
+            if (!error && data) {
+                const normalized = data.map((r: any) => ({
+                    ...r,
+                    fecha: String(r.fecha).split(' ')[0].split('T')[0]
+                }))
+                setMonthlyProgress(normalized)
+            }
         } catch (e) {
             console.warn('Error fetching monthly progress:', e)
         }
@@ -252,7 +258,9 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     total_mins: mins,
                     fitness_mins: mins,
                     nutri_mins: 0,
-                    calendar_mins: 0
+                    calendar_mins: 0,
+                    items_objetivo: 1,
+                    items_completados: r.completado ? 1 : 0
                 } as any)
             })
 
@@ -282,7 +290,9 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     total_mins: mins,
                     fitness_mins: 0,
                     nutri_mins: mins,
-                    calendar_mins: 0
+                    calendar_mins: 0,
+                    items_objetivo: 1,
+                    items_completados: r.completado ? 1 : 0
                 } as any)
             })
 
@@ -431,6 +441,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 const caloriasMap = parseCol(fit.calorias)
 
                 allIds.forEach((rawId: any) => {
+
                     const realId = parseEjercicioId(rawId)
                     const ex = exMap[realId]
                     const fullKey = String(rawId)
@@ -568,7 +579,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
     }, [summaryRowsByDate, activeEnrollmentFilterId])
 
     const getDayData = useCallback((date: Date) => {
-        return dayData[date.toISOString().split('T')[0]]
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        return dayData[dateStr]
     }, [dayData])
 
     useEffect(() => {

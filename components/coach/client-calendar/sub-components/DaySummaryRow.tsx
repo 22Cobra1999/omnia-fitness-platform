@@ -98,7 +98,8 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
     const eventId = row.calendar_event_id
     const expandedKey = activityId ? `${dayStr}::${String(activityId)}` : (eventId ? `${dayStr}::event::${eventId}` : null)
     const expanded = expandedKey ? !!expandedActivityKeys?.[expandedKey] : false
-    const canExpand = allowExpand && (!!activityId || !!eventId)
+    const isOtherCoach = currentCoachId && row.coach_id && String(row.coach_id) !== String(currentCoachId)
+    const canExpand = allowExpand && (!!activityId || !!eventId) && !isOtherCoach
     const minutes = Number(row.total_mins ?? 0) || 0
 
     return (
@@ -108,6 +109,10 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                 type="button"
                 onClick={async () => {
                     if (!canExpand || !expandedKey) return
+                    // IF it's another coach's activity, don't expand (only show accumulated time)
+                    if (currentCoachId && row.coach_id && String(row.coach_id) !== String(currentCoachId)) {
+                        return
+                    }
                     const next = !expanded
                     setExpandedActivityKeys(prev => ({ ...prev, [expandedKey]: next }))
                     if (next) {
@@ -119,14 +124,24 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                 className={`w-full flex items-center justify-between py-3 group ${canExpand ? 'cursor-pointer' : 'cursor-default'}`}
             >
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-0.5 h-5 rounded-full flex-shrink-0 transition-colors ${expanded ? 'bg-[#FF7939]' : 'bg-zinc-700 group-hover:bg-[#FF7939]/50'}`} />
-                    {isMeet ? (
-                        <Video className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
-                    ) : isNutri ? (
-                        <Utensils className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
-                    ) : (
-                        <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
-                    )}
+                    {/* Activity Icon Bubble */}
+                    {(() => {
+                        const isCompleted = (Number(row.items_completados) || 0) >= (Number(row.items_objetivo) || 1)
+                        const bubbleBg = isCompleted ? (isNutri ? "bg-yellow-400" : "bg-[#FF7939]") : "bg-zinc-800/80"
+                        const iconColor = isCompleted ? "text-white" : "text-zinc-500"
+                        
+                        return (
+                            <div className={`p-1.5 rounded-full ${bubbleBg} flex-shrink-0 shadow-sm transition-all duration-300 group-hover:scale-110`}>
+                                {isMeet ? (
+                                    <Video className={`h-3 w-3 ${iconColor}`} />
+                                ) : isNutri ? (
+                                    <UtensilsCrossed className={`h-3 w-3 ${iconColor}`} />
+                                ) : (
+                                    <Zap className={`h-3 w-3 ${iconColor}`} />
+                                )}
+                            </div>
+                        )
+                    })()}
                     <div className="flex flex-col items-start min-w-0 min-h-[36px] justify-center">
                         <span className="text-sm font-bold text-gray-100 leading-tight truncate w-full">{title}</span>
                         {extraLabel && <span className="text-[10px] text-zinc-500 font-medium mt-0.5 uppercase tracking-wider">{extraLabel}</span>}
@@ -295,10 +310,11 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                                     const isNumeric = /^\d+$/.test(rawName);
                                                                     if (isNumeric || !rawName) {
                                                                         const tid = String(exercise.ejercicio_id);
-                                                                        if (dishNameMap && (dishNameMap[tid] || dishNameMap[exercise.ejercicio_id])) 
-                                                                            return dishNameMap[tid] || dishNameMap[exercise.ejercicio_id];
+                                                                        const bid = tid.split('_')[0];
+                                                                        if (dishNameMap && (dishNameMap[tid] || dishNameMap[bid] || dishNameMap[exercise.ejercicio_id])) 
+                                                                            return dishNameMap[tid] || dishNameMap[bid] || dishNameMap[exercise.ejercicio_id];
                                                                         
-                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === tid);
+                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === tid || String(o.id) === bid);
                                                                         if (opt?.nombre_plato) return opt.nombre_plato;
                                                                         if (opt?.label) return opt.label;
                                                                         return isNumeric ? `Plato ${rawName}` : 'Plato sin nombre';

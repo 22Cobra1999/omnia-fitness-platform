@@ -70,6 +70,8 @@ export interface ClientDaySummaryRow {
     nutri_mins: number | null
     calendar_mins: number | null
     total_mins: number | null
+    items_objetivo: number | null
+    items_completados: number | null
     fitness_items_planned?: number | null
     fitness_items_done?: number | null
     nutri_items_planned?: number | null
