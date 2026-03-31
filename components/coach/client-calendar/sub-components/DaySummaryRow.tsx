@@ -1,6 +1,6 @@
 "use client"
 import React, { useRef, useEffect } from 'react'
-import { Video, ChevronRight, Clock, Calendar, Zap, Utensils, ChevronDown, Edit2, Save, X, Trash2, Repeat2 } from 'lucide-react'
+import { Video, ChevronRight, Clock, Calendar, Zap, Utensils, UtensilsCrossed, ChevronDown, Edit2, Save, X, Trash2, Repeat2 } from 'lucide-react'
 import { ClientDaySummaryRow as SummaryRowType, ExerciseExecution } from '../types'
 import { formatMinutesCompact } from '../utils/date-helpers'
 import { getSeriesBlocks, formatSeries } from '../utils/data-parsers'
@@ -230,11 +230,17 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                             <div className="flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     {exercise.is_nutricion ? (
-                                                        <Utensils className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                                                        <div className={`p-1 rounded-full ${isCompleted ? 'bg-yellow-400' : 'bg-yellow-500/10'} flex-shrink-0`}>
+                                                            <UtensilsCrossed className={`h-2.5 w-2.5 ${isCompleted ? 'text-white' : 'text-yellow-500/60'}`} />
+                                                        </div>
                                                     ) : exercise.is_workshop ? (
-                                                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                                                        <div className={`p-1 rounded-full ${isCompleted ? 'bg-[#FF7939]' : 'bg-zinc-800'} flex-shrink-0`}>
+                                                            <Calendar className={`h-2.5 w-2.5 ${isCompleted ? 'text-white' : 'text-zinc-400'}`} />
+                                                        </div>
                                                     ) : (
-                                                        <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                                                        <div className={`p-1 rounded-full ${isCompleted ? 'bg-[#FF7939]' : 'bg-[#FF7939]/10'} flex-shrink-0`}>
+                                                            <Zap className={`h-2.5 w-2.5 ${isCompleted ? 'text-white' : 'text-[#FF7939]/60'}`} />
+                                                        </div>
                                                     )}
 
                                                     {/* Exercise swap dropdown */}
@@ -288,8 +294,11 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                                     const rawName = exercise.ejercicio_nombre || '';
                                                                     const isNumeric = /^\d+$/.test(rawName);
                                                                     if (isNumeric || !rawName) {
-                                                                        if (dishNameMap && dishNameMap[exercise.ejercicio_id]) return dishNameMap[exercise.ejercicio_id];
-                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === String(exercise.ejercicio_id));
+                                                                        const tid = String(exercise.ejercicio_id);
+                                                                        if (dishNameMap && (dishNameMap[tid] || dishNameMap[exercise.ejercicio_id])) 
+                                                                            return dishNameMap[tid] || dishNameMap[exercise.ejercicio_id];
+                                                                        
+                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === tid);
                                                                         if (opt?.nombre_plato) return opt.nombre_plato;
                                                                         if (opt?.label) return opt.label;
                                                                         return isNumeric ? `Plato ${rawName}` : 'Plato sin nombre';

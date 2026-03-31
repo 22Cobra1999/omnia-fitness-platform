@@ -120,7 +120,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                     const isAbsentDay = isPast && !started
                                     const isPending = !completed && (!isPast || started)
                                     
-                                    const isNutri = act.area === 'nutricion' || (act.nutri_mins > 0 && act.fitness_mins === 0)
+                                    const activityTitle = (act.activity_title || '').toLowerCase()
+                                    const isNutri = act.area === 'nutricion' || activityTitle.includes('nutri') || activityTitle.includes('comida') || activityTitle.includes('plato') || (act.nutri_mins > 0 && act.fitness_mins === 0)
                                     
                                     let bubbleBg = isNutri ? "bg-yellow-500/20" : "bg-[#FF7939]/20"
                                     let iconColor = isNutri ? "text-yellow-500/60" : "text-[#FF7939]/60"

@@ -177,9 +177,12 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
                         {otherRows.length > 0 && (
                             <div className="mb-1 pt-2">
                                 <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-black mb-1 px-0.5">Otros del cliente</p>
-                                <div className="flex items-center gap-2 py-2 px-0.5">
+                                {otherRows.map(r => (
+                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} dishNameMap={props.dishNameMap} />
+                                ))}
+                                <div className="flex items-center gap-2 py-1 px-0.5 opacity-40">
                                     <Clock2 className="h-3 w-3 text-zinc-600 flex-shrink-0" />
-                                    <span className="text-xs text-zinc-500">{formatMinutesCompact(otherMins)}</span>
+                                    <span className="text-[10px] text-zinc-500">{formatMinutesCompact(otherMins)} en total</span>
                                 </div>
                             </div>
                         )}

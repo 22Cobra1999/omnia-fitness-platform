@@ -193,7 +193,7 @@ export function PurchasedActivityCardContent({
                 )}
             </div>
 
-            <PurchasedActivityCardFooter isFinished={isFinished} progress={progress} />
+            <PurchasedActivityCardFooter isFinished={isFinished} progress={progress} streak={streak} isNutrition={isNutrition} />
         </div>
     )
 }
@@ -207,7 +207,15 @@ function StatItem({ label, value, color }: { label: string, value: number | unde
     )
 }
 
-function PurchasedActivityCardFooter({ isFinished, progress }: any) {
+function PurchasedActivityCardFooter({ isFinished, progress, streak, isNutrition }: any) {
+    if (streak > 0) {
+        return (
+            <div className="mt-2 flex items-center justify-center gap-1">
+                <Flame className={cn("w-3.5 h-3.5 fill-orange-500 text-orange-600", isFinished && "opacity-50")} />
+                <span className="text-[11px] font-[1000] text-orange-400 leading-none">{streak}</span>
+            </div>
+        )
+    }
     if (isFinished || progress >= 100) {
         return (
             <div className="mt-2 flex justify-center opacity-30">

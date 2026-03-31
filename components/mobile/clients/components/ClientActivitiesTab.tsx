@@ -55,6 +55,9 @@ export function ClientActivitiesTab({
                         if (programEndDate) programEndDate.setHours(0, 0, 0, 0)
                         if (expirationDate) expirationDate.setHours(0, 0, 0, 0)
 
+                        const activityTitle = (act.activity_title || '').toLowerCase()
+                        const isNutri = act.area === 'nutricion' || activityTitle.includes('nutri') || activityTitle.includes('comida') || activityTitle.includes('plato') || (act.nutri_mins > 0 && act.fitness_mins === 0)
+
                         const isPast = (endDate && endDate < today) || 
                                        (programEndDate && programEndDate < today) || 
                                        (expirationDate && expirationDate < today)
@@ -65,18 +68,19 @@ export function ClientActivitiesTab({
 
                         // New logic: If it's expired according to the dates, it's past.
                         const isExpiredByDate = (expirationDate && expirationDate < today) || (programEndDate && programEndDate < today)
+                        const isEffectivelyPast = isPast || isExpiredByDate || isFinishedByStatus
 
                         if (activitySubTab === 'en-curso') {
-                            // En curso: status active/activa AND not completed 100% AND not past
-                            return isActiveByStatus && !isFinishedByStatus && !is100Percent && !isPast && !isExpiredByDate
+                            // En curso: status active AND not finished AND not past
+                            return (status.includes('act') || status.includes('on')) && !isEffectivelyPast && !is100Percent
                         }
                         if (activitySubTab === 'por-empezar') {
-                            // Por empezar: status pending/pendiente AND not started (no start_date or not active yet)
-                            return (status.includes('pend') || status.includes('wait') || !act.start_date) && !isFinishedByStatus && !isActiveByStatus && !isPast && !isExpiredByDate
+                            // Por empezar: status pending AND not finished AND not past
+                            return (status.includes('pend') || status.includes('wait') || !act.start_date) && !isEffectivelyPast && !isActiveByStatus
                         }
                         if (activitySubTab === 'finalizadas') {
-                            // Finalizadas: status finished/past OR 100% completed OR expired
-                            return isFinishedByStatus || is100Percent || isPast || isExpiredByDate
+                            // Finalizadas: status finished/expired OR 100% completed OR effectively past by date
+                            return isEffectivelyPast || is100Percent
                         }
                         return true
                     }) || []

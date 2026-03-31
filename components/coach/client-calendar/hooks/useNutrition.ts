@@ -37,9 +37,28 @@ export function useNutrition(
         setEditingNutritionPlateId(ex.ejercicio_id)
 
         if (ex.actividad_id && !nutritionPlateOptionsByActivity[ex.actividad_id]) {
-            supabase.from('nutrition_program_details').select('*').eq('activity_id', ex.actividad_id)
+            // Try both common column names for activity link
+            supabase.from('nutrition_program_details')
+                .select('*')
+                .or(`activity_id.eq.${ex.actividad_id},actividad_id.eq.${ex.actividad_id}`)
                 .then(({ data }: any) => {
-                    if (data) setNutritionPlateOptionsByActivity(prev => ({ ...prev, [ex.actividad_id!]: data }))
+                    if (data && data.length > 0) {
+                        setNutritionPlateOptionsByActivity(prev => ({ ...prev, [ex.actividad_id!]: data }))
+                    } else {
+                        // Fallback: fetch all plates for the current coach to ensure dropdown is not empty
+                        supabase.auth.getUser().then(({ data: userData }: any) => {
+                            const coachId = userData?.user?.id;
+                            if (coachId) {
+                                supabase.from('nutrition_program_details')
+                                    .select('*')
+                                    .eq('coach_id', coachId)
+                                    .limit(100)
+                                    .then(({ data: coachPlates }: any) => {
+                                        if (coachPlates) setNutritionPlateOptionsByActivity(prev => ({ ...prev, [ex.actividad_id!]: coachPlates }))
+                                    })
+                            }
+                        })
+                    }
                 })
         }
     }, [supabase, nutritionPlateOptionsByActivity])

@@ -103,16 +103,16 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                         if (a.coach_id) activityCoachMap[a.id] = a.coach_id
                     })
 
-                    // Fetch all dish names to ensure coverage of shared plates across different coaches
-                    supabase.from('nutrition_program_details').select('id, nombre_plato, label')
-                        .then(({ data: dishes }: any) => {
-                            if (dishes) {
-                                const dMap: Record<string, string> = {}
-                                dishes.forEach((d: any) => { dMap[String(d.id)] = d.nombre_plato || d.label || `Plato ${d.id}` })
-                                setDishNameMap(dMap)
-                            }
-                        })
                 }
+            }
+
+            // Fetch all dish names to ensure coverage of shared plates across different coaches
+            // Move this outside the if(acts) to ensure map is always available
+            const { data: dishes } = await supabase.from('nutrition_program_details').select('id, nombre_plato, label')
+            if (dishes) {
+                const dMap: Record<string, string> = {}
+                dishes.forEach((d: any) => { dMap[String(d.id)] = d.nombre_plato || d.label || `Plato ${d.id}` })
+                setDishNameMap(dMap)
             }
 
             // 4. Fetch Workshop Progress
@@ -176,12 +176,9 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
 
             // Helper to aggregate
             const addRow = (day: string, row: ClientDaySummaryRow) => {
-                // If viewer is coach, only show their own activities or those without a coach (legacy/system)
-                // UNLESS currentCoachId is null (client view or dev)
-                if (currentCoachId && row.coach_id && String(row.coach_id) !== String(currentCoachId)) {
-                    // It belongs to another coach - skip for this view
-                    return
-                }
+                // We no longer skip rows belonging to other coaches here.
+                // Filtering for the calendar bubbles vs "Otros del cliente" list
+                // happens in the UI components (CalendarGrid vs DayDetailsPanel).
 
                 if (!byDate[day]) byDate[day] = []
                 byDate[day].push(row)
@@ -205,7 +202,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             const dailyCovered = new Set<string>()
             dailyList.forEach((r: any) => {
                 const day = String(r.fecha)
-                const key = `${day}::${r.actividad_id}`
+                const actId = Number(r.actividad_id)
+                const key = `${day}::${actId}`
                 dailyCovered.add(key)
                 
                 const fitnessMins = Number(r.fit_mins_c) || Number(r.fit_mins_o) || (r.area === 'fitness' ? Number(r.minutos) : 0) || 0
@@ -236,7 +234,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             const fitnessList = Array.isArray(fitnessRows) ? fitnessRows : []
             fitnessList.forEach((r: any) => {
                 const day = String(r.fecha)
-                const key = `${day}::${r.actividad_id}`
+                const actId = Number(r.actividad_id)
+                const key = `${day}::${actId}`
                 if (dailyCovered.has(key)) return // already accounted for
                 let mins = 0
                 if (r.minutos_json) {
@@ -262,7 +261,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             const nutriList = Array.isArray(nutriRows) ? nutriRows : []
             nutriList.forEach((r: any) => {
                 const day = String(r.fecha)
-                const key = `${day}::${r.actividad_id}`
+                const actId = Number(r.actividad_id)
+                const key = `${day}::${actId}`
                 if (dailyCovered.has(key)) return // Skip if already covered by flat schema
                 
                 let mins = 0
@@ -494,7 +494,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                         exercise_key: key, 
                         nutrition_key: key, 
                         nutrition_record_id: nut.id,
-                        ejercicio_nombre: dishNameMap[key] || m?.nombre_plato || m?.label || (m?.id ? `Plato ${m.id}` : key.replace(/_/g, ' ')),
+                        ejercicio_nombre: m?.nombre_plato || m?.label || dishNameMap[key] || dishNameMap[baseId] || (m?.id ? `Plato ${m.id}` : key.replace(/_/g, ' ')),
                         completado: compList.includes(key),
                         fecha_ejercicio: dayStr, 
                         actividad_id: activityId, 
