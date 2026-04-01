@@ -89,29 +89,49 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         if (!data) return
 
         const progressMap: Record<string, number> = {}
-        const statsMap: Record<string, { total: number; completed: number }> = {}
+        const statsMap: Record<string, { total: number; completed: number; streak: number }> = {}
 
-        // Group by enrollment_id
+        // Group by enrollment_id for global progress
         const grouped = data.reduce((acc: any, curr: any) => {
             if (!acc[curr.enrollment_id]) {
                 acc[curr.enrollment_id] = { total: 0, completed: 0 }
             }
-            // Sum both fitness and nutrition items
             acc[curr.enrollment_id].total += (curr.fit_items_o || 0) + (curr.nut_items_o || 0)
             acc[curr.enrollment_id].completed += (curr.fit_items_c || 0) + (curr.nut_items_c || 0)
             return acc
         }, {})
 
-        // Calculate %
+        // Calculate global %
         Object.keys(grouped).forEach(enrollmentId => {
             const { total, completed } = grouped[enrollmentId]
-            statsMap[enrollmentId] = { total, completed }
             if (total === 0) {
                 progressMap[enrollmentId] = 0
             } else {
                 progressMap[enrollmentId] = Math.round((completed / total) * 100)
             }
         })
+
+        // Fetch Today's Stats specifically for "HOY" and "STREAK"
+        const now = new Date()
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+        const { data: todayData } = await supabase
+            .from('progreso_diario_actividad')
+            .select('enrollment_id, fit_items_c, fit_items_o, nut_items_c, nut_items_o, streak')
+            .in('enrollment_id', enrollmentIds)
+            .eq('fecha', todayIso)
+
+        if (todayData) {
+            todayData.forEach((r: any) => {
+                const tot = (r.fit_items_o || 0) + (r.nut_items_o || 0)
+                const ok = (r.fit_items_c || 0) + (r.nut_items_c || 0)
+                statsMap[r.enrollment_id] = {
+                    total: tot,
+                    completed: ok,
+                    streak: r.streak || 0
+                }
+            })
+        }
 
         setEnrollmentProgresses(prev => ({ ...prev, ...progressMap }))
         setEnrollmentStats(prev => ({ ...prev, ...statsMap }))

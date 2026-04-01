@@ -110,21 +110,11 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                 </div>
             )}
 
-            {/* Streak Badge - Top Left */}
-            {streak !== undefined && streak > 0 && (
-                <div className="absolute top-2 left-2 z-20">
-                    <div className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full shadow-2xl relative overflow-hidden">
-                        <Flame className="w-6 h-6 text-[#FF7939] opacity-30 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-110" fill="#FF7939" />
-                        <span className="text-[12px] font-[1000] text-white italic leading-none z-10 pt-0.5 font-[var(--font-anton)]">
-                            {streak}
-                        </span>
-                    </div>
-                </div>
-            )}
+            {/* Streak Badge - Removed from top left */}
 
             {/* Centered Title and Coach Info Overlay */}
             <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center px-4 pb-0">
-                <div className="min-h-[4rem] flex items-center justify-center mb-10 w-full px-1">
+                <div className="min-h-[4rem] flex items-center justify-center mb-2 w-full px-1">
                     <h3 className={cn(
                         "text-white leading-[1.1] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] tracking-tighter opacity-95 w-full px-0",
                         size === "small" ? "text-xs" : "text-sm md:text-base"
@@ -145,6 +135,18 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                         })()}
                     </h3>
                 </div>
+
+                {/* Streak (Centered between Title and Coach) */}
+                {streak && streak > 0 ? (
+                    <div className="flex items-center gap-1.5 mb-2 scale-[0.9]">
+                        <Flame className="h-4 w-4 text-[#FF7939] fill-[#FF7939]" />
+                        <span className="text-white font-[1000] text-sm leading-none tracking-tighter italic">
+                            {streak}
+                        </span>
+                    </div>
+                ) : (
+                    <div className="h-6 mb-1" />
+                )}
 
                 <div className="flex items-center gap-2 pl-1 pr-6 h-8 bg-white/10 backdrop-blur-md rounded-full border border-white/10 shadow-2xl relative w-fit max-w-[98%]">
                     <div className="w-[clamp(20px,5vw,24px)] h-[clamp(20px,5vw,24px)] rounded-full bg-zinc-800/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">

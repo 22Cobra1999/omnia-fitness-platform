@@ -11,7 +11,7 @@ interface ProgramListProps {
     onStartActivity: (activityId: string) => void // Propagated from logic
     showProgress?: boolean
     enrollmentProgresses?: Record<string, number>
-    enrollmentStats?: Record<string, { total: number, completed: number }>
+    enrollmentStats?: Record<string, { total: number, completed: number, streak: number }>
 }
 
 export function ProgramList({
@@ -54,7 +54,7 @@ export function ProgramList({
                             realProgress={progress}
                             itemsObjectiveToday={stats.total}
                             itemsPendingTodayReal={Math.max(0, stats.total - stats.completed)}
-                            streak={(enrollment as any).current_streak || 0}
+                            streak={stats.streak || (enrollment as any).current_streak || 0}
                             size="medium"
                         />
                     </div>

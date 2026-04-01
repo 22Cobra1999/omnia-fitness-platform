@@ -109,37 +109,61 @@ export function PurchasedActivityCardContent({
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">CALIFICADO</span>
                         </div>
                     ) : (itemsObjectiveToday && itemsObjectiveToday > 0) ? (
-                        <div className={cn(
-                            "flex items-center gap-2 bg-white/5 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left",
-                            itemsPendingTodayReal === 0 
-                                ? "border-emerald-500/30" 
-                                : "border-white/10"
-                        )}>
-                            <div className="flex items-center gap-1.5 border-r border-white/10 pr-2 mr-0.5">
-                                {isNutrition ? (
-                                    <UtensilsCrossed className="w-3 h-3 text-white" />
-                                ) : (
-                                    <Zap className="w-3 h-3 text-white fill-white" />
-                                )}
+                        <div className="flex flex-col gap-2 scale-[0.9] origin-left mr-auto">
+                            <div className={cn(
+                                "flex items-center gap-2 px-2 py-1 rounded-full border shadow-lg shrink-0",
+                                itemsPendingTodayReal === 0 
+                                    ? "bg-emerald-500/10 border-emerald-500/30" 
+                                    : "bg-white/5 border-white/10"
+                            )}>
                                 <span className={cn(
-                                    "text-[9px] font-black tracking-widest uppercase whitespace-nowrap",
-                                    itemsPendingTodayReal === 0 ? "text-emerald-400" : "text-[#FF7939]"
+                                    "text-[12px] font-[1000] tracking-tighter",
+                                    itemsPendingTodayReal === 0 ? "text-emerald-400" : "text-white"
                                 )}>
-                                    {itemsPendingTodayReal === 0 ? 'ACT. OK' : `ACT. HOY: ${itemsObjectiveToday}`}
+                                    {itemsPendingTodayReal === 0 ? '' : itemsPendingTodayReal}
+                                </span>
+                                
+                                <div className={cn(
+                                    "p-1.5 rounded-full border",
+                                    itemsPendingTodayReal === 0 
+                                        ? "bg-emerald-500/20 border-emerald-500/40" 
+                                        : "bg-[#FF7939]/20 border-[#FF7939]/40"
+                                )}>
+                                    {isNutrition ? (
+                                        <UtensilsCrossed className={cn("w-3 h-3", itemsPendingTodayReal === 0 ? "text-emerald-400" : "text-[#FF7939]")} />
+                                    ) : (
+                                        <Zap className={cn("w-3 h-3 fill-current", itemsPendingTodayReal === 0 ? "text-emerald-400" : "text-[#FF7939]")} />
+                                    )}
+                                </div>
+
+                                <span className={cn(
+                                    "text-[10px] font-black tracking-widest uppercase whitespace-nowrap pr-1",
+                                    itemsPendingTodayReal === 0 ? "text-emerald-400" : "text-zinc-400"
+                                )}>
+                                    {itemsPendingTodayReal === 0 ? 'COMPLETADO' : 'HOY'}
                                 </span>
                             </div>
-                            <div className="flex items-center gap-1 opacity-60">
-                                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">PROX:</span>
-                                <span className="text-[9px] font-black text-white tracking-tighter whitespace-nowrap">
-                                    {nextSessionDate ? formatDM(nextSessionDate) : '...'}
-                                </span>
-                            </div>
+
+                            {nextSessionDate && (
+                                <div className="flex items-center gap-2 px-3 opacity-60">
+                                    <span className="text-[8px] font-black text-zinc-500 uppercase tracking-[0.2em]">PRÓXIMA:</span>
+                                    <span className="text-[10px] font-black text-white tracking-tighter whitespace-nowrap">
+                                        {formatDM(nextSessionDate)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     ) : nextSessionDate ? (
-                        <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-xl border border-white/10 px-2 py-1 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
-                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                                PROX: {formatDM(nextSessionDate)}
-                            </span>
+                        <div className="flex flex-col gap-2 scale-[0.9] origin-left mr-auto">
+                            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full shadow-lg">
+                                <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase whitespace-nowrap">
+                                    PRÓXIMA SESIÓN
+                                </span>
+                                <div className="w-[1px] h-3 bg-white/10 mx-1" />
+                                <span className="text-[11px] font-black text-white tracking-tighter whitespace-nowrap">
+                                    {formatDM(nextSessionDate)}
+                                </span>
+                            </div>
                         </div>
                     ) : null}
 
