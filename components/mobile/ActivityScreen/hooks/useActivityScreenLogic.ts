@@ -89,7 +89,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         if (!data) return
 
         const progressMap: Record<string, number> = {}
-        const statsMap: Record<string, { total: number; completed: number; streak: number }> = {}
+        const statsMap: Record<string, { total: number; completed: number; streak: number; nextSession?: string }> = {}
 
         // Group by enrollment_id for global progress
         const grouped = data.reduce((acc: any, curr: any) => {
@@ -111,7 +111,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             }
         })
 
-        // Fetch Today's Stats specifically for "HOY" and "STREAK"
+        // 1. Fetch Today's Stats specifically for "HOY" and "STREAK"
         const now = new Date()
         const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
@@ -129,6 +129,26 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
                     total: tot,
                     completed: ok,
                     streak: r.streak || 0
+                }
+            })
+        }
+
+        // 2. Fetch EARLIEST Future Session specifically for "PRÓXIMA"
+        const { data: nextSessions } = await supabase
+            .from('progreso_diario_actividad')
+            .select('enrollment_id, fecha')
+            .in('enrollment_id', enrollmentIds)
+            .gt('fecha', todayIso)
+            .or('fit_items_o.gt.0,nut_items_o.gt.0')
+            .order('fecha', { ascending: true })
+
+        if (nextSessions) {
+            nextSessions.forEach((r: any) => {
+                // Since it's ordered by fecha ASC, the first one we find for an enrollment is the earliests
+                if (statsMap[r.enrollment_id] && !statsMap[r.enrollment_id].nextSession) {
+                    statsMap[r.enrollment_id].nextSession = r.fecha
+                } else if (!statsMap[r.enrollment_id]) {
+                    statsMap[r.enrollment_id] = { total: 0, completed: 0, streak: 0, nextSession: r.fecha }
                 }
             })
         }

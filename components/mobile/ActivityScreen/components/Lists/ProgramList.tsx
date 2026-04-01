@@ -11,7 +11,7 @@ interface ProgramListProps {
     onStartActivity: (activityId: string) => void // Propagated from logic
     showProgress?: boolean
     enrollmentProgresses?: Record<string, number>
-    enrollmentStats?: Record<string, { total: number, completed: number, streak: number }>
+    enrollmentStats?: Record<string, { total: number, completed: number, streak: number, nextSession?: string }>
 }
 
 export function ProgramList({
@@ -55,6 +55,7 @@ export function ProgramList({
                             itemsObjectiveToday={stats.total}
                             itemsPendingTodayReal={Math.max(0, stats.total - stats.completed)}
                             streak={stats.streak || (enrollment as any).current_streak || 0}
+                            overrideNextSessionDate={stats.nextSession}
                             size="medium"
                         />
                     </div>
