@@ -18,11 +18,15 @@ export interface PurchasedActivityCardProps {
     daysCompleted?: number
     daysPassed?: number
     daysMissed?: number
+    daysIncomplete?: number
     daysRemainingFuture?: number
     itemsCompletedTotal?: number
     itemsDebtPast?: number
     itemsPendingToday?: number
+    itemsObjectiveToday?: number
+    itemsPendingTodayReal?: number
     amountPaid?: number
+    streak?: number
 }
 
 export type CardSize = "small" | "medium" | "large"

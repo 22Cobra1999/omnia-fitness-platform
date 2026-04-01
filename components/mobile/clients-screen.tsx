@@ -14,6 +14,7 @@ export function ClientsScreen() {
   const router = useRouter()
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [isLegendOpen, setIsLegendOpen] = useState(false)
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false)
 
   // Logic Hooks
   const {
@@ -57,63 +58,77 @@ export function ClientsScreen() {
 
   return (
     <div className="bg-black text-white min-h-screen p-5 pb-20">
-      <div className="flex flex-col mb-8">
-        <span className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Seguimiento</span>
-        <h1 className="text-2xl font-black text-white italic uppercase tracking-tight">Mis Clientes</h1>
-      </div>
+      <div className="flex flex-row items-center justify-between mb-8 mt-4 gap-2">
+          <h1 className="text-xl font-black text-white italic uppercase tracking-tight shrink-0">Mis Clientes</h1>
+          
+          <div className="flex items-center gap-3 overflow-x-auto hide-scrollbar flex-1 justify-center border-l border-white/5 ml-2 pl-2">
+              {[
+                  { id: "all", label: "Todos" },
+                  { id: "active", label: "Activos" },
+              ].map((tab) => (
+                  <button
+                      key={tab.id}
+                      className="relative pb-1 transition-all"
+                      onClick={() => setFilter(tab.id as any)}
+                  >
+                      <span className={cn(
+                          "text-[12px] font-black uppercase tracking-tight whitespace-nowrap px-1",
+                          filter === tab.id ? "text-white" : "text-white/40"
+                      )}>{tab.label}</span>
+                      {filter === tab.id && (
+                          <motion.div 
+                              layoutId="activeTabUnderline"
+                              className="absolute -bottom-1 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" 
+                          />
+                      )}
+                  </button>
+              ))}
+          </div>
 
-      {/* Search and filter */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
-          <input
-            type="text"
-            placeholder="Buscar clientes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-[#111111] border border-white/5 rounded-full py-3.5 pl-11 pr-4 text-[13px] font-bold text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF7939]/50 transition-all"
-          />
-        </div>
-        <button className="bg-[#111111] border border-white/5 rounded-full px-4 py-3 flex items-center gap-2 active:scale-95 transition-transform">
-          <SlidersHorizontal size={18} className="text-white/40" />
-          <span className="text-[11px] font-black text-white/40 uppercase tracking-tighter">Filtro</span>
-        </button>
-      </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <AnimatePresence mode="wait">
+                {isSearchExpanded ? (
+                    <motion.div
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: "auto", opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        className="absolute right-12 top-4 z-50 flex items-center bg-[#111] border border-white/10 rounded-full px-3 py-1.5 shadow-2xl"
+                    >
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Buscar..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-none text-xs font-bold text-white placeholder:text-white/20 focus:outline-none w-24 sm:w-32"
+                        />
+                        <button onClick={() => { setIsSearchExpanded(false); setSearchTerm("") }} className="ml-2 text-white/40 hover:text-white">
+                            <X size={14} />
+                        </button>
+                    </motion.div>
+                ) : (
+                    <motion.button
+                        key="search-btn"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setIsSearchExpanded(true)}
+                        className="text-white/40 hover:text-white p-1.5 transition-colors active:scale-95"
+                    >
+                        <Search size={16} />
+                    </motion.button>
+                )}
+            </AnimatePresence>
 
-      {/* Filter tabs and Ring Info */}
-      <div className="flex items-center justify-between border-b border-white/5 mb-8">
-        <div className="flex items-center gap-6 pb-1 overflow-x-auto hide-scrollbar">
-          {[
-            { id: "all", label: "Todos" },
-            { id: "active", label: "Activos" },
-            { id: "pending", label: "Pendientes" },
-            { id: "inactive", label: "Inactivos" }
-          ].map((tab) => (
             <button
-              key={tab.id}
-              className="relative pb-3 transition-all"
-              onClick={() => setFilter(tab.id as any)}
+                onClick={() => setIsLegendOpen(!isLegendOpen)}
+                className={cn(
+                    "p-1.5 transition-all flex items-center justify-center active:scale-90",
+                    isLegendOpen ? "text-[#FF7939]" : "text-white/40"
+                )}
             >
-              <span className={cn(
-                "text-[16px] font-black uppercase tracking-tight whitespace-nowrap px-1",
-                filter === tab.id ? "text-white" : "text-white/40"
-              )}>{tab.label}</span>
-              {filter === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" />
-              )}
+                <Info size={16} />
             </button>
-          ))}
-        </div>
-
-        <button
-          onClick={() => setIsLegendOpen(!isLegendOpen)}
-          className={cn(
-            "pb-3 px-2 transition-all flex items-center justify-center active:scale-90",
-            isLegendOpen ? "text-[#FF7939]" : "text-white/40"
-          )}
-        >
-          <Info size={18} />
-        </button>
+          </div>
       </div>
 
       {/* Interactive Legend for Rings */}
@@ -158,7 +173,7 @@ export function ClientsScreen() {
               {searchTerm ? 'No se encontraron clientes' : 'No hay clientes'}
             </p>
             <p className="text-sm text-gray-500">
-              {searchTerm ? 'Intenta con otros términos de búsqueda' : 'Los clientes aparecerán aquí cuando compren tus actividades'}
+              {searchTerm && 'Intenta con otros términos de búsqueda'}
             </p>
           </div>
         ) : (

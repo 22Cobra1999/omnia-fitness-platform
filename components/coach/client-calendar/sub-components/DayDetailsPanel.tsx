@@ -48,10 +48,15 @@ interface DayDetailsPanelProps {
     onActivityExpanded?: (row: ClientDaySummaryRow) => void
     loading: boolean
     dishNameMap?: Record<string, string>
+    streak?: number
+    nextActivityDate?: string | null
 }
 
 export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
-    const { selectedDate, summaryRowsByDate, currentCoachId, clientId, isSelectingNewDate, handleEditDate } = props
+    const { 
+        selectedDate, summaryRowsByDate, currentCoachId, clientId, 
+        isSelectingNewDate, handleEditDate, streak, nextActivityDate 
+    } = props
     const dayStr = selectedDate.toISOString().split('T')[0]
     const rows = summaryRowsByDate[dayStr] || []
 
@@ -65,6 +70,16 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
 
     const myMeetRows = rows.filter(r => {
         if (!r.calendar_event_id) return false
+        
+        // Filter out irrelevant past meets
+        const now = new Date()
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        const isPast = r.day < todayStr
+        const isConfirmed = (r as any).confirmed === true || (r as any).is_confirmed === true || (r as any).status === 'confirmed'
+        const isCancelled = (r as any).status === 'cancelled' || (r as any).confirmed === false
+        
+        if (isPast && (isCancelled || !isConfirmed)) return false
+
         if (!currentCoachId) return true
         return String(r.coach_id) === String(currentCoachId) || String(r.coach_id) === String(clientId)
     })
@@ -85,19 +100,52 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
     const otherMins = otherRows.reduce((a, r) => a + (Number(r.total_mins ?? 0) || 0), 0)
     const totalMins = programMins + meetMins + otherMins
 
+    const totalExercises = ownedProgramRows.reduce((a, r) => a + (Number(r.fit_items_o || 0)), 0)
+    const totalDishes = ownedProgramRows.reduce((a, r) => a + (Number(r.nut_items_o || 0)), 0)
+
     const allExpandable = [...ownedProgramRows, ...myMeetRows]
 
     return (
         <div className="w-full h-full flex flex-col">
+            {/* ── Streak & Next Activity ── */}
+            <div className="flex items-center gap-4 mb-3">
+                <div className="flex items-center gap-1.5 bg-[#FF7939]/10 px-2 py-0.5 rounded-lg border border-[#FF7939]/20">
+                    <Flame className="h-3 w-3 text-[#FF7939]" fill="#FF7939" />
+                    <span className="text-[10px] font-black text-[#FF7939] uppercase tracking-tighter">Racha: {streak || 0}</span>
+                </div>
+                {nextActivityDate && (
+                    <div className="flex items-center gap-1.5 bg-zinc-800/60 px-2 py-0.5 rounded-lg border border-zinc-700/60">
+                        <CalendarDays className="h-3 w-3 text-zinc-400" />
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Próxima: {formatDate(new Date(nextActivityDate + 'T12:00:00'))}</span>
+                    </div>
+                )}
+            </div>
+
             {/* ── Panel header ── */}
             <div className="flex items-start justify-between mb-4 pb-3 border-b border-zinc-800/60">
                 <div className="flex items-start gap-2 min-w-0">
                     <CalendarDays className="h-4 w-4 text-[#FF7939] mt-0.5 flex-shrink-0" />
                     <div className="min-w-0">
-                        <h4 className="text-sm font-bold text-white leading-snug">{formatDate(selectedDate)}</h4>
-                        {totalMins > 0 && (
-                            <p className="text-[11px] text-zinc-500 mt-0.5">{formatMinutesCompact(totalMins)} en total</p>
-                        )}
+                        <h4 className="text-sm font-bold text-white leading-snug">
+                            {dayStr === new Date().toISOString().split('T')[0] ? 'Hoy: ' : ''}{formatDate(selectedDate)}
+                        </h4>
+                        <div className="flex items-center gap-3 mt-1">
+                            {totalExercises > 0 && (
+                                <div className="flex items-center gap-1">
+                                    <Flame className="h-3 w-3 text-[#FF7939]" />
+                                    <span className="text-[11px] text-zinc-400 font-bold">{totalExercises} ejs</span>
+                                </div>
+                            )}
+                            {totalDishes > 0 && (
+                                <div className="flex items-center gap-1">
+                                    <svg className="h-3 w-3 text-[#FF7939]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+                                    <span className="text-[11px] text-zinc-400 font-bold">{totalDishes} platos</span>
+                                </div>
+                            )}
+                            {totalMins > 0 && (
+                                <p className="text-[11px] text-zinc-500">• {formatMinutesCompact(totalMins)}</p>
+                            )}
+                        </div>
                     </div>
                 </div>
                 {(() => {

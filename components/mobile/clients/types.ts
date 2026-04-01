@@ -33,5 +33,6 @@ export interface Client {
     nutriStats?: { completed: number; total: number; absent: number }
     itemsToday?: number
     nextActivityDate?: string | null
+    history?: any[]
     birth_date?: string
 }

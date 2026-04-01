@@ -86,7 +86,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const todayIso = new Date().toISOString().slice(0, 10)
+    const now = new Date()
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const { data: allDailyStats } = await supabase.from('progreso_diario_actividad').select('*').in('cliente_id', clientIds)
     const { data: docProgress } = await supabase.from('client_document_progress').select('completed, client_id, activity_id, enrollment_id').in('client_id', clientIds)
 
@@ -165,24 +166,7 @@ export async function GET(request: NextRequest) {
         if (agg.alertLevel > maxAlert) maxAlert = agg.alertLevel
       }
 
-      // Cumulative Streak: Total unique days where ALL assigned items were completed
-      let totalCompletedDays = 0
-      const cDailyStats = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(client.id) && d.fecha <= todayIso)
-      if (cDailyStats.length > 0) {
-        const uniqueDates = Array.from(new Set(cDailyStats.map((d: any) => d.fecha)))
-        for (const date of uniqueDates) {
-          const rowsInDate = cDailyStats.filter((r: any) => r.fecha === date)
-          // A day is "perfect" if ALL assigned items across ALL current activities were done
-          const totalObj = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_o || 0) + (r.nut_items_o || 0), 0)
-          const totalComp = rowsInDate.reduce((sum: number, r: any) => sum + (r.fit_items_c || 0) + (r.nut_items_c || 0), 0)
-          
-          if (totalObj > 0 && totalComp >= totalObj) {
-            totalCompletedDays++
-          }
-        }
-      }
-
-        // Activities Today / Next
+        // Basic Activity Data Aggregation
         const clientDailyRows = (allDailyStats || []).filter((d: any) => String(d.cliente_id) === String(client.id))
         const todayRow = clientDailyRows.find((d: any) => d.fecha === todayIso)
         const itemsToday = (todayRow?.fit_items_o || 0) + (todayRow?.nut_items_o || 0)
@@ -192,6 +176,58 @@ export async function GET(request: NextRequest) {
           .sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))
         const nextActivityDate = nextRows[0]?.fecha || null
 
+        // Consecutive Streak (Matching Interior Detail Logic)
+        const statsByDate = new Map<string, { tot: number; comp: number }>()
+        clientDailyRows.forEach((r: any) => {
+          const d = r.fecha; if (d > todayIso) return
+          if (!statsByDate.has(d)) statsByDate.set(d, { tot: 0, comp: 0 })
+          const curr = statsByDate.get(d)!
+          curr.tot += (r.fit_items_o || 0) + (r.nut_items_o || 0)
+          curr.comp += (r.fit_items_c || 0) + (r.nut_items_c || 0)
+        })
+        const streakDates = Array.from(statsByDate.keys()).sort((a,b) => b.localeCompare(a))
+        let consecutiveStreak = 0
+        for (const date of streakDates) {
+          const s = statsByDate.get(date)!
+          if (s.tot === 0) continue // Rest day - skip it
+          if (s.comp >= s.tot) consecutiveStreak++
+          else {
+            if (date === todayIso) continue // Don't break yet if it's today
+            break
+          }
+        }
+
+        // History for Segmented Rings (Last 30 ACTIVE days only)
+        const history: any[] = []
+        const activeRowsSorted = [...clientDailyRows]
+          .filter(r => (Number(r.fit_items_o || 0) + Number(r.nut_items_o || 0)) > 0)
+          .sort((a, b) => b.fecha.localeCompare(a.fecha))
+        
+        const activeDatesSet = new Set(activeRowsSorted.map(r => r.fecha))
+        const activeDatesSorted = Array.from(activeDatesSet).sort((a,b) => b.localeCompare(a)).slice(0, 30).reverse()
+
+        for (const date of activeDatesSorted) {
+          const rowsForDate = clientDailyRows.filter((d: any) => d.fecha === date)
+          const fit_o = rowsForDate.reduce((sum: number, r: any) => sum + Number(r.fit_items_o || 0), 0)
+          const fit_c = rowsForDate.reduce((sum: number, r: any) => sum + Number(r.fit_items_c || 0), 0)
+          const nut_o = rowsForDate.reduce((sum: number, r: any) => sum + Number(r.nut_items_o || 0), 0)
+          const nut_c = rowsForDate.reduce((sum: number, r: any) => sum + Number(r.nut_items_c || 0), 0)
+
+          const has_fit = fit_o > 0;
+          const has_nut = nut_o > 0;
+          const is_fit_ok = has_fit && fit_c >= fit_o;
+          const is_nut_ok = has_nut && nut_c >= nut_o;
+          
+          history.push({ 
+            date, 
+            status: date > todayIso ? 'future' : (is_fit_ok && is_nut_ok ? 'completed' : 'absent'), 
+            fit_ok: is_fit_ok, 
+            nut_ok: is_nut_ok, 
+            has_fit, 
+            has_nut 
+          })
+        }
+
         return {
           id: client.id, name: client.name, email: client.email, avatar_url: client.avatar_url, age: client.birth_date ? (new Date().getFullYear() - new Date(client.birth_date).getFullYear()) : 0,
           meet_credits_available: meetCreditsAvailableByClient.get(String(client.id)) || 0,
@@ -199,8 +235,8 @@ export async function GET(request: NextRequest) {
           status: clientStatus, totalRevenue, lastActive: formatLastActive(lastActiveMap.get(client.id) || ''),
           activitiesCount: client.activities.length, todoCount: pendingCountMap.get(String(client.id)) || 0,
           alertLevel: maxAlert, hasAlert: maxAlert > 0, daysCompleted: d_ok, absentDays: d_late, daysTotal: d_reg || 30,
-          completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: totalCompletedDays, fitStats, nutriStats,
-          itemsToday, nextActivityDate,
+          completedExercises: t_ok, failedExercises: t_pen, totalExercises: t_obj, streak: consecutiveStreak, fitStats, nutriStats,
+          itemsToday, nextActivityDate, history,
           activities: client.activities.map((a: any) => ({ id: a.id, title: a.title, type: a.type, amountPaid: paidByEnrollmentId.get(client.enrollments.find((e:any)=>Number(e.activity_id)===Number(a.id))?.id) || 0 }))
         }
       }

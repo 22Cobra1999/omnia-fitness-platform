@@ -4,6 +4,7 @@ import { Video, ChevronRight, Clock, Calendar, Zap, Utensils, UtensilsCrossed, C
 import { ClientDaySummaryRow as SummaryRowType, ExerciseExecution } from '../types'
 import { formatMinutesCompact } from '../utils/date-helpers'
 import { getSeriesBlocks, formatSeries } from '../utils/data-parsers'
+import { cn } from "@/lib/utils/utils"
 
 interface DaySummaryRowProps {
     row: SummaryRowType
@@ -127,24 +128,65 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                     {/* Activity Icon Bubble */}
                     {(() => {
                         const isCompleted = (Number(row.items_completados) || 0) >= (Number(row.items_objetivo) || 1)
-                        const bubbleBg = isCompleted ? (isNutri ? "bg-yellow-400" : "bg-[#FF7939]") : "bg-zinc-800/80"
-                        const iconColor = isCompleted ? "text-white" : "text-zinc-500"
+                        const showRedMeet = isMeet && ((row as any).is_confirmed === false || (row as any).confirmed === false || (row as any).asistencia === false)
+                        const showGreyMeet = isMeet && !showRedMeet
+                        const started = (Number(row.items_completados) || 0) > 0
+                        const now = new Date()
+                        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+                        const isPast = row.day < todayStr
+                        const isFuture = row.day > todayStr
+                        const isConfirmed = (row as any).confirmed === true || (row as any).is_confirmed === true || (row as any).status === 'confirmed'
+                        const isCancelled = (row as any).status === 'cancelled' || (row as any).confirmed === false
+
+                        // Filter out irrelevant past meets
+                        if (isMeet && isPast && (isCancelled || !isConfirmed)) {
+                            return null;
+                        }
+
+                        const status = isCompleted ? 'completed' : (isFuture ? 'future' : (started ? 'pending' : 'absent'))
+
+                        let bubbleBg = "bg-white/5 backdrop-blur-md border border-white/5"
+                        let iconColor = "text-zinc-600/60"
+
+                        if (showRedMeet || status === 'absent') {
+                            bubbleBg = "bg-red-500/10 border-red-500/30 backdrop-blur-xl shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                            iconColor = "text-red-500"
+                        } else if (showGreyMeet || status === 'future') {
+                            bubbleBg = "bg-white/5 border-transparent backdrop-blur-md"
+                            iconColor = "text-white/40"
+                        } else if (status === 'completed') {
+                            bubbleBg = "bg-[#FF7939]/10 border-[#FF7939]/30 backdrop-blur-xl shadow-[0_0_10px_rgba(255,121,57,0.2)]"
+                            iconColor = "text-[#FF7939]"
+                        } else if (status === 'pending') {
+                            bubbleBg = "bg-[#FACC15]/10 border-transparent backdrop-blur-xl shadow-[0_0_10px_rgba(250,204,21,0.2)]"
+                            iconColor = "text-[#FACC15]"
+                        }
                         
                         return (
-                            <div className={`p-1.5 rounded-full ${bubbleBg} flex-shrink-0 shadow-sm transition-all duration-300 group-hover:scale-110`}>
+                            <div className={cn(
+                                "p-1.5 rounded-full flex-shrink-0 shadow-sm transition-all duration-300 group-hover:scale-110 border",
+                                bubbleBg
+                            )}>
                                 {isMeet ? (
-                                    <Video className={`h-3 w-3 ${iconColor}`} />
+                                    <Video className={cn("h-3 w-3", iconColor)} />
                                 ) : isNutri ? (
-                                    <UtensilsCrossed className={`h-3 w-3 ${iconColor}`} />
+                                    <UtensilsCrossed className={cn("h-3 w-3", iconColor)} />
                                 ) : (
-                                    <Zap className={`h-3 w-3 ${iconColor}`} />
+                                    <Zap className={cn("h-3 w-3", iconColor)} />
                                 )}
                             </div>
                         )
                     })()}
                     <div className="flex flex-col items-start min-w-0 min-h-[36px] justify-center">
                         <span className="text-sm font-bold text-gray-100 leading-tight truncate w-full">{title}</span>
-                        {extraLabel && <span className="text-[10px] text-zinc-500 font-medium mt-0.5 uppercase tracking-wider">{extraLabel}</span>}
+                        {isMeet && (row as any).start_time ? (
+                            <span className="text-[10px] text-[#FF7939] font-black mt-0.5 uppercase tracking-tighter">
+                                {new Date((row as any).start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {(row as any).end_time && ` - ${new Date((row as any).end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                            </span>
+                        ) : extraLabel && (
+                            <span className="text-[10px] text-zinc-500 font-medium mt-0.5 uppercase tracking-wider">{extraLabel}</span>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -159,6 +201,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                     {/* Meet details */}
                     {eventId && eventDetailsByKey[eventId] && (
                         <div className="ml-5 pl-3 border-l border-zinc-800 space-y-2 py-2">
+                            <p className="text-[11px] font-bold text-white mb-1">{eventDetailsByKey[eventId].title || 'Meet con Cliente'}</p>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
                                     <Clock className="w-3 h-3" />
@@ -168,22 +211,44 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                     </span>
                                 </div>
                                 {(() => {
-                                    const startMs = new Date(eventDetailsByKey[eventId].start_time).getTime();
-                                    const endMs = eventDetailsByKey[eventId].end_time ? new Date(eventDetailsByKey[eventId].end_time).getTime() : startMs + (60 * 60 * 1000);
+                                    const event = eventDetailsByKey[eventId];
+                                    const startMs = new Date(event.start_time).getTime();
+                                    const endMs = event.end_time ? new Date(event.end_time).getTime() : startMs + (60 * 60 * 1000);
                                     const nowMs = Date.now();
                                     const isOngoing = nowMs >= startMs && nowMs <= endMs;
-                                    const rsvp = eventDetailsByKey[eventId].participants?.[0]?.rsvp_status || 'Pendiente';
+                                    const isPast = nowMs > endMs;
+                                    
+                                    const assistance = event.asistencia; // bool or null
+                                    const rsvp = event.participants?.[0]?.rsvp_status || 'needsAction';
+                                    const isConfirmed = rsvp === 'accepted' || rsvp === 'confirmed' || event.confirmed === true;
+                                    const isCancelled = rsvp === 'declined' || rsvp === 'cancelled' || event.status === 'cancelled';
+                                    
+                                    let label = '';
+                                    let colorClass = '';
+
+                                    if (isOngoing) {
+                                        label = 'En curso';
+                                        colorClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                                    } else if (assistance === true) {
+                                        label = 'Asistió';
+                                        colorClass = 'bg-emerald-500/15 text-emerald-400';
+                                    } else if (assistance === false) {
+                                        label = 'Ausente';
+                                        colorClass = 'bg-red-500/15 text-red-400';
+                                    } else if (isCancelled) {
+                                        label = 'Cancelada';
+                                        colorClass = 'bg-red-500/15 text-red-400';
+                                    } else if (isConfirmed) {
+                                        label = 'Confirmada';
+                                        colorClass = 'bg-emerald-500/15 text-emerald-400';
+                                    } else {
+                                        label = 'Pendiente';
+                                        colorClass = 'bg-amber-500/15 text-amber-400';
+                                    }
                                     
                                     return (
-                                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${
-                                            isOngoing ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                                            ['confirmed','accepted'].includes(rsvp)
-                                                ? 'bg-emerald-500/15 text-emerald-400'
-                                                : ['cancelled','declined'].includes(rsvp)
-                                                ? 'bg-red-500/15 text-red-400'
-                                                : 'bg-amber-500/15 text-amber-400'
-                                        }`}>
-                                            {isOngoing ? 'En curso' : (rsvp === 'confirmed' ? 'Aceptada' : rsvp)}
+                                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${colorClass}`}>
+                                            {label}
                                         </span>
                                     );
                                 })()}
@@ -244,19 +309,39 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                             {/* Exercise name row */}
                                             <div className="flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    {exercise.is_nutricion ? (
-                                                        <div className={`p-1 rounded-full ${isCompleted ? 'bg-yellow-400' : 'bg-yellow-500/10'} flex-shrink-0`}>
-                                                            <UtensilsCrossed className={`h-2.5 w-2.5 ${isCompleted ? 'text-white' : 'text-yellow-500/60'}`} />
-                                                        </div>
-                                                    ) : exercise.is_workshop ? (
-                                                        <div className={`p-1 rounded-full ${isCompleted ? 'bg-[#FF7939]' : 'bg-zinc-800'} flex-shrink-0`}>
-                                                            <Calendar className={`h-2.5 w-2.5 ${isCompleted ? 'text-white' : 'text-zinc-400'}`} />
-                                                        </div>
-                                                    ) : (
-                                                        <div className={`p-1 rounded-full ${isCompleted ? 'bg-[#FF7939]' : 'bg-[#FF7939]/10'} flex-shrink-0`}>
-                                                            <Zap className={`h-2.5 w-2.5 ${isCompleted ? 'text-white' : 'text-[#FF7939]/60'}`} />
-                                                        </div>
-                                                    )}
+                                                    {(() => {
+                                                        const isCompleted = exercise.completado
+                                                        const isWorkshop = !!exercise.is_workshop || !!(exercise as any).calendar_event_id
+                                                        const isRedNormal = !isCompleted && !isWorkshop
+                                                        const isGreyWorkshop = isWorkshop && ((exercise as any).is_confirmed || (exercise as any).confirmed)
+                                                        const isRedWorkshop = isWorkshop && !isGreyWorkshop
+
+                                                        let bubbleBg = "bg-white/5 backdrop-blur-md border border-white/10"
+                                                        let iconColor = "text-white/40"
+
+                                                        if (isRedNormal || isRedWorkshop) {
+                                                            bubbleBg = "bg-red-500/10 border-red-500/30 backdrop-blur-xl"
+                                                            iconColor = "text-red-500"
+                                                        } else if (isCompleted) {
+                                                            bubbleBg = "bg-[#FF7939]/10 border-[#FF7939]/30 backdrop-blur-xl shadow-[0_0_10px_rgba(255,121,57,0.2)]"
+                                                            iconColor = "text-[#FF7939]"
+                                                        } else if (isGreyWorkshop) {
+                                                            bubbleBg = "bg-white/5 border-transparent backdrop-blur-md"
+                                                            iconColor = "text-white/40"
+                                                        }
+
+                                                        return (
+                                                            <div className={cn("p-1 rounded-full flex-shrink-0 border", bubbleBg)}>
+                                                                {exercise.is_nutricion ? (
+                                                                    <UtensilsCrossed className={cn("h-2.5 w-2.5", iconColor)} />
+                                                                ) : isWorkshop ? (
+                                                                    <Calendar className={cn("h-2.5 w-2.5", iconColor)} />
+                                                                ) : (
+                                                                    <Zap className={cn("h-2.5 w-2.5", iconColor)} />
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })()}
 
                                                     {/* Exercise swap dropdown */}
                                                     {isEditing && !exercise.is_nutricion ? (
@@ -305,16 +390,19 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                         <span className="text-sm font-semibold text-gray-200 truncate">
                                                             {(() => {
                                                                 if (exercise.is_nutricion) {
-                                                                    // If name is numeric ID or looks like one, try lookup in options
-                                                                    const rawName = exercise.ejercicio_nombre || '';
+                                                                    const rawName = (exercise.ejercicio_nombre || '').trim();
                                                                     const isNumeric = /^\d+$/.test(rawName);
-                                                                    if (isNumeric || !rawName) {
-                                                                        const tid = String(exercise.ejercicio_id);
-                                                                        const bid = tid.split('_')[0];
-                                                                        if (dishNameMap && (dishNameMap[tid] || dishNameMap[bid] || dishNameMap[exercise.ejercicio_id])) 
-                                                                            return dishNameMap[tid] || dishNameMap[bid] || dishNameMap[exercise.ejercicio_id];
-                                                                        
-                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === tid || String(o.id) === bid);
+                                                                    const tid = String(exercise.ejercicio_id || '').split('_')[0];
+                                                                    
+                                                                    // priority 1: dishNameMap (global)
+                                                                    if (dishNameMap && (dishNameMap[tid] || dishNameMap[exercise.ejercicio_id])) {
+                                                                        return dishNameMap[tid] || dishNameMap[exercise.ejercicio_id];
+                                                                    }
+                                                                    
+                                                                    // priority 2: nutritionPlateOptions (loaded for this specific activity)
+                                                                    if (isNumeric || !rawName || rawName.toLowerCase() === 'plato') {
+                                                                        const opt = nutritionPlateOptions.find(o => String(o.id) === tid || String(o.id) === String(exercise.ejercicio_id));
+                                                                        if (opt?.nombre) return opt.nombre;
                                                                         if (opt?.nombre_plato) return opt.nombre_plato;
                                                                         if (opt?.label) return opt.label;
                                                                         return isNumeric ? `Plato ${rawName}` : 'Plato sin nombre';

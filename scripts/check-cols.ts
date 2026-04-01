@@ -11,8 +11,11 @@ async function checkIndices() {
     // OR try to insert one by one.
     
     // Actually, I'll try to find out the columns of the table
-    const { data: cols, error } = await supabase.from('progreso_cliente_nutricion').select('*').limit(0);
-    console.log('Columns:', Object.keys(cols?.[0] || {}));
+    const { data: cols1 } = await supabase.from('nutrition_program_details').select('*').limit(1);
+    console.log('Columns in nutrition_program_details:', Object.keys(cols1?.[0] || {}));
+    
+    const { data: cols2 } = await supabase.from('recetas').select('*').limit(1);
+    console.log('Columns in recetas:', Object.keys(cols2?.[0] || {}));
 }
 
 checkIndices();

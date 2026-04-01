@@ -1,6 +1,7 @@
 import React from 'react'
 import { Video, Zap, UtensilsCrossed } from 'lucide-react'
 import { formatMinutesCompact } from '../utils/date-helpers'
+import { cn } from "@/lib/utils/utils"
 
 interface CalendarGridProps {
     days: Date[]
@@ -59,11 +60,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     const hasOwned = owned.length > 0
                     const ownedCompleted = owned.filter(e => {
                         const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(e.activity_id))
-                        return p && (Number(p.items_completados) || 0) >= (Number(p.items_objetivo) || 1)
+                        const comp = Number(p?.fit_items_c || 0) + Number(p?.nut_items_c || 0)
+                        const obj = Number(p?.fit_items_o || 0) + Number(p?.nut_items_o || 0) || (e.tipo === 'documento' ? 1 : 0)
+                        return comp >= (obj || 1)
                     }).length
                     const ownedStarted = owned.filter(e => {
                         const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(e.activity_id))
-                        return p && (Number(p.items_completados) || 0) > 0
+                        const comp = Number(p?.fit_items_c || 0) + Number(p?.nut_items_c || 0)
+                        return comp > 0
                     }).length
 
                     const ownedActs = owned.filter(e => !e.calendar_event_id)
@@ -74,7 +78,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     // Calculate total items (plates/exercises) for owned activities
                     const totalItems = ownedActs.reduce((acc, e) => {
                         const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(e.activity_id))
-                        return acc + (Number(p?.items_objetivo) || 0)
+                        return acc + (Number(p?.fit_items_o || 0) + Number(p?.nut_items_o || 0) || (e.tipo === 'documento' ? 1 : 0))
                     }, 0)
 
                     const isAllCompleted = hasOwned && ownedCompleted === owned.length
@@ -89,7 +93,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     if (isBlocked) {
                         bgClass = "bg-zinc-950/20 border border-zinc-800/10 text-zinc-700 opacity-30 grayscale cursor-not-allowed"
                     } else if (hasOwned || hasAnyEx) {
-                        bgClass = "bg-zinc-900/10 border border-zinc-800/20 text-white"
+                        bgClass = isCurrentMonth 
+                            ? "bg-zinc-900/10 border border-zinc-800/20 text-white"
+                            : "bg-zinc-950/5 border border-zinc-900/40 text-zinc-500"
                     }
 
                     const selectionClass = isSelected ? "ring-2 ring-[#FF7939] shadow-[0_0_20px_rgba(255,121,57,0.4)] z-10 scale-[1.05] bg-[#FF7939]/10" : "hover:bg-white/5"
@@ -99,62 +105,99 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             key={index} 
                             onClick={() => !isBlocked && handleDayClick(date)} 
                             disabled={isBlocked}
-                            className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[60px] flex flex-col items-center justify-start group ${!isCurrentMonth ? 'opacity-20' : ''} ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}
+                            className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[60px] flex flex-col items-center justify-start group ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}
                         >
                             {isToday && (
                                 <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FF7939]" />
                             )}
-                            <div className="text-center font-semibold text-sm leading-none pt-1 mb-1">{date.getDate()}</div>
+                            <div className={cn(
+                                "text-center font-semibold text-sm leading-none pt-1 mb-1 transition-colors",
+                                isCurrentMonth ? "text-white" : "text-zinc-600 group-hover:text-zinc-400"
+                            )}>
+                                {date.getDate()}
+                            </div>
                             
-                            <div className="w-full flex flex-wrap items-center justify-center gap-1 mt-auto">
-                                {/* Individual Activity Bubbles */}
-                                {ownedActs.map((act, actIdx) => {
-                                    const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(act.activity_id))
-                                    const completed = p && (Number(p.items_completados) || 0) >= (Number(p.items_objetivo) || 1)
-                                    const started = p && (Number(p.items_completados) || 0) > 0
+                            <div className="w-full flex flex-wrap items-center justify-center gap-1.5 mt-auto pb-1">
+                                {(() => {
+                                    const grouped: Record<string, { count: number, isNutri: boolean, status: 'completed' | 'absent' | 'pending' | 'future' }> = {}
                                     
-                                    if (isSelected && p) {
-                                        console.log(`[CalendarGrid] Day ${date.getDate()} Act ${act.activity_id}: comp=${p.items_completados} obj=${p.items_objetivo} -> completed=${completed}`);
-                                    }
+                                    ownedActs.forEach(act => {
+                                        const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(act.activity_id))
+                                        
+                                        // Use new columns fit_items_c/o and nut_items_c/o
+                                        const comp = Number(p?.fit_items_c || 0) + Number(p?.nut_items_c || 0)
+                                        const obj = Number(p?.fit_items_o || 0) + Number(p?.nut_items_o || 0) || (act.tipo === 'documento' ? 1 : 0)
+                                        const completed = comp >= (obj || 1)
+                                        const started = comp > 0
+                                        
+                                        const isFuture = !isPast && !isToday
+                                        const status = completed ? 'completed' : (isPast && !started ? 'absent' : (isFuture ? 'future' : 'pending'))
+                                        
+                                        const activityTitle = (act.activity_title || '').toLowerCase()
+                                        const isNutri = act.area === 'nutricion' || activityTitle.includes('nutri') || activityTitle.includes('comida') || activityTitle.includes('plato') || (act.nutri_mins > 0 && act.fitness_mins === 0)
+                                        
+                                        const key = `${isNutri ? 'nut' : 'fit'}-${status}`
+                                        if (!grouped[key]) grouped[key] = { count: 0, isNutri, status }
+                                        grouped[key].count++
+                                    })
 
-                                    const isAbsentDay = isPast && !started
-                                    const isPending = !completed && (!isPast || started)
-                                    
-                                    const activityTitle = (act.activity_title || '').toLowerCase()
-                                    const isNutri = act.area === 'nutricion' || activityTitle.includes('nutri') || activityTitle.includes('comida') || activityTitle.includes('plato') || (act.nutri_mins > 0 && act.fitness_mins === 0)
-                                    
-                                    let bubbleBg = isNutri ? "bg-yellow-500/20" : "bg-[#FF7939]/20"
-                                    let iconColor = isNutri ? "text-yellow-500/60" : "text-[#FF7939]/60"
-                                    
-                                    if (completed) {
-                                        bubbleBg = isNutri ? "bg-yellow-400" : "bg-[#FF7939]"
-                                        iconColor = "text-white"
-                                    } else if (isAbsentDay) {
-                                        bubbleBg = "bg-red-500/40"
-                                        iconColor = "text-white"
-                                    }
+                                    return Object.entries(grouped).map(([key, group]) => {
+                                        let bubbleBg = "bg-white/5 backdrop-blur-md border border-white/5"
+                                        let iconColor = "text-zinc-600/60"
+                                        
+                                        if (group.status === 'completed') {
+                                            bubbleBg = "bg-[#FF7939]/10 border-[#FF7939]/30 backdrop-blur-xl shadow-[0_0_10px_rgba(255,121,57,0.2)]"
+                                            iconColor = "text-[#FF7939]"
+                                        } else if (group.status === 'absent') {
+                                            bubbleBg = "bg-red-500/10 border-transparent backdrop-blur-xl shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                                            iconColor = "text-red-500"
+                                        } else if (group.status === 'pending') {
+                                            bubbleBg = "bg-[#FACC15]/10 border-transparent backdrop-blur-xl shadow-[0_0_10px_rgba(250,204,21,0.2)]"
+                                            iconColor = "text-[#FACC15]"
+                                        } else if (group.status === 'future') {
+                                            bubbleBg = "bg-white/5 border-transparent backdrop-blur-sm shadow-sm"
+                                            iconColor = "text-zinc-500/60"
+                                        }
 
+                                        return (
+                                            <div key={key} className="relative">
+                                                <div className={`p-1 rounded-full ${bubbleBg} transition-all duration-300 shadow-sm`}>
+                                                    {group.isNutri ? (
+                                                        <UtensilsCrossed className={`w-2.5 h-2.5 ${iconColor}`} />
+                                                    ) : (
+                                                        <Zap className={`w-2.5 h-2.5 ${iconColor}`} />
+                                                    )}
+                                                </div>
+                                                {group.count > 1 && (
+                                                    <div className="absolute -top-1 -right-1.5 bg-white text-black text-[7px] font-black w-3 h-3 rounded-full flex items-center justify-center border border-zinc-900">
+                                                        {group.count}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })
+                                })()}
+
+                                {/* Meets bubble (Confirmed: Grey, Unconfirmed/Absent: Red) */}
+                                {ownedMeets.length > 0 && (() => {
+                                    const isAnyUnconfirmed = ownedMeets.some(e => !e.is_confirmed && !e.confirmed)
+                                    const isAnyAbsent = ownedMeets.some(e => e.asistencia === false || e.absent === true)
+                                    const showRed = isAnyUnconfirmed || isAnyAbsent
+                                    
                                     return (
-                                        <div 
-                                            key={`${act.activity_id}-${actIdx}`}
-                                            className={`p-1 rounded-full ${bubbleBg} transition-all duration-300 shadow-sm`}
-                                            title={act.activity_title || ''}
-                                        >
-                                            {isNutri ? (
-                                                <UtensilsCrossed className={`w-2.5 h-2.5 ${iconColor}`} />
-                                            ) : (
-                                                <Zap className={`w-2.5 h-2.5 ${iconColor}`} />
-                                            )}
+                                        <div className={cn(
+                                            "p-1 rounded-full backdrop-blur-md border",
+                                            showRed 
+                                                ? "bg-red-500/10 border-red-500/30" 
+                                                : "bg-white/5 border-white/10"
+                                        )}>
+                                            <Video className={cn(
+                                                "w-2.5 h-2.5",
+                                                showRed ? "text-red-500" : "text-white/40"
+                                            )} />
                                         </div>
                                     )
-                                })}
-
-                                {/* Meets bubble (keep as summary if many) */}
-                                {ownedMeets.length > 0 && (
-                                    <div className="p-1 rounded-full bg-[#FF7939]/20 border border-[#FF7939]/30">
-                                        <Video className="w-2.5 h-2.5 text-[#FF7939]" />
-                                    </div>
-                                )}
+                                })()}
 
                                 {/* Fallback for other coach activities */}
                                 {!hasOwned && hasAnyEx && (

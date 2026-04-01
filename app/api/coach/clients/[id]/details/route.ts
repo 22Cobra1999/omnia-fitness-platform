@@ -48,7 +48,10 @@ export async function GET(
     ])
 
     const statsMap = new Map()
-    const todayIso = new Date().toISOString().slice(0, 10)
+    const { searchParams } = new URL(request.url)
+    const todayParam = searchParams.get('today')
+    const now = new Date()
+    const todayIso = todayParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const getStats = (eid: number) => {
       if (!statsMap.has(eid)) statsMap.set(eid, { total_days: 0, completed_days: 0, late_days: 0, items_ok: 0, items_total: 0, doc_items_ok: 0, doc_items_total: 0, pending_atrasados: 0, pending_hoy: 0, dates_seen: new Set() })
       return statsMap.get(eid)
@@ -66,15 +69,30 @@ export async function GET(
         if (tot > 0 || f_kcal_o > 0) {
           if (!curr.dates_seen.has(r.fecha)) {
             curr.total_days++; curr.dates_seen.add(r.fecha)
-            if (ok >= tot) curr.completed_days++
-            else if (r.fecha < todayIso) curr.late_days++
+            if (ok >= tot) {
+              curr.completed_days++
+            } else if (r.fecha < todayIso) {
+              if (ok > 0) curr.incomplete_days = (curr.incomplete_days || 0) + 1
+              else curr.late_days++ // Absent
+            }
           }
           curr.items_ok += ok; curr.items_total += tot
           curr.fit_kcal_c = (curr.fit_kcal_c || 0) + f_kcal_c
           curr.fit_kcal_o = (curr.fit_kcal_o || 0) + f_kcal_o
+
+          if (r.fecha >= todayIso && tot > 0) {
+            if (!curr.next_session || r.fecha < curr.next_session) {
+              curr.next_session = r.fecha
+            }
+          }
+
+          if (r.fecha === todayIso) {
+            curr.items_hoy = tot
+            curr.items_pending_hoy = Math.max(0, tot - ok)
+          }
+
           if (ok < tot) {
             if (r.fecha < todayIso) curr.pending_atrasados += (tot - ok)
-            else if (r.fecha === todayIso) curr.pending_hoy += (tot - ok)
           }
         }
       })
@@ -130,9 +148,67 @@ export async function GET(
       else { if (s?.items_total > 0) progressPercent = Math.round((s.items_ok / s.items_total) * 100) }
 
       const expiredSnapshot = expiredByEnrollment.get(eidNum)
-      if (expiredSnapshot) return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, program_end_date: e.program_end_date, expiration_date: e.expiration_date, progressPercent: expiredSnapshot.progreso_porcentaje || progressPercent, upToDate: (expiredSnapshot.items_no_logrados || 0) === 0, daysCompleted: expiredSnapshot.dias_completados, daysMissed: expiredSnapshot.dias_ausente, daysRemainingFuture: expiredSnapshot.dias_proximos, itemsCompletedTotal: expiredSnapshot.items_completados, itemsDebtPast: expiredSnapshot.items_no_logrados, itemsPendingToday: expiredSnapshot.items_restantes }
+      if (expiredSnapshot) return { 
+        ...act, 
+        enrollment_id: e.id, 
+        status: e.status, 
+        amount_paid: e.amount_paid, 
+        program_end_date: e.program_end_date, 
+        expiration_date: e.expiration_date, 
+        progressPercent: expiredSnapshot.progreso_porcentaje || progressPercent, 
+        upToDate: (expiredSnapshot.items_no_logrados || 0) === 0, 
+        daysCompleted: expiredSnapshot.dias_completados, 
+        daysMissed: expiredSnapshot.dias_ausente, 
+        daysRemainingFuture: expiredSnapshot.dias_proximos, 
+        itemsCompletedTotal: expiredSnapshot.items_completados, 
+        itemsDebtPast: expiredSnapshot.items_no_logrados, 
+        itemsPendingToday: expiredSnapshot.items_restantes, 
+        nextSessionDate: s?.next_session || null, 
+        itemsObjectiveToday: s?.items_hoy || 0, 
+        itemsPendingTodayReal: s?.items_pending_hoy || 0 
+      }
 
-      return { ...act, enrollment_id: e.id, status: e.status, amount_paid: e.amount_paid, program_end_date: e.program_end_date, expiration_date: e.expiration_date, progressPercent, upToDate: !(i_past_fail > 0 || s?.pending_atrasados > 0), daysCompleted: d_ok, daysMissed: d_late, daysRemainingFuture: d_pro, itemsCompletedTotal: i_past_ok, itemsDebtPast: i_past_fail, itemsPendingToday: i_rest }
+      return { 
+        ...act, 
+        enrollment_id: e.id, 
+        status: e.status, 
+        amount_paid: e.amount_paid, 
+        program_end_date: e.program_end_date, 
+        expiration_date: e.expiration_date, 
+        progressPercent, 
+        upToDate: !(i_past_fail > 0 || s?.pending_atrasados > 0), 
+        daysCompleted: d_ok, 
+        daysIncomplete: s?.incomplete_days || 0,
+        daysMissed: d_late, 
+        daysRemainingFuture: d_pro, 
+        itemsCompletedTotal: i_past_ok, 
+        itemsDebtPast: i_past_fail, 
+        itemsPendingToday: i_rest,
+        itemsObjectiveToday: s?.items_hoy || 0,
+        itemsPendingTodayReal: s?.items_pending_hoy || 0,
+        nextSessionDate: s?.next_session || null,
+        streak: (() => {
+          const statsByDate = new Map<string, { tot: number; comp: number }>()
+          const eidStats = (progressRes.data || []).filter((r: any) => Number(r.enrollment_id) === eidNum)
+          eidStats.forEach((r: any) => {
+            const d = r.fecha
+            if (!statsByDate.has(d)) statsByDate.set(d, { tot: 0, comp: 0 })
+            const curr = statsByDate.get(d)!
+            curr.tot += (r.fit_items_o || 0) + (r.nut_items_o || 0)
+            curr.comp += (r.fit_items_c || 0) + (r.nut_items_c || 0)
+          })
+          const dates = Array.from(statsByDate.keys()).sort((a, b) => b.localeCompare(a))
+          let streak = 0
+          for (const date of dates) {
+            if (date > todayIso) continue
+            const st = statsByDate.get(date)!
+            if (st.tot === 0) continue 
+            if (st.comp >= st.tot) { streak++ }
+            else { if (date === todayIso) continue; break }
+          }
+          return streak
+        })()
+      }
     }).filter(Boolean)
 
     const cumulativeStreak = (() => {

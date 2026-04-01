@@ -51,6 +51,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
     // Data State
     const [meetCredits, setMeetCredits] = useState<Record<string, number>>({})
     const [enrollmentProgresses, setEnrollmentProgresses] = useState<Record<string, number>>({})
+    const [enrollmentStats, setEnrollmentStats] = useState<Record<string, { total: number, completed: number }>>({})
 
     const supabase = getSupabaseClient()
     const router = useRouter()
@@ -88,6 +89,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         if (!data) return
 
         const progressMap: Record<string, number> = {}
+        const statsMap: Record<string, { total: number; completed: number }> = {}
 
         // Group by enrollment_id
         const grouped = data.reduce((acc: any, curr: any) => {
@@ -103,6 +105,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         // Calculate %
         Object.keys(grouped).forEach(enrollmentId => {
             const { total, completed } = grouped[enrollmentId]
+            statsMap[enrollmentId] = { total, completed }
             if (total === 0) {
                 progressMap[enrollmentId] = 0
             } else {
@@ -111,8 +114,9 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         })
 
         setEnrollmentProgresses(prev => ({ ...prev, ...progressMap }))
+        setEnrollmentStats(prev => ({ ...prev, ...statsMap }))
 
-    }, [])
+    }, [supabase])
 
     // 1. Fetch User Enrollments
     const fetchUserEnrollments = useCallback(async (silentUpdate = false) => {
@@ -583,6 +587,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         // Data State
         meetCredits,
         enrollmentProgresses,
+        enrollmentStats,
 
         // Actions
         handleActivityClick,

@@ -36,6 +36,7 @@ export default function ActivityScreen() {
         // Data
         meetCredits,
         enrollmentProgresses,
+        enrollmentStats,
 
         // Actions
         handleActivityClick,
@@ -126,6 +127,7 @@ export default function ActivityScreen() {
                     onActivityClick={handleActivityClick}
                     onStartActivity={() => { }} // Hook handles start logic internally if needed, or pass prop
                     enrollmentProgresses={enrollmentProgresses}
+                    enrollmentStats={enrollmentStats}
                 />
             </div>
 

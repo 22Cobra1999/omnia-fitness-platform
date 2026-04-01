@@ -74,53 +74,61 @@ export function useMessagesScreenLogic() {
                 setLoading(true)
             }
 
+            // 1. Fetch real existing conversations
             const { data: conversationsData, error: conversationsError } = await supabase
                 .from('conversations')
                 .select('*')
                 .or(isCoach ? `coach_id.eq.${user.id}` : `client_id.eq.${user.id}`)
                 .eq('is_active', true)
-                .order('last_message_at', { ascending: false, nullsFirst: false })
+                .order('last_message_at', { ascending: false, nullsFirst: true })
 
-            if (conversationsError) {
-                console.error('Error cargando conversaciones:', conversationsError)
-                if (!silent) {
-                    setLoading(false)
-                    isLoadingRef.current = false
+            if (conversationsError) throw conversationsError
+
+            // 2. Fetch active relationships (enrollments) to ensure all partners are listed
+            let partnerIds: string[] = []
+            if (isCoach) {
+                // Coach -> Fetch all their clients via activities they own
+                const { data: activities } = await supabase.from('activities').select('id').eq('coach_id', user.id)
+                const activityIds = (activities || []).map((a: any) => a.id)
+                if (activityIds.length > 0) {
+                    const { data: enrolls } = await supabase.from('activity_enrollments')
+                        .select('client_id')
+                        .in('activity_id', activityIds)
+                        .in('status', ['activa', 'active', 'pendiente', 'pending'])
+                    partnerIds = [...new Set((enrolls || []).map((e: any) => e.client_id))] as string[]
                 }
-                return
+            } else {
+                // Client -> Fetch all their coaches via activities they bought
+                const { data: enrolls } = await supabase.from('activity_enrollments')
+                    .select('activity_id')
+                    .eq('client_id', user.id)
+                    .in('status', ['activa', 'active', 'pendiente', 'pending'])
+                const activityIds = [...new Set((enrolls || []).map((e: any) => e.activity_id))]
+                if (activityIds.length > 0) {
+                    const { data: activities } = await supabase.from('activities')
+                        .select('coach_id')
+                        .in('id', activityIds)
+                    partnerIds = [...new Set((activities || []).map((a: any) => a.coach_id))] as string[]
+                }
             }
 
-            if (!conversationsData || conversationsData.length === 0) {
-                setConversations([])
-                if (!silent) {
-                    setLoading(false)
-                    isLoadingRef.current = false
-                }
-                hasLoadedConversationsRef.current = true
-                return
-            }
+            // 3. Identify and create virtual conversations for partners without real chat records
+            const existingPartners = new Set(conversationsData?.map((c: any) => isCoach ? c.client_id : c.coach_id) || [])
+            const missingPartnerIds = partnerIds.filter(pid => pid !== user.id && !existingPartners.has(pid))
 
-            const clientIds = [...new Set(conversationsData.map((c: any) => c.client_id).filter(Boolean))]
-            const coachIds = [...new Set(conversationsData.map((c: any) => c.coach_id).filter(Boolean))]
-            const allUserIds = [...new Set([...clientIds, ...coachIds])]
+            // Combine all relevant IDs for profile fetching
+            const conversationPartnerIds = (conversationsData || []).map((c: any) => isCoach ? c.client_id : c.coach_id)
+            const allPartnerIds = [...new Set([...conversationPartnerIds, ...missingPartnerIds])]
 
-            const { data: userProfiles, error: profilesError } = await supabase
+            const { data: userProfiles } = await supabase
                 .from('user_profiles')
                 .select('id, full_name, avatar_url')
-                .in('id', allUserIds)
-
-            if (profilesError) {
-                console.error('Error cargando perfiles:', profilesError)
-                if (!silent) {
-                    setLoading(false)
-                    isLoadingRef.current = false
-                }
-                return
-            }
+                .in('id', allPartnerIds)
 
             const profilesMap = new Map<string, any>((userProfiles || []).map((profile: any) => [profile.id, profile]))
 
-            const formattedConversations: Conversation[] = conversationsData.map((conv: any) => {
+            // Build list of formatted conversations (Real + Virtual)
+            const realFormatted: Conversation[] = (conversationsData || []).map((conv: any) => {
                 const coachProfile = profilesMap.get(conv.coach_id)
                 const clientProfile = profilesMap.get(conv.client_id)
                 return {
@@ -132,7 +140,34 @@ export function useMessagesScreenLogic() {
                 }
             })
 
-            setConversations(formattedConversations)
+            const virtualFormatted: Conversation[] = missingPartnerIds.map(pid => {
+                const profile = profilesMap.get(pid)
+                return {
+                    id: `virtual-${pid}`,
+                    client_id: isCoach ? pid : user.id,
+                    coach_id: isCoach ? user.id : pid,
+                    last_message_preview: null,
+                    last_message_at: null,
+                    client_unread_count: 0,
+                    coach_unread_count: 0,
+                    coach_name: isCoach ? 'Coach' : (profile?.full_name || 'Coach'),
+                    coach_avatar: isCoach ? null : profile?.avatar_url,
+                    client_name: isCoach ? (profile?.full_name || 'Cliente') : 'Cliente',
+                    client_avatar: isCoach ? profile?.avatar_url : null,
+                }
+            })
+
+            // Sort: Real chats with messages first, then virtual ones
+            const allConversations = [...realFormatted, ...virtualFormatted].sort((a, b) => {
+                if (a.last_message_at && b.last_message_at) return b.last_message_at.localeCompare(a.last_message_at)
+                if (a.last_message_at) return -1
+                if (b.last_message_at) return 1
+                const nameA = isCoach ? (a.client_name || '') : (a.coach_name || '')
+                const nameB = isCoach ? (b.client_name || '') : (b.coach_name || '')
+                return nameA.localeCompare(nameB)
+            })
+
+            setConversations(allConversations)
             hasLoadedConversationsRef.current = true
             if (!silent) {
                 setLoading(false)
@@ -202,10 +237,34 @@ export function useMessagesScreenLogic() {
         if (!newMessage.trim() || !selectedConversationId || !user || isCoach === null || sending) return
         setSending(true)
         try {
+            let conversationId = selectedConversationId
+
+            // Handle virtual conversation creation on first message
+            if (conversationId.startsWith('virtual-')) {
+                const partnerId = conversationId.replace('virtual-', '')
+                const { data: newConv, error: newConvError } = await supabase
+                    .from('conversations')
+                    .insert({
+                        client_id: isCoach ? partnerId : user.id,
+                        coach_id: isCoach ? user.id : partnerId,
+                        is_active: true,
+                        client_unread_count: 0,
+                        coach_unread_count: 0
+                    })
+                    .select()
+                    .single()
+                
+                if (newConvError) throw newConvError
+                conversationId = newConv.id
+                setSelectedConversationId(conversationId)
+                // Refresh list so it becomes a "real" conversation object in state
+                await loadConversations(true)
+            }
+
             const { data: newMessageData, error: messageError } = await supabase
                 .from('messages')
                 .insert({
-                    conversation_id: selectedConversationId,
+                    conversation_id: conversationId,
                     sender_id: user.id,
                     sender_type: isCoach ? 'coach' : 'client',
                     content: newMessage.trim(),
@@ -224,20 +283,15 @@ export function useMessagesScreenLogic() {
                     last_message_preview: newMessage.trim().substring(0, 50),
                     last_message_at: new Date().toISOString(),
                     last_message_id: newMessageData.id,
-                    // Atomic increment should ideally be done via RPC or DB Trigger
-                    // Removing the hypothetical RPC call to avoid runtime errors if not defined
+                    [otherUnreadField]: 1 // Atomic increment would be better
                 })
-                .eq('id', selectedConversationId)
-
-            // Note: the original code used supabase.raw which doesn't exist in standard client. 
-            // Reverting to a more standard update for the unread count if RPC is not available or just letting DB handles it if possible.
-            // The original had: [otherUnreadField]: supabase.raw(`${otherUnreadField} + 1`)
-            // I'll keep it simple for now as per original intent but safe.
+                .eq('id', conversationId)
 
             setConversations(prev => prev.map(conv =>
-                conv.id === selectedConversationId
+                conv.id === conversationId || conv.id === `virtual-${isCoach ? newMessageData.client_id : newMessageData.coach_id}`
                     ? {
                         ...conv,
+                        id: conversationId,
                         last_message_preview: newMessage.trim().substring(0, 50),
                         last_message_at: new Date().toISOString(),
                     }
@@ -249,7 +303,7 @@ export function useMessagesScreenLogic() {
         } finally {
             setSending(false)
         }
-    }, [newMessage, selectedConversationId, user, isCoach, sending, supabase])
+    }, [newMessage, selectedConversationId, user, isCoach, sending, supabase, loadConversations])
 
     // Intent handling
     useEffect(() => {

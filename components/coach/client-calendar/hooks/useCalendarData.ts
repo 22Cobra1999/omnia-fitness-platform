@@ -14,26 +14,45 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
 
     const [activityEndDates, setActivityEndDates] = useState<Record<number, string>>({})
     const [dishNameMap, setDishNameMap] = useState<Record<string, string>>({})
+    const [dishMinsMap, setDishMinsMap] = useState<Record<string, number>>({})
     const [docProgressMap, setDocProgressMap] = useState<Record<number, boolean>>({})
 
     const fetchMonthlyProgress = useCallback(async () => {
         if (!clientId) return
         try {
             const { monthStartStr, monthEndStr } = getMonthRange(currentDate)
-            const { data, error } = await supabase
+            
+            // 1. Fetch Programs (Daily Rows)
+            const { data: dailyData, error: dailyError } = await supabase
                 .from('progreso_diario_actividad')
                 .select('*')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
 
-            if (!error && data) {
-                const normalized = data.map((r: any) => ({
-                    ...r,
-                    fecha: String(r.fecha).split(' ')[0].split('T')[0]
-                }))
-                setMonthlyProgress(normalized)
-            }
+            // 2. Fetch Workshops
+            const { data: wsData } = await supabase
+                .from('taller_progreso_temas')
+                .select('id, actividad_id, fecha_seleccionada, asistio, estado')
+                .eq('cliente_id', clientId)
+                .gte('fecha_seleccionada', monthStartStr)
+                .lte('fecha_seleccionada', monthEndStr)
+
+            const normalizedDaily = (dailyData || []).map((r: any) => ({
+                ...r,
+                fecha: String(r.fecha).split(' ')[0].split('T')[0]
+            }))
+
+            const normalizedWS = (wsData || []).map((r: any) => ({
+                id: `ws-progress-${r.id}`,
+                actividad_id: r.actividad_id,
+                fecha: String(r.fecha_seleccionada),
+                fit_items_o: 1,
+                fit_items_c: (r.asistio || r.estado === 'completado') ? 1 : 0,
+                is_workshop: true
+            }))
+
+            setMonthlyProgress([...normalizedDaily, ...normalizedWS])
         } catch (e) {
             console.warn('Error fetching monthly progress:', e)
         }
@@ -45,6 +64,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             return
         }
         try {
+            setLoading(true)
             console.log('📅 [Calendar] START fetchClientCalendarSummary | Client:', clientId, 'Month:', currentDate.toISOString().split('T')[0])
             const { monthStartStr, monthEndStr } = getMonthRange(currentDate)
 
@@ -112,14 +132,31 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 }
             }
 
-            // Fetch all dish names to ensure coverage of shared plates across different coaches
-            // Move this outside the if(acts) to ensure map is always available
-            const { data: dishes } = await supabase.from('nutrition_program_details').select('id, nombre_plato, label')
+            // Fetch all dish names and minutes from recetas (new primary source) and legacy details
+            const { data: recData } = await supabase.from('recetas').select('id, nombre, minutos')
+            const { data: dishes } = await supabase.from('nutrition_program_details').select('id, nombre, minutos')
+            
+            const dMap: Record<string, string> = {}
+            const minsMap: Record<string, number> = {}
+
+            // Populate from legacy first
             if (dishes) {
-                const dMap: Record<string, string> = {}
-                dishes.forEach((d: any) => { dMap[String(d.id)] = d.nombre_plato || d.label || `Plato ${d.id}` })
-                setDishNameMap(dMap)
+                dishes.forEach((d: any) => {
+                    const idStr = String(d.id)
+                    dMap[idStr] = d.nombre || ''
+                    minsMap[idStr] = d.minutos || 0
+                })
             }
+            // Override/add from recetas (cleaner names/centralized minutes)
+            if (recData) {
+                recData.forEach((r: any) => {
+                    const idStr = String(r.id)
+                    if (r.nombre) dMap[idStr] = r.nombre
+                    if (r.minutos) minsMap[idStr] = r.minutos
+                })
+            }
+            setDishNameMap(dMap)
+            setDishMinsMap(minsMap)
 
             // 4. Fetch Workshop Progress
             let workshopRows: any[] = []
@@ -159,9 +196,9 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             
             // 5.b Fetch Document Progress (to ensure it's not 0)
             const { data: docProgs } = await supabase.from('client_document_progress').select('activity_id, completed').eq('client_id', clientId)
-            const dMap: Record<number, boolean> = {}
-            if (docProgs) docProgs.forEach((dp: any) => { if (dp.completed) dMap[dp.activity_id] = true })
-            setDocProgressMap(dMap)
+            const docMap: Record<number, boolean> = {}
+            if (docProgs) docProgs.forEach((dp: any) => { if (dp.completed) docMap[Number(dp.activity_id)] = true })
+            setDocProgressMap(docMap)
 
             // 6. Fetch Enrollment End Dates
             const { data: enrolls, error: enrollsError } = await supabase
@@ -169,13 +206,13 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 .select('activity_id, program_end_date')
                 .eq('client_id', clientId)
             
-            const activityEndDates: Record<number, string> = {}
+            const aEndDates: Record<number, string> = {}
             if (enrolls) {
                 enrolls.forEach((e: any) => {
-                    if (e.program_end_date) activityEndDates[e.activity_id] = e.program_end_date
+                    if (e.program_end_date) aEndDates[Number(e.activity_id)] = e.program_end_date
                 })
             }
-            setActivityEndDates(activityEndDates)
+            setActivityEndDates(aEndDates)
 
             const byDate: Record<string, ClientDaySummaryRow[]> = {}
             const processed: { [key: string]: DayData } = {}
@@ -213,8 +250,16 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 dailyCovered.add(key)
                 
                 const fitnessMins = Number(r.fit_mins_c) || Number(r.fit_mins_o) || (r.area === 'fitness' ? Number(r.minutos) : 0) || 0
-                const nutriMins = Number(r.nut_mins_c) || Number(r.nut_mins_o) || (r.area === 'nutricion' ? Number(r.minutos) : 0) || 0
                 
+                // Aggregate nutrition minutes from macros if needed
+                let nutriMins = Number(r.nut_mins_c) || Number(r.nut_mins_o) || 0
+                if (nutriMins === 0 && r.nut_macros) {
+                    const macros = typeof r.nut_macros === 'string' ? JSON.parse(r.nut_macros) : r.nut_macros
+                    Object.values(macros).forEach((m: any) => {
+                        nutriMins += (Number(m?.minutos) || Number(m?.m) || 0)
+                    })
+                }
+
                 const row = {
                     id: `daily-${r.id}`,
                     client_id: clientId,
@@ -228,7 +273,11 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     nutri_mins: nutriMins,
                     calendar_mins: 0,
                     items_objetivo: (r.fit_items_o || 0) + (r.nut_items_o || 0) || (r.tipo === 'documento' ? 1 : 0),
-                    items_completados: (r.fit_items_c || 0) + (r.nut_items_c || 0) || (r.tipo === 'documento' && dMap[r.actividad_id] ? 1 : 0)
+                    items_completados: (r.fit_items_c || 0) + (r.nut_items_c || 0) || (r.tipo === 'documento' && dMap[r.actividad_id] ? 1 : 0),
+                    fit_items_o: r.fit_items_o,
+                    fit_items_c: r.fit_items_c,
+                    nut_items_o: r.nut_items_o,
+                    nut_items_c: r.nut_items_c
                 }
                 if (r.actividad_id === 78 && day === '2026-03-30') {
                     console.log(`[Calendar:Row78] Items: ${row.items_completados}/${row.items_objetivo} (fit_c=${r.fit_items_c} fit_o=${r.fit_items_o})`)
@@ -493,7 +542,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             if (nut) {
                 const macros = typeof nut.macros === 'string' ? JSON.parse(nut.macros || '{}') : (nut.macros || {})
                 const comp = typeof nut.ejercicios_completados === 'string' ? JSON.parse(nut.ejercicios_completados || '{}') : (nut.ejercicios_completados || {})
-                const compList = Array.isArray(comp.ejercicios) ? comp.ejercicios : (typeof comp === 'object' ? Object.keys(comp) : [])
+                const rawList = Array.isArray(comp.ejercicios) ? comp.ejercicios : (typeof comp === 'object' ? Object.keys(comp) : [])
+                const compList = rawList.map(String)
                 
                 Object.keys(macros).forEach(key => {
                     const baseId = key.split('_')[0]
@@ -511,6 +561,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                         actividad_id: activityId, 
                         actividad_titulo: activityTitle,
                         is_nutricion: true, 
+                        duracion: m?.minutos || m?.m || dishMinsMap[baseId] || dishMinsMap[key] || 0,
+                        calorias_estimadas: m?.calorias || m?.k || 0,
                         nutricion_macros: {
                             proteinas: m?.proteinas || m?.p || 0,
                             carbohidratos: m?.carbohidratos || m?.c || 0,

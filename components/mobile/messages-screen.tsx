@@ -75,6 +75,7 @@ export function MessagesScreen() {
           <MessageList
             messages={messages}
             currentUserId={user.id}
+            isCoach={!!isCoach}
           />
         )}
 

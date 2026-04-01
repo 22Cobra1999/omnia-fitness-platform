@@ -9,6 +9,7 @@ interface UsePurchasedActivityLogicProps {
     overrideNextSessionDate?: string | null
     onActivityClick?: (activityId: string, enrollmentId: string) => void
     isCoachView?: boolean
+    overrideStreak?: number
 }
 
 export function usePurchasedActivityLogic({
@@ -17,13 +18,14 @@ export function usePurchasedActivityLogic({
     overridePendingCount,
     overrideNextSessionDate,
     onActivityClick,
-    isCoachView = false
+    isCoachView = false,
+    overrideStreak
 }: UsePurchasedActivityLogicProps) {
     const { activity } = enrollment
     const [isNavigating, setIsNavigating] = useState(false)
     const [pendingCount, setPendingCount] = useState<number | null>(overridePendingCount !== undefined ? overridePendingCount : null)
     const [nextSessionDate, setNextSessionDate] = useState<string | null>(overrideNextSessionDate !== undefined ? overrideNextSessionDate : null)
-    const [streak, setStreak] = useState((enrollment as any).current_streak || 0)
+    const [streak, setStreak] = useState(overrideStreak !== undefined ? overrideStreak : ((enrollment as any).current_streak || 0))
     const progress = realProgress !== undefined ? realProgress : 0
 
     // Improved start detection
@@ -90,12 +92,10 @@ export function usePurchasedActivityLogic({
     const daysToStart = useMemo(() => startDate ? Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 0, [startDate, today])
 
     useEffect(() => {
-        if (overridePendingCount !== undefined || overrideNextSessionDate !== undefined) {
+        if (overridePendingCount !== undefined || overrideNextSessionDate !== undefined || overrideStreak !== undefined) {
             if (overridePendingCount !== undefined) setPendingCount(overridePendingCount)
             if (overrideNextSessionDate !== undefined) setNextSessionDate(overrideNextSessionDate)
-            if (progress >= 100 && overridePendingCount === 0) {
-                // Was setting isFinished, now handled by useMemo
-            }
+            if (overrideStreak !== undefined) setStreak(overrideStreak)
             return
         }
 

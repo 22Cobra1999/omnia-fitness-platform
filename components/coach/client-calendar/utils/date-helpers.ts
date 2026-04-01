@@ -18,11 +18,29 @@ export const getExerciseMinutes = (ex: ExerciseExecution): number => {
 }
 
 export const getMonthRange = (currentDate: Date) => {
+    // True month boundaries
     const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
     const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-    const monthStartStr = monthStart.toISOString().split('T')[0]
-    const monthEndStr = monthEnd.toISOString().split('T')[0]
-    return { monthStart, monthEnd, monthStartStr, monthEndStr }
+    
+    // Grid boundaries (cover the full weeks shown)
+    // Assuming Sunday start (0)
+    const gridStart = new Date(monthStart)
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay()) // Back to previous Sunday
+    
+    const gridEnd = new Date(monthEnd)
+    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())) // Forward to next Saturday
+    
+    const monthStartStr = gridStart.toISOString().split('T')[0]
+    const monthEndStr = gridEnd.toISOString().split('T')[0]
+    
+    return { 
+        monthStart: gridStart, 
+        monthEnd: gridEnd, 
+        monthStartStr, 
+        monthEndStr,
+        trueMonthStart: monthStart,
+        trueMonthEnd: monthEnd
+    }
 }
 
 export const calculateLastWorkoutDate = (data: { [key: string]: DayData }): string | null => {

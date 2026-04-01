@@ -114,7 +114,9 @@ export function useClientDetailLogic(selectedClient: Client | null) {
     const fetchClientDetail = async (clientId: string) => {
         try {
             setLoadingDetail(true)
-            const response = await fetch(`/api/coach/clients/${clientId}/details`, {
+            const now = new Date()
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+            const response = await fetch(`/api/coach/clients/${clientId}/details?today=${todayStr}`, {
                 credentials: 'include'
             })
             const data = await response.json()

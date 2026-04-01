@@ -15,14 +15,48 @@ interface PurchasedActivityCardHeaderProps {
     progress?: number
     isFinished?: boolean
     isFuture?: boolean
+    streak?: number
 }
 
-export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, coachRating, size, isCoachView, isExpired, progress, isFinished, isFuture }: PurchasedActivityCardHeaderProps) {
+export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, coachRating, size, isCoachView, isExpired, progress, isFinished, isFuture, streak }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) {
         return (
-            <div className="pt-5 px-6 text-center min-h-[4.5rem] flex items-center justify-center">
-                <h3 className="text-white font-[1000] text-base leading-tight tracking-tight px-2 line-clamp-2">
-                    {title || 'Sin título'}
+            <div className="pt-6 px-6 text-center h-[7.5rem] flex flex-col items-center justify-start relative">
+                {/* Racha / Streak above title */}
+                <div className="h-6 mb-1 flex items-center justify-center gap-1">
+                    {streak && streak > 0 ? (
+                        <>
+                            <span className="text-white font-[1000] text-sm leading-none tracking-tighter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                                {streak}
+                            </span>
+                            <Flame className="h-4 w-4 text-[#FF7939] fill-[#FF7939]" strokeWidth={2.5} />
+                        </>
+                    ) : null}
+                </div>
+
+                <h3 className="text-white leading-[1.1] tracking-tighter opacity-95 w-full px-0">
+                    {(() => {
+                        const words = (title || 'Sin título').split(' ');
+                        const row1 = words.slice(0, 2).join(' ');
+                        const row2 = words.slice(2, 5).join(' ');
+                        const row3 = words.slice(5).join(' ');
+
+                        return (
+                            <div className="flex flex-col items-center w-full">
+                                <span className="text-[0.9rem] font-[1000] block leading-none uppercase tracking-tight truncate w-full">{row1}</span>
+                                {row2 ? (
+                                    <span className="text-[0.75rem] font-bold opacity-70 block leading-none uppercase mt-1.5 truncate w-full">{row2}</span>
+                                ) : (
+                                    <div className="h-[0.75rem] mt-1.5" />
+                                )}
+                                {row3 ? (
+                                    <span className="text-[0.55rem] font-medium opacity-40 block leading-tight uppercase mt-1 truncate w-full">{row3}</span>
+                                ) : (
+                                    <div className="h-[0.55rem] mt-1" />
+                                )}
+                            </div>
+                        );
+                    })()}
                 </h3>
             </div>
         )
@@ -72,6 +106,18 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                             {Math.round(progress)}
                         </span>
                         <span className="text-[7.5px] font-black text-orange-500 italic leading-none">%</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Streak Badge - Top Left */}
+            {streak !== undefined && streak > 0 && (
+                <div className="absolute top-2 left-2 z-20">
+                    <div className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full shadow-2xl relative overflow-hidden">
+                        <Flame className="w-6 h-6 text-[#FF7939] opacity-30 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-110" fill="#FF7939" />
+                        <span className="text-[12px] font-[1000] text-white italic leading-none z-10 pt-0.5 font-[var(--font-anton)]">
+                            {streak}
+                        </span>
                     </div>
                 </div>
             )}

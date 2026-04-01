@@ -78,6 +78,10 @@ export interface ClientDaySummaryRow {
     nutri_items_done?: number | null
     is_workshop?: boolean
     enrollment_id?: number | null
+    fit_items_o?: number | null
+    fit_items_c?: number | null
+    nut_items_o?: number | null
+    nut_items_c?: number | null
 }
 
 export interface ActivityFilterOption {

@@ -109,6 +109,9 @@ export function ClientActivitiesTab({
                                 itemsCompletedTotal={activity.itemsCompletedTotal}
                                 itemsDebtPast={activity.itemsDebtPast}
                                 itemsPendingToday={activity.itemsPendingToday}
+                                itemsObjectiveToday={activity.itemsObjectiveToday}
+                                itemsPendingTodayReal={activity.itemsPendingTodayReal}
+                                streak={activity.streak}
                                 overrideNextSessionDate={activity.nextSessionDate}
                                 amountPaid={activity.amount_paid}
                                 realProgress={activity.progressPercent}

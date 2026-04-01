@@ -22,10 +22,13 @@ interface PurchasedActivityCardContentProps {
     daysCompleted?: number
     daysPassed?: number
     daysMissed?: number
+    daysIncomplete?: number
     daysRemainingFuture?: number
     itemsCompletedTotal?: number
     itemsDebtPast?: number
     itemsPendingToday?: number
+    itemsObjectiveToday?: number
+    itemsPendingTodayReal?: number
 }
 
 const formatDM = (date: string) => {
@@ -57,13 +60,23 @@ export function PurchasedActivityCardContent({
     daysCompleted,
     daysPassed,
     daysMissed,
+    daysIncomplete: daysIncompleteProp,
     daysRemainingFuture,
     itemsCompletedTotal,
     itemsDebtPast,
-    itemsPendingToday
+    itemsPendingToday,
+    itemsObjectiveToday,
+    itemsPendingTodayReal
 }: PurchasedActivityCardContentProps) {
-    const daysIncomplete = Math.max(0, (daysPassed || 0) - (daysCompleted || 0) - (daysMissed || 0))
-    const isNutrition = activity.type?.toLowerCase() === 'nutrition' || activity.type?.toLowerCase() === 'nutricion' || activity.category?.toLowerCase() === 'nutrition'
+    const daysIncomplete = daysIncompleteProp ?? Math.max(0, (daysPassed || 0) - (daysCompleted || 0) - (daysMissed || 0))
+    const titleLower = (activity.title || '').toLowerCase()
+    const isNutrition = activity.type?.toLowerCase() === 'nutrition' || 
+                        activity.type?.toLowerCase() === 'nutricion' || 
+                        activity.category?.toLowerCase() === 'nutrition' || 
+                        activity.categoria?.toLowerCase() === 'nutricion' ||
+                        titleLower.includes('nutri') || 
+                        titleLower.includes('comida') || 
+                        titleLower.includes('plato')
 
     return (
         <div className={cn(
@@ -80,12 +93,11 @@ export function PurchasedActivityCardContent({
                         <span className="text-3xl font-[1000] text-orange-400 drop-shadow-2xl">
                             {Math.round(progress)}%
                         </span>
-                        <span className="text-[7px] font-black text-white/20 tracking-[0.3em] uppercase">Progreso Real</span>
                     </div>
                 )}
 
                 {/* 1. Dynamic Pill (EMPEZAR, HOY or PRÓXIMA) */}
-                <div className="flex items-center justify-between gap-1 px-1">
+                <div className="flex items-center justify-between gap-1 px-1 min-h-[24px]">
                     {daysInfo.isExpired && !enrollment.rating_coach ? (
                         <div className="flex items-center gap-1 bg-[#FF7939] border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left shadow-[#FF7939]/20">
                             <Star className="w-3 h-3 text-white fill-white" />
@@ -96,20 +108,35 @@ export function PurchasedActivityCardContent({
                             <Star className="w-3 h-3 text-white fill-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">CALIFICADO</span>
                         </div>
-                    ) : pendingCount && pendingCount > 0 ? (
-                        <div className="flex items-center gap-1.5 bg-[#FF7939]/40 backdrop-blur-xl border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
-                            {isNutrition ? (
-                                <UtensilsCrossed className="w-3 h-3 text-white" />
-                            ) : (
-                                <Zap className="w-3 h-3 text-white fill-white" />
-                            )}
-                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                                HOY {pendingCount}
-                            </span>
+                    ) : (itemsObjectiveToday && itemsObjectiveToday > 0) ? (
+                        <div className={cn(
+                            "flex items-center gap-2 bg-white/5 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left",
+                            itemsPendingTodayReal === 0 
+                                ? "border-emerald-500/30" 
+                                : "border-white/10"
+                        )}>
+                            <div className="flex items-center gap-1.5 border-r border-white/10 pr-2 mr-0.5">
+                                {isNutrition ? (
+                                    <UtensilsCrossed className="w-3 h-3 text-white" />
+                                ) : (
+                                    <Zap className="w-3 h-3 text-white fill-white" />
+                                )}
+                                <span className={cn(
+                                    "text-[9px] font-black tracking-widest uppercase whitespace-nowrap",
+                                    itemsPendingTodayReal === 0 ? "text-emerald-400" : "text-[#FF7939]"
+                                )}>
+                                    {itemsPendingTodayReal === 0 ? 'ACT. OK' : `ACT. HOY: ${itemsObjectiveToday}`}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-60">
+                                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">PROX:</span>
+                                <span className="text-[9px] font-black text-white tracking-tighter whitespace-nowrap">
+                                    {nextSessionDate ? formatDM(nextSessionDate) : '...'}
+                                </span>
+                            </div>
                         </div>
                     ) : nextSessionDate ? (
-                        <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-xl border border-white/20 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
-                            <Calendar className="w-3 h-3 text-white" />
+                        <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-xl border border-white/10 px-2 py-1 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
                                 PROX: {formatDM(nextSessionDate)}
                             </span>
@@ -201,21 +228,13 @@ export function PurchasedActivityCardContent({
 function StatItem({ label, value, color }: { label: string, value: number | undefined, color: string }) {
     return (
         <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[7px] text-white/15 font-medium uppercase tracking-tight">{label}</span>
+            <span className="text-[7px] text-white/40 font-medium uppercase tracking-tight">{label}</span>
             <span className={cn("text-[13px] font-[900] leading-none", color)}>{value ?? 0}</span>
         </div>
     )
 }
 
-function PurchasedActivityCardFooter({ isFinished, progress, streak, isNutrition }: any) {
-    if (streak > 0) {
-        return (
-            <div className="mt-2 flex items-center justify-center gap-1">
-                <Flame className={cn("w-3.5 h-3.5 fill-orange-500 text-orange-600", isFinished && "opacity-50")} />
-                <span className="text-[11px] font-[1000] text-orange-400 leading-none">{streak}</span>
-            </div>
-        )
-    }
+function PurchasedActivityCardFooter({ isFinished, progress, isNutrition }: any) {
     if (isFinished || progress >= 100) {
         return (
             <div className="mt-2 flex justify-center opacity-30">

@@ -111,6 +111,13 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     
     return new Date(Math.min(...endDates.map(d => new Date(d).getTime())))
   }, [isSelectingNewDate, editingDate, summaryRowsByDate, activityEndDates, currentCoachId, summaryRowsByDate])
+  
+  const filteredMonthlyProgress = useMemo(() => {
+    if (!activeEnrollmentFilterId) return monthlyProgress
+    return monthlyProgress.filter(p => 
+      p.enrollment_id === activeEnrollmentFilterId || p.actividad_id === activeEnrollmentFilterId
+    )
+  }, [monthlyProgress, activeEnrollmentFilterId])
 
   // Initial Coach Fetch
   useEffect(() => {
@@ -249,46 +256,90 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   )
 
   return (
-    <div className="w-full bg-black min-h-screen text-white font-sans selection:bg-[#FF7939]/30">
-      <PanelGroup direction="horizontal" className="w-full">
+    <div className="w-full bg-black h-screen overflow-hidden text-white font-sans selection:bg-[#FF7939]/30">
+      <PanelGroup direction="horizontal" className="w-full h-full">
         {/* ── LEFT: Calendar (70%) ── */}
-        <Panel defaultSize={70} minSize={30} className="flex flex-col">
+        <Panel defaultSize={65} minSize={30} className="h-full flex flex-col">
           <div className="h-full flex flex-col gap-4 p-4 md:p-6 overflow-y-auto border-r border-zinc-800/60">
-            {/* Activity filter bubbles — only in calendar column */}
-            {activityFilterOptions.length > 0 && (
-              <div className="w-full overflow-x-auto scrollbar-none">
-                <div className="flex gap-1.5 whitespace-nowrap pb-0.5">
-                  <button
-                    onClick={() => setActiveEnrollmentFilterId(null)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                      !activeEnrollmentFilterId
-                        ? 'bg-[#FF7939] text-black shadow-sm'
-                        : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  {activityFilterOptions.map(opt => (
+            {/* Activity filter and counts row */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {activityFilterOptions.length > 0 && (
+                <div className="flex-1 overflow-x-auto scrollbar-none">
+                  <div className="flex gap-1.5 whitespace-nowrap pb-0.5">
                     <button
-                      key={opt.enrollment_id}
-                      onClick={() => setActiveEnrollmentFilterId(opt.enrollment_id)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all max-w-[160px] ${
-                        activeEnrollmentFilterId === opt.enrollment_id
+                      onClick={() => setActiveEnrollmentFilterId(null)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                        !activeEnrollmentFilterId
                           ? 'bg-[#FF7939] text-black shadow-sm'
                           : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
                       }`}
                     >
-                      <span className="block truncate">{opt.title}</span>
+                      Todos
                     </button>
-                  ))}
+                    {activityFilterOptions.map(opt => (
+                      <button
+                        key={opt.enrollment_id}
+                        onClick={() => setActiveEnrollmentFilterId(opt.enrollment_id)}
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all max-w-[160px] ${
+                          activeEnrollmentFilterId === opt.enrollment_id
+                            ? 'bg-[#FF7939] text-black shadow-sm'
+                            : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
+                        }`}
+                      >
+                        <span className="block truncate">{opt.title}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Counts section - for the current view (month or filtered) */}
+              {(() => {
+                const nonMeetProgress = filteredMonthlyProgress.filter(p => !p.calendar_event_id);
+                // Sum of items (exercises + dishes) as "Actividades"
+                const totalActivities = nonMeetProgress.reduce((acc, p) => acc + (Number(p.fit_items_o || 0) + Number(p.nut_items_o || 0)), 0);
+                const completedActivities = nonMeetProgress.reduce((acc, p) => acc + (Number(p.fit_items_c || 0) + Number(p.nut_items_c || 0)), 0);
+
+                const daysMap: Record<string, any[]> = {}
+                nonMeetProgress.forEach(p => { if (!daysMap[p.fecha]) daysMap[p.fecha] = []; daysMap[p.fecha].push(p) })
+                const completedDays = Object.values(daysMap).filter(items => 
+                  items.every(p => {
+                    const ok = (Number(p.fit_items_c) || 0) + (Number(p.nut_items_c) || 0);
+                    const tot = (Number(p.fit_items_o) || 0) + (Number(p.nut_items_o) || 0);
+                    return tot > 0 && ok >= tot;
+                  })
+                ).length;
+                const totalDays = Object.keys(daysMap).length;
+
+                return (
+                  <div className="flex items-center gap-6 flex-shrink-0">
+                    <div className="text-center">
+                      <div className="text-[14px] font-bold flex items-baseline justify-center gap-0.5 leading-none">
+                        <span className="text-[#FF7939]">{completedActivities}</span>
+                        <span className="text-gray-500 text-xs">/</span>
+                        <span className="text-white">{totalActivities}</span>
+                      </div>
+                      <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider mt-0.5">Actividades</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[14px] font-bold flex items-baseline justify-center gap-0.5 leading-none">
+                        <span className="text-[#FF7939]">{completedDays}</span>
+                        <span className="text-gray-500 text-xs">/</span>
+                        <span className="text-white">{totalDays}</span>
+                      </div>
+                      <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider mt-0.5">Días</div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
 
             <CalendarHeader
               currentDate={currentDate} showMonthPicker={showMonthPicker} monthPickerYear={monthPickerYear}
               setMonthPickerYear={setMonthPickerYear} goToPreviousMonth={goToPreviousMonth} goToNextMonth={goToNextMonth}
-              toggleMonthPicker={toggleMonthPicker} monthlyProgress={monthlyProgress} monthNames={monthNames}
+              toggleMonthPicker={toggleMonthPicker} 
+              monthlyProgress={filteredMonthlyProgress} 
+              monthNames={monthNames}
             />
 
             {showMonthPicker && (
@@ -353,24 +404,31 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         </PanelResizeHandle>
 
         {/* ── RIGHT: Day Details Panel (desktop only) ── */}
-        <Panel defaultSize={30} minSize={20} className="hidden md:flex flex-col">
-          <div className="h-full flex flex-col p-5 overflow-y-auto">
+        <Panel defaultSize={35} minSize={20} className="hidden md:flex h-full flex-col">
+          <div className="h-full flex flex-col p-5 overflow-y-auto scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700">
             {selectedDate ? (
               <DayDetailsPanel
-                selectedDate={selectedDate} summaryRowsByDate={summaryRowsByDate}
-                currentCoachId={currentCoachId} clientId={clientId}
-                isSelectingNewDate={isSelectingNewDate} handleEditDate={handleEditDate}
-                expandedActivityKeys={expandedActivityKeys} 
+                selectedDate={selectedDate}
+                summaryRowsByDate={summaryRowsByDate}
+                currentCoachId={currentCoachId}
+                clientId={clientId}
+                isSelectingNewDate={isSelectingNewDate}
+                handleEditDate={handleEditDate}
+                expandedActivityKeys={expandedActivityKeys}
                 setExpandedActivityKeys={setExpandedActivityKeys}
                 onActivityExpanded={(row: ClientDaySummaryRow) => {
                   setLastExpandedEnrollmentId(row.enrollment_id ?? row.activity_id ?? null)
                 }}
-                loadDayActivityDetails={loadDayActivityDetails} loadEventDetails={loadEventDetails}
-                eventDetailsByKey={eventDetailsByKey} activityDetailsByKey={activityDetailsByKey}
+                loadDayActivityDetails={loadDayActivityDetails}
+                loadEventDetails={loadEventDetails}
+                eventDetailsByKey={eventDetailsByKey}
+                activityDetailsByKey={activityDetailsByKey}
                 nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
                 dishNameMap={dishNameMap}
-                canEditNutritionForDay={canEditNutritionForDay} canEditFitnessForDay={canEditFitnessForDay}
-                handleEditNutrition={handleEditNutrition} editingExerciseId={editingExerciseId}
+                canEditNutritionForDay={canEditNutritionForDay}
+                canEditFitnessForDay={canEditFitnessForDay}
+                handleEditNutrition={handleEditNutrition}
+                editingExerciseId={editingExerciseId}
                 editingOriginalExercise={editingOriginalExercise}
                 setEditingExerciseId={setEditingExerciseId} setEditingOriginalExercise={setEditingOriginalExercise}
                 loadAvailableExercises={loadAvailableExercises} showExerciseDropdown={showExerciseDropdown}

@@ -93,18 +93,8 @@ export function filterEnrollments(
         return true
     })
 
-    // 5. De-duplicate by activity_id (only for active/pending tabs)
-    if (statusTab !== 'finalizadas') {
-        const seen = new Set<string>();
-        // Enrollment list is already sorted by created_at DESC in the hook, 
-        // so the first one we find is the most recent.
-        return filtered.filter(e => {
-            const activityId = String(e.activity_id);
-            if (seen.has(activityId)) return false;
-            seen.add(activityId);
-            return true;
-        });
-    }
+    // 5. REMOVED: De-duplicate by activity_id (only for active/pending tabs) - Users want to see multiple enrollments of same activity
+    // if (statusTab !== 'finalizadas') { ... }
 
     return filtered;
 }

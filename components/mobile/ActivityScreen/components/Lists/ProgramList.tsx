@@ -11,6 +11,7 @@ interface ProgramListProps {
     onStartActivity: (activityId: string) => void // Propagated from logic
     showProgress?: boolean
     enrollmentProgresses?: Record<string, number>
+    enrollmentStats?: Record<string, { total: number, completed: number }>
 }
 
 export function ProgramList({
@@ -18,7 +19,8 @@ export function ProgramList({
     isLoading,
     onActivityClick,
     onStartActivity,
-    enrollmentProgresses = {}
+    enrollmentProgresses = {},
+    enrollmentStats = {}
 }: ProgramListProps) {
     if (isLoading) {
         return <div className="p-6 text-center text-gray-500">Cargando actividades...</div> // Replace with Skeleton later
@@ -41,10 +43,8 @@ export function ProgramList({
     return (
         <div className="px-4 pb-24 flex gap-2 w-full overflow-x-auto snap-x scrollbar-hide">
             {enrollments.map((enrollment) => {
-                // Status is calculated internally or ignored if not passed explicitly? 
-                // PurchasedActivityCard doesn't seem to take 'status' prop based on outline, 
-                // but calculateEnrollmentStatus is useful for filtering.
                 const progress = enrollmentProgresses[enrollment.id] || 0
+                const stats = enrollmentStats[enrollment.id] || { total: 0, completed: 0 }
 
                 return (
                     <div key={enrollment.id} className="snap-start shrink-0">
@@ -52,6 +52,9 @@ export function ProgramList({
                             enrollment={enrollment}
                             onActivityClick={onActivityClick}
                             realProgress={progress}
+                            itemsObjectiveToday={stats.total}
+                            itemsPendingTodayReal={Math.max(0, stats.total - stats.completed)}
+                            streak={(enrollment as any).current_streak || 0}
                             size="medium"
                         />
                     </div>
