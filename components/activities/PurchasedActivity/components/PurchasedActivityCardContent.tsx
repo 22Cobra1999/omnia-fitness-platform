@@ -109,10 +109,10 @@ export function PurchasedActivityCardContent({
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">CALIFICADO</span>
                         </div>
                     ) : (itemsObjectiveToday && itemsObjectiveToday > 0) ? (
-                        <div className="flex flex-row items-center gap-3 px-1 scale-[0.9] origin-left mr-auto min-h-[32px]">
+                        <div className="flex flex-row items-center gap-3 px-1 mt-0.5 min-h-[32px]">
                             <div className="flex items-center gap-1.5">
                                 <div className={cn(
-                                    "w-7 h-7 flex items-center justify-center rounded-full border shadow-lg transition-all duration-500 relative bg-black/40",
+                                    "px-1.5 h-7 flex items-center justify-center gap-1 rounded-full border shadow-lg transition-all duration-500 bg-black/40",
                                     itemsPendingTodayReal === 0 
                                         ? "border-orange-500/40" 
                                         : isNutrition 
@@ -122,17 +122,17 @@ export function PurchasedActivityCardContent({
                                     {isNutrition ? (
                                         <UtensilsCrossed className={cn(
                                             "w-2.5 h-2.5", 
-                                            itemsPendingTodayReal === 0 ? "text-orange-400" : "text-yellow-400 opacity-20"
+                                            itemsPendingTodayReal === 0 ? "text-orange-400" : "text-yellow-400 opacity-60"
                                         )} />
                                     ) : (
                                         <Zap className={cn(
                                             "w-3 h-3 fill-current", 
-                                            itemsPendingTodayReal === 0 ? "text-orange-400" : "text-orange-400 opacity-20"
+                                            itemsPendingTodayReal === 0 ? "text-orange-400" : "text-orange-400 opacity-60"
                                         )} />
                                     )}
                                     {itemsPendingTodayReal > 0 && (
                                         <span className={cn(
-                                            "absolute inset-0 flex items-center justify-center text-[11px] font-[1000] italic tracking-tighter pt-0.5",
+                                            "text-[12px] font-[1000] italic tracking-tighter pt-0.5",
                                             isNutrition ? "text-yellow-400" : "text-orange-400"
                                         )}>
                                             {itemsPendingTodayReal}
@@ -147,31 +147,27 @@ export function PurchasedActivityCardContent({
                                 </span>
                             </div>
 
-                            {nextSessionDate && (
-                                <>
-                                    <div className="w-[1px] h-3 bg-white/10" />
-                                    <div className="flex items-center gap-1.5 opacity-40">
-                                        <span className="text-[7.5px] font-black text-zinc-500 uppercase tracking-widest">PRÓX:</span>
-                                        <span className="text-[9px] font-black text-white tracking-tighter">
-                                            {formatDM(nextSessionDate)}
-                                        </span>
-                                    </div>
-                                </>
-                            )}
+                            <div className="w-[1px] h-3 bg-white/10" />
+                            
+                            <div className="flex items-center gap-1.5 opacity-40">
+                                <span className="text-[7.5px] font-black text-zinc-500 uppercase tracking-widest">PRÓX:</span>
+                                <span className="text-[9px] font-black text-white tracking-tighter">
+                                    {nextSessionDate ? formatDM(nextSessionDate) : '...'}
+                                </span>
+                            </div>
                         </div>
                     ) : nextSessionDate ? (
-                        <div className="flex flex-row items-center gap-3 px-1 scale-[0.9] origin-left mr-auto min-h-[32px]">
-                            <div className="w-7 h-7 flex items-center justify-center rounded-full bg-white/5 border border-white/10 shadow-lg">
+                        <div className="flex flex-row items-center gap-3 px-1 mt-0.5 min-h-[32px]">
+                            <div className="flex items-center gap-1 h-7 px-2 rounded-full bg-white/5 border border-white/10 shadow-lg">
                                 <Calendar className="w-3 h-3 text-white opacity-40" />
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-[8px] font-black text-zinc-500 tracking-widest uppercase opacity-60">
-                                    PRÓXIMA
-                                </span>
-                                <span className="text-[9px] font-black text-white tracking-tighter">
+                                <div className="w-[1px] h-2 bg-white/10 mx-0.5" />
+                                <span className="text-[11px] font-black text-white tracking-tighter">
                                     {formatDM(nextSessionDate)}
                                 </span>
                             </div>
+                            <span className="text-[8px] font-black text-zinc-500 tracking-widest uppercase opacity-60">
+                                PRÓXIMA
+                            </span>
                         </div>
                     ) : null}
 
