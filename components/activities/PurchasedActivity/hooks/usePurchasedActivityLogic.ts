@@ -117,7 +117,7 @@ export function usePurchasedActivityLogic({
                 // 1. Progress and Streak
                 const { data: records, error: streakError } = await supabase
                     .from('progreso_diario_actividad')
-                    .select('fecha, items_objetivo, items_completados')
+                    .select('fecha, fit_items_o, fit_items_c, nut_items_o, nut_items_c')
                     .eq('cliente_id', enrollment.client_id)
                     .eq('enrollment_id', enrollment.id)
                     .order('fecha', { ascending: false })
@@ -126,8 +126,8 @@ export function usePurchasedActivityLogic({
                     // Current Today Record
                     const todayRecord = records.find((r: any) => r.fecha === today)
                     if (todayRecord) {
-                        const total = todayRecord.items_objetivo || 0
-                        const done = todayRecord.items_completados || 0
+                        const total = (Number(todayRecord.fit_items_o) || 0) + (Number(todayRecord.nut_items_o) || 0)
+                        const done = (Number(todayRecord.fit_items_c) || 0) + (Number(todayRecord.nut_items_c) || 0)
                         setPendingCount(Math.max(0, total - done))
                     } else {
                         setPendingCount(null)
@@ -143,11 +143,13 @@ export function usePurchasedActivityLogic({
                     } else {
                         // Manual Fallback Calculation
                         let currentStreak = 0
-                        const sortedRecords = records.filter((r: any) => (r.items_objetivo || 0) > 0)
+                        const sortedRecords = records.filter((r: any) => ((Number(r.fit_items_o) || 0) + (Number(r.nut_items_o) || 0)) > 0)
 
                         if (sortedRecords.length > 0) {
                             for (const rec of (sortedRecords as any[])) {
-                                const isCompleted = (rec.items_completados || 0) >= (rec.items_objetivo || 0)
+                                const total = (Number(rec.fit_items_o) || 0) + (Number(rec.nut_items_o) || 0)
+                                const done = (Number(rec.fit_items_c) || 0) + (Number(rec.nut_items_c) || 0)
+                                const isCompleted = done >= total
                                 if (isCompleted) {
                                     currentStreak++
                                 } else {
@@ -186,7 +188,7 @@ export function usePurchasedActivityLogic({
                         .eq('enrollment_id', enrollment.id)
                         .eq('cliente_id', enrollment.client_id)
                         .gt('fecha', today)
-                        .gt('items_objetivo', 0)
+                        .or(`fit_items_o.gt.0,nut_items_o.gt.0`)
                         .order('fecha', { ascending: true })
                         .limit(1)
                         .maybeSingle()

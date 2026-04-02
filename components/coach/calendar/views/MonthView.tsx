@@ -11,7 +11,7 @@ import {
     isToday
 } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Video, ChevronDown, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Video, ChevronDown, GraduationCap, ChevronLeft, ChevronRight, Zap, Utensils } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/utils'
@@ -26,6 +26,7 @@ interface MonthViewProps {
     onMonthClick: () => void
     availabilityRules?: any[]
     availableSlotsCountByDay?: Record<string, number>
+    progressByDate?: Record<string, { fit_mins: number, nut_items: number }>
     showAvailability?: boolean
     hideHeader?: boolean
 }
@@ -40,6 +41,7 @@ export function MonthView({
     onMonthClick,
     availabilityRules = [],
     availableSlotsCountByDay = {},
+    progressByDate = {},
     showAvailability = false,
     hideHeader = false
 }: MonthViewProps) {
@@ -271,6 +273,31 @@ export function MonthView({
                                                     )}
                                                 </span>
                                             );
+                                        }
+
+                                        // 4. Program Progress (Fitness & Nutrition) - Global for Coach
+                                        const progress = progressByDate[dateKey]
+                                        if (progress) {
+                                            if (progress.fit_mins > 0) {
+                                                bubbles.push(
+                                                    <span key="fit-progress" className="inline-flex items-center justify-center px-1.5 h-5 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 gap-0.5 scale-90 shadow-sm">
+                                                        <Zap className="w-2.5 h-2.5 text-[#FF7939] fill-[#FF7939]" />
+                                                        <span className="text-[8px] font-bold text-[#FF7939]">
+                                                            {progress.fit_mins}m
+                                                        </span>
+                                                    </span>
+                                                )
+                                            }
+                                            if (progress.nut_items > 0) {
+                                                bubbles.push(
+                                                    <span key="nut-progress" className="inline-flex items-center justify-center px-1.5 h-5 rounded-full border border-yellow-500/40 bg-yellow-500/10 gap-0.5 scale-90 shadow-sm">
+                                                        <Utensils className="w-2.5 h-2.5 text-yellow-500" />
+                                                        <span className="text-[8px] font-bold text-yellow-500">
+                                                            {progress.nut_items}
+                                                        </span>
+                                                    </span>
+                                                )
+                                            }
                                         }
 
                                         return bubbles;

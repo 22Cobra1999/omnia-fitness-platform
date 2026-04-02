@@ -42,8 +42,9 @@ export function CalendarMonthView({
     coachProfiles
 }: CalendarMonthViewProps) {
     return (
-        <>
-            <div className="w-full mt-4">
+        <div className="flex flex-col lg:flex-row gap-6 w-full mt-4">
+            {/* 60% Left: Calendar and Logic */}
+            <div className="flex-1 lg:w-[60%] order-1">
                 <CalendarEditOverlay
                     isEditing={isEditing}
                     sourceDate={sourceDate}
@@ -63,20 +64,23 @@ export function CalendarMonthView({
                 </div>
             </div>
 
-            <CalendarDayDetail
-                selectedDate={selectedDate}
-                dayMinutesByDate={dayMinutesByDate}
-                meetEventsByDate={meetEventsByDate}
-                selectedDayActivityItems={selectedDayActivityItems}
-                activitiesByDate={activitiesByDate}
-                setSelectedMeetEvent={setSelectedMeetEvent}
-                onActivityClick={onActivityClick}
-                onSelectDate={onSelectDate}
-                dayDetailRef={dayDetailRef}
-                meetViewMode={meetViewMode}
-                authUserId={authUserId}
-                coachProfiles={coachProfiles}
-            />
-        </>
+            {/* 40% Right: Day Detail */}
+            <div className="lg:w-[40%] xl:w-[35%] order-2 lg:sticky lg:top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto pr-2 custom-scrollbar">
+                <CalendarDayDetail
+                    selectedDate={selectedDate}
+                    dayMinutesByDate={dayMinutesByDate}
+                    meetEventsByDate={meetEventsByDate}
+                    selectedDayActivityItems={selectedDayActivityItems}
+                    activitiesByDate={activitiesByDate}
+                    setSelectedMeetEvent={setSelectedMeetEvent}
+                    onActivityClick={onActivityClick}
+                    onSelectDate={onSelectDate}
+                    dayDetailRef={dayDetailRef}
+                    meetViewMode={meetViewMode}
+                    authUserId={authUserId}
+                    coachProfiles={coachProfiles}
+                />
+            </div>
+        </div>
     )
 }

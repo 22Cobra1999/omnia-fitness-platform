@@ -6,7 +6,9 @@ import { CalendarEvent } from "@/components/coach/coach-calendar-screen"
 export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
     const [events, setEvents] = useState<CalendarEvent[]>([])
     const [loading, setLoading] = useState(true)
-    const cachedEvents = useRef<Map<string, CalendarEvent[]>>(new Map()) // Use Ref to avoid re-renders
+    const cachedEvents = useRef<Map<string, CalendarEvent[]>>(new Map())
+    const cachedProgress = useRef<Map<string, Record<string, { fit_mins: number, nut_items: number }>>>(new Map())
+    const [progressByDate, setProgressByDate] = useState<Record<string, { fit_mins: number, nut_items: number }>>({})
     const [coachId, setCoachId] = useState<string | null>(null)
     const [coachProfile, setCoachProfile] = useState<{ id: string, name: string, avatar_url: string | null } | null>(null)
 
@@ -19,6 +21,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
             if (!force && cachedEvents.current.has(cacheKey)) {
                 const cached = cachedEvents.current.get(cacheKey) || []
                 setEvents(cached)
+                setProgressByDate(cachedProgress.current.get(cacheKey) || {})
                 setLoading(false)
 
                 const prevMonth = subMonths(currentDate, 1)
@@ -268,7 +271,36 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
             allEvents = [...allEvents, ...googleEvents]
             allEvents.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
+            // 7. NEW: Fetch Global Program Progress for Coach
+            const { data: coachActivities } = await supabase
+                .from('activities')
+                .select('id')
+                .eq('coach_id', currentCoachId)
+            
+            const coachActivityIds = (coachActivities || []).map((a: { id: string | number }) => a.id)
+            let progressMap: Record<string, { fit_mins: number, nut_items: number }> = {}
+
+            if (coachActivityIds.length > 0) {
+                const { data: pdaData } = await supabase
+                    .from('progreso_diario_actividad')
+                    .select('fecha, fit_mins_o, nut_items_o')
+                    .in('actividad_id', coachActivityIds)
+                    .gte('fecha', monthStartISO.split('T')[0])
+                    .lte('fecha', monthEndISO.split('T')[0])
+
+                if (pdaData) {
+                    pdaData.forEach((r: any) => {
+                        const dKey = r.fecha
+                        if (!progressMap[dKey]) progressMap[dKey] = { fit_mins: 0, nut_items: 0 }
+                        progressMap[dKey].fit_mins += (Number(r.fit_mins_o) || 0)
+                        progressMap[dKey].nut_items += (Number(r.nut_items_o) || 0)
+                    })
+                }
+            }
+
             const newCache = new Map(cachedEvents.current)
+            const newProgressCache = new Map(cachedProgress.current)
+
             for (let i = -1; i <= 1; i++) {
                 const d = addMonths(currentDate, i)
                 const k = `${d.getFullYear()}-${d.getMonth()}`
@@ -278,8 +310,19 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                     const dt = new Date(e.start_time)
                     return dt >= mS && dt <= mE
                 }))
+
+                // Process progress cache for this month
+                const monthProgressMap: Record<string, { fit_mins: number, nut_items: number }> = {}
+                Object.keys(progressMap).forEach(key => {
+                    const keyDate = new Date(key + 'T12:00:00')
+                    if (keyDate >= mS && keyDate <= mE) {
+                        monthProgressMap[key] = progressMap[key]
+                    }
+                })
+                newProgressCache.set(k, monthProgressMap)
             }
             cachedEvents.current = newCache
+            cachedProgress.current = newProgressCache
 
             const curStart = startOfMonth(currentDate)
             const curEnd = endOfMonth(currentDate)
@@ -287,6 +330,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 const dt = new Date(e.start_time)
                 return dt >= curStart && dt <= curEnd
             }))
+            setProgressByDate(cachedProgress.current.get(cacheKey) || {})
 
             if (typeof window !== 'undefined' && googleConnected && calendarEvents.length > 0) {
                 const workshops = calendarEvents.filter(e =>
@@ -326,6 +370,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
         setLoading,
         getCoachEvents,
         cachedEvents,
+        progressByDate,
         coachId,
         coachProfile
     }

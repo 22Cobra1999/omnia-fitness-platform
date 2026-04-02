@@ -23,7 +23,7 @@ interface CoachCalendarViewsProps {
     clientDayEvents: any[]
     handleQuickSchedulerConfirm: (data: any) => void
     handleQuickSchedulerCancel: () => void
-    checkOverlap: (data: any) => Promise<boolean>
+    checkOverlap: (date: Date, startTime: string, durationMinutes: number) => boolean
     meetToReschedule: any
     isRescheduling: boolean
     selectedClientForQuickMeet: any
@@ -40,6 +40,7 @@ interface CoachCalendarViewsProps {
     setAvailabilityDrafts: React.Dispatch<React.SetStateAction<Record<string, any>>>
     saveAvailability: (year: number) => void
     setCalendarMode: (mode: 'events' | 'availability') => void
+    progressByDate: Record<string, { fit_mins: number, nut_items: number }>
     deleteAvailabilityRule: (id: string) => void
 }
 
@@ -78,6 +79,7 @@ export const CoachCalendarViews: React.FC<CoachCalendarViewsProps> = ({
     setAvailabilityDrafts,
     saveAvailability,
     setCalendarMode,
+    progressByDate,
     deleteAvailabilityRule,
 }) => {
     if (calendarMode === 'events') {
@@ -94,6 +96,7 @@ export const CoachCalendarViews: React.FC<CoachCalendarViewsProps> = ({
                         onMonthClick={() => setShowMonthSelector(true)}
                         availableSlotsCountByDay={availableSlotsCountByDay}
                         showAvailability={showAvailability}
+                        progressByDate={progressByDate}
                         hideHeader={true}
                     />
                 </div>

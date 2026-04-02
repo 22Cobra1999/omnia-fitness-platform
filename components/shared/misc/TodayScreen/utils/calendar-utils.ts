@@ -139,6 +139,9 @@ export async function loadDayStatusesAsMap(userId: string, activityId: string, e
         const records = pdaRes.data || [];
         const workshopTemas = workshopRes.data || [];
 
+        console.log(`📊 [loadDayStatusesAsMap] PDA records: ${records.length}, Workshop: ${workshopTemas.length}, ActivityId: ${activityId}`);
+        if (records.length > 0) console.log(`📊 [loadDayStatusesAsMap] Sample Record:`, records[0]);
+
         if (pdaRes.error) {
             console.error('Error fetching progreso_diario_actividad:', pdaRes.error);
         }
@@ -164,6 +167,8 @@ export async function loadDayStatusesAsMap(userId: string, activityId: string, e
         const start = new Date(start_date + 'T12:00:00');
         const endOfProgram = new Date(start);
         endOfProgram.setDate(start.getDate() + (limitWeeks * 7));
+        
+        console.log(`📅 [loadDayStatusesAsMap] Range: ${start.toISOString()} to ${endOfProgram.toISOString()} (limitWeeks: ${limitWeeks})`);
 
         // Group and filter
         const dayMap: Record<string, any[]> = {};

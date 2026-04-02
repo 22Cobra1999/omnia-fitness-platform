@@ -427,7 +427,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
         } finally {
             setLoading(false)
         }
-    }, [clientId, currentDate, supabase, onLastWorkoutUpdate, fetchMonthlyProgress])
+    }, [clientId, currentDate, supabase, onLastWorkoutUpdate, fetchMonthlyProgress, currentCoachId])
 
     const loadDayActivityDetails = useCallback(async (dayStr: string, activityId: number, forceRefresh = false) => {
         const cacheKey = `${dayStr}::${activityId}`

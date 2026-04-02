@@ -303,11 +303,7 @@ export function WeeklyCalendar({
                                     {dayDate.getDate()}
                                     {isToday && <div style={{ position: 'absolute', top: 6, right: 6, width: 4, height: 4, background: '#FFD700', borderRadius: '50%' }} />}
                                     
-                                    {/* Small Bottom Markers in Weekly View */}
-                                    <div style={{ position: 'absolute', bottom: 4, display: 'flex', gap: 2 }}>
-                                        {dayMetrics[dateString]?.fit_mins > 0 && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#FF7939' }} />}
-                                        {dayMetrics[dateString]?.nut_items > 0 && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#FF4488' }} />}
-                                    </div>
+                                    {/* No markers in Weekly View */}
                                 </div>
                             </div>
                         );
@@ -394,26 +390,7 @@ export function WeeklyCalendar({
                             >
                                 {dayInfo.day}
                                 
-                                {/* Metrics Bubbles in Month View */}
-                                <div style={{ position: 'absolute', bottom: -12, display: 'flex', gap: 3, zIndex: 10 }}>
-                                    {dayMetrics[dateString]?.fit_mins > 0 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, color: '#FF7939', fontSize: 9, fontWeight: 800, background: 'rgba(255, 121, 57, 0.15)', padding: '1px 5px', borderRadius: 6, border: '1px solid rgba(255, 121, 57, 0.3)', backdropFilter: 'blur(4px)' }}>
-                                            <Bolt size={8} fill="#FF7939" />
-                                            <span>{dayMetrics[dateString].fit_mins}m</span>
-                                        </div>
-                                    )}
-                                    {dayMetrics[dateString]?.nut_items > 0 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, color: '#FF4488', fontSize: 9, fontWeight: 800, background: 'rgba(255, 68, 136, 0.15)', padding: '1px 5px', borderRadius: 6, border: '1px solid rgba(255, 68, 136, 0.3)', backdropFilter: 'blur(4px)' }}>
-                                            <SoupIcon size={8} fill="#FF4488" />
-                                            <span>{dayMetrics[dateString].nut_items}</span>
-                                        </div>
-                                    )}
-                                    {dayMetrics[dateString]?.has_workshop && (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF4444', background: 'rgba(255, 68, 68, 0.2)', padding: '2px', borderRadius: 6, border: '1px solid rgba(255, 68, 68, 0.3)' }}>
-                                            <VideoIcon size={10} fill="#FF4444" />
-                                        </div>
-                                    )}
-                                </div>
+                                {/* No markers in Month View */}
 
                                 {isToday && <div style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, background: '#FFD700', borderRadius: '50%', border: '2px solid #000' }} />}
                                 {/* Expiration marker (simplified) */}

@@ -389,7 +389,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
             if (!user || !activityId || !data.enrollment) return;
 
             try {
-                const response = await fetch(`/api/activities/${activityId}/save-survey`, {
+                const response = await fetch(`/api/enrollments/${data.enrollment.id}/save-survey`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -398,8 +398,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
                         feedback,
                         wouldRepeat,
                         omniaRating,
-                        omniaComments,
-                        enrollmentId: data.enrollment.id
+                        omniaComments 
                     })
                 });
 

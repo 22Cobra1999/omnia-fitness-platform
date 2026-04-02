@@ -51,18 +51,25 @@ export async function POST(
             }
         }
 
+        const actRatingVal = Number(activityRating)
+        const coachRatingVal = Number(coachRating)
+        const omniaRatingVal = Number(omniaRating)
+
         const surveyPayload: any = {
-            activity_id: activityId,
+            activity_id: Number(activityId),
             client_id: user.id,
-            enrollment_id: enrollmentId,
-            coach_method_rating: coachRating,
-            difficulty_rating: activityRating,
+            enrollment_id: Number(enrollmentId),
+            coach_method_rating: coachRatingVal >= 0 ? coachRatingVal : null,
+            difficulty_rating: actRatingVal >= 0 ? actRatingVal : null,
             would_repeat: wouldRepeat,
             comments: feedback,
-            calificacion_omnia: omniaRating,
+            // calificacion_omnia requires >= 1 per DB check constraint. If it's 0 or invalid, we send null.
+            calificacion_omnia: omniaRatingVal >= 1 ? omniaRatingVal : null,
             comentarios_omnia: omniaComments,
             updated_at: new Date().toISOString()
         }
+
+        console.log('📝 [API:save-survey] Payload:', JSON.stringify(surveyPayload, null, 2))
 
         let surveyError = null
         if (existingSurvey) {
@@ -73,7 +80,7 @@ export async function POST(
                 .eq('id', existingSurvey.id)
             surveyError = error
         } else {
-            console.log('➕ [API] Inserting new survey for enrollment:', enrollmentId)
+            console.log('➕ [API] Inserting new survey')
             const { error } = await supabase
                 .from('activity_surveys')
                 .insert(surveyPayload)
@@ -98,10 +105,11 @@ export async function POST(
                 
                 if (retryError) {
                     console.error('Error in legacy fallback survey save:', retryError)
-                    return NextResponse.json({ error: 'Error saving survey' }, { status: 500 })
+                    return NextResponse.json({ error: 'Error saving survey', details: retryError.message, code: retryError.code }, { status: 500 })
                 }
             } else {
-                return NextResponse.json({ error: 'Error saving survey' }, { status: 500 })
+                console.error('Detailed survey save error:', surveyError)
+                return NextResponse.json({ error: 'Error saving survey', details: surveyError.message, code: surveyError.code }, { status: 500 })
             }
         }
 

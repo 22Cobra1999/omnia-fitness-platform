@@ -45,16 +45,16 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                     const summary = summaryRowsByDate[dateStr] || []
                     const owned = summary.filter(e => {
-                        // calendar_event_id rows need coach_id match
+                        // 1. Calendar events (Meets) still need ownership/participation check
                         if (e.calendar_event_id) {
                             if (!currentCoachId) return false
                             return String(e.coach_id) === String(currentCoachId) || String(e.coach_id) === String(clientId)
                         }
-                        // daily-rows from progreso_diario_actividad have coach_id null — treat as owned
-                        if (e.coach_id === null || e.coach_id === undefined) return true
-                        // legacy rows: check ownership
-                        if (!currentCoachId) return false
-                        return String(e.coach_id) === String(currentCoachId)
+                        
+                        // 2. Program Activities (Fitness/Nutrition):
+                        // We show ALL of them in the client's progress calendar view, 
+                        // matching the client-side behavior to show the full picture.
+                        return true
                     })
 
                     const hasOwned = owned.length > 0
@@ -119,63 +119,31 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             
                             <div className="w-full flex flex-wrap items-center justify-center gap-1.5 mt-auto pb-1">
                                 {(() => {
-                                    const grouped: Record<string, { count: number, isNutri: boolean, status: 'completed' | 'absent' | 'pending' | 'future' }> = {}
-                                    
-                                    ownedActs.forEach(act => {
-                                        const p = monthlyProgress.find(x => x.fecha === dateStr && String(x.actividad_id) === String(act.activity_id))
-                                        
-                                        // Use new columns fit_items_c/o and nut_items_c/o
-                                        const comp = Number(p?.fit_items_c || 0) + Number(p?.nut_items_c || 0)
-                                        const obj = Number(p?.fit_items_o || 0) + Number(p?.nut_items_o || 0) || (act.tipo === 'documento' ? 1 : 0)
-                                        const completed = comp >= (obj || 1)
-                                        const started = comp > 0
-                                        
-                                        const isFuture = !isPast && !isToday
-                                        const status = completed ? 'completed' : (isPast && !started ? 'absent' : (isFuture ? 'future' : 'pending'))
-                                        
-                                        const activityTitle = (act.activity_title || '').toLowerCase()
-                                        const isNutri = act.area === 'nutricion' || activityTitle.includes('nutri') || activityTitle.includes('comida') || activityTitle.includes('plato') || (act.nutri_mins > 0 && act.fitness_mins === 0)
-                                        
-                                        const key = `${isNutri ? 'nut' : 'fit'}-${status}`
-                                        if (!grouped[key]) grouped[key] = { count: 0, isNutri, status }
-                                        grouped[key].count++
-                                    })
+                                    const fitMins = ownedActs.filter(act => act.area === 'fitness').reduce((acc, act) => acc + (Number(act.fit_mins_o || 0)), 0)
+                                    const nutItems = ownedActs.filter(act => act.area === 'nutricion').reduce((acc, act) => acc + (Number(act.nut_items_o || 0)), 0)
 
-                                    return Object.entries(grouped).map(([key, group]) => {
-                                        let bubbleBg = "bg-white/5 backdrop-blur-md border border-white/5"
-                                        let iconColor = "text-zinc-600/60"
-                                        
-                                        if (group.status === 'completed') {
-                                            bubbleBg = "bg-[#FF7939]/10 border-[#FF7939]/30 backdrop-blur-xl shadow-[0_0_10px_rgba(255,121,57,0.2)]"
-                                            iconColor = "text-[#FF7939]"
-                                        } else if (group.status === 'absent') {
-                                            bubbleBg = "bg-red-500/10 border-transparent backdrop-blur-xl shadow-[0_0_10px_rgba(239,68,68,0.2)]"
-                                            iconColor = "text-red-500"
-                                        } else if (group.status === 'pending') {
-                                            bubbleBg = "bg-[#FACC15]/10 border-transparent backdrop-blur-xl shadow-[0_0_10px_rgba(250,204,21,0.2)]"
-                                            iconColor = "text-[#FACC15]"
-                                        } else if (group.status === 'future') {
-                                            bubbleBg = "bg-white/5 border-transparent backdrop-blur-sm shadow-sm"
-                                            iconColor = "text-zinc-500/60"
-                                        }
-
-                                        return (
-                                            <div key={key} className="relative">
-                                                <div className={`p-1 rounded-full ${bubbleBg} transition-all duration-300 shadow-sm`}>
-                                                    {group.isNutri ? (
-                                                        <UtensilsCrossed className={`w-2.5 h-2.5 ${iconColor}`} />
-                                                    ) : (
-                                                        <Zap className={`w-2.5 h-2.5 ${iconColor}`} />
-                                                    )}
+                                    const bubbles = []
+                                    if (fitMins > 0) {
+                                        bubbles.push(
+                                            <div key="fit" className="relative group/bubble">
+                                                <div className="flex items-center justify-center px-1.5 h-5 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 gap-0.5 shadow-sm transition-all hover:scale-110">
+                                                    <Zap className="w-2.5 h-2.5 text-[#FF7939] fill-[#FF7939]" />
+                                                    <span className="text-[8px] font-bold text-[#FF7939]">{fitMins}m</span>
                                                 </div>
-                                                {group.count > 1 && (
-                                                    <div className="absolute -top-1 -right-1.5 bg-white text-black text-[7px] font-black w-3 h-3 rounded-full flex items-center justify-center border border-zinc-900">
-                                                        {group.count}
-                                                    </div>
-                                                )}
                                             </div>
                                         )
-                                    })
+                                    }
+                                    if (nutItems > 0) {
+                                        bubbles.push(
+                                            <div key="nut" className="relative group/bubble">
+                                                <div className="flex items-center justify-center px-1.5 h-5 rounded-full border border-yellow-500/40 bg-yellow-500/10 gap-0.5 shadow-sm transition-all hover:scale-110">
+                                                    <UtensilsCrossed className="w-2.5 h-2.5 text-yellow-500" />
+                                                    <span className="text-[8px] font-bold text-yellow-500">{nutItems}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+                                    return bubbles
                                 })()}
 
                                 {/* Meets bubble (Confirmed: Grey, Unconfirmed/Absent: Red) */}

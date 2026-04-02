@@ -24,32 +24,32 @@ const calculateAggregates = (rows: any[]) => {
             }
         }
 
-        const objCount = Number(row.items_objetivo) || 0
-        const complCount = Number(row.items_completados) || 0
-        const pendingCount = objCount - complCount
-        const mins_obj = Number(row.minutos_objetivo) || 0
+        const fitObj = Number(row.fit_items_o) || 0
+        const fitComp = Number(row.fit_items_c) || 0
+        const fitMins = Number(row.fit_mins_o) || 0
+        
+        const nutObj = Number(row.nut_items_o) || 0
+        const nutComp = Number(row.nut_items_c) || 0
 
         if (row.actividad_id) discoveredIds.add(String(row.actividad_id))
 
-        const remainingRatio = objCount > 0 ? (Math.max(0, pendingCount) / objCount) : 1
-        const pendingMins = Math.round(mins_obj * remainingRatio)
-
         if (row.tipo === 'taller') {
-            agg[dayKey].workshopMinutesTotal += mins_obj
+            agg[dayKey].workshopMinutesTotal += fitMins
             agg[dayKey].hasWorkshop = true
         } else if (row.tipo === 'programa') {
-            if (row.area === 'fitness') {
-                agg[dayKey].fitnessMinutesTotal += mins_obj
-                agg[dayKey].pendingExercises += Math.max(0, pendingCount)
-                agg[dayKey].totalExercises += objCount
-                agg[dayKey].completedExercises += complCount
-                if (pendingCount > 0) agg[dayKey].fitnessMinutesPending += pendingMins
-            } else if (row.area === 'nutricion') {
-                agg[dayKey].nutritionMinutesTotal += mins_obj
-                agg[dayKey].pendingPlates += Math.max(0, pendingCount)
-                agg[dayKey].totalPlates += objCount
-                agg[dayKey].completedPlates += complCount
-                if (pendingCount > 0) agg[dayKey].nutritionMinutesPending += pendingMins
+            // Addition: sum both if present
+            if (fitObj > 0 || fitMins > 0) {
+                agg[dayKey].fitnessMinutesTotal += fitMins
+                agg[dayKey].totalExercises += fitObj
+                agg[dayKey].completedExercises += fitComp
+                agg[dayKey].pendingExercises += Math.max(0, fitObj - fitComp)
+                const ratio = fitObj > 0 ? (Math.max(0, fitObj - fitComp) / fitObj) : 1
+                agg[dayKey].fitnessMinutesPending += Math.round(fitMins * ratio)
+            }
+            if (nutObj > 0) {
+                agg[dayKey].pendingPlates += Math.max(0, nutObj - nutComp)
+                agg[dayKey].totalPlates += nutObj
+                agg[dayKey].completedPlates += nutComp
             }
         }
 
@@ -102,16 +102,18 @@ const calculateBreakdown = (progData: any[], activitiesInfo: Record<string, any>
             }
         }
 
-        const pending = (row.items_objetivo || 0) - (row.items_completados || 0)
-        const targetMins = row.minutos_objetivo || 0
-        const remainingRatio = (row.items_objetivo || 0) > 0
-            ? (Math.max(0, pending) / row.items_objetivo)
-            : 1
-        const minsRemaining = Math.round(targetMins * remainingRatio)
+        const fitObj = Number(row.fit_items_o) || 0
+        const fitComp = Number(row.fit_items_c) || 0
+        const fitMins = Number(row.fit_mins_o) || 0
+        
+        const nutObj = Number(row.nut_items_o) || 0
+        const nutComp = Number(row.nut_items_c) || 0
 
-        itemsMap[aid].totalCount += (row.items_objetivo || 0)
-        itemsMap[aid].pendingCount += Math.max(0, pending)
-        itemsMap[aid].pendingMinutes += minsRemaining
+        itemsMap[aid].totalCount += (fitObj + nutObj)
+        itemsMap[aid].pendingCount += (Math.max(0, fitObj - fitComp) + Math.max(0, nutObj - nutComp))
+        
+        const fitRatio = fitObj > 0 ? (Math.max(0, fitObj - fitComp) / fitObj) : 1
+        itemsMap[aid].pendingMinutes += Math.round(fitMins * fitRatio)
     })
 
     return Object.values(itemsMap).map((i: any) => {

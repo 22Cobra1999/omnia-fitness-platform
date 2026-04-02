@@ -83,7 +83,7 @@ export const useCalendarDataFetchers = ({
             // 1. Fetch Progress
             const { data: rows } = await supabase
                 .from('progreso_diario_actividad')
-                .select('id, actividad_id, fecha, area, items_objetivo, items_completados, minutos, tipo, minutos_objetivo')
+                .select('id, actividad_id, fecha, fit_items_c, fit_items_o, fit_mins_c, fit_mins_o, nut_items_c, nut_items_o, nut_kcal_c, nut_kcal_o, tipo')
                 .eq('cliente_id', authUserId)
                 .neq('tipo', 'documento')
                 .gte('fecha', startISO)
@@ -187,7 +187,7 @@ export const useCalendarDataFetchers = ({
         try {
             const { data: progData } = await supabase
                 .from('progreso_diario_actividad')
-                .select('actividad_id, items_objetivo, items_completados, minutos, minutos_objetivo, area, tipo')
+                .select('actividad_id, fit_items_c, fit_items_o, fit_mins_c, fit_mins_o, nut_items_c, nut_items_o, nut_kcal_c, nut_kcal_o, tipo')
                 .eq('cliente_id', authUserId)
                 .neq('tipo', 'documento')
                 .eq('fecha', dayKey)

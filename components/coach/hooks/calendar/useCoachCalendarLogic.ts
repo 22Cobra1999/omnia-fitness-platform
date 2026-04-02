@@ -146,6 +146,7 @@ export function useCoachCalendarLogic() {
         // UI State
         ...state,
         eventsByDate,
+        progressByDate: eventsHook.progressByDate,
 
         // Handlers
         ...handlers,
