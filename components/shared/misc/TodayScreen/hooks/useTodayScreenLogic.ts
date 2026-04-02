@@ -385,7 +385,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         setShowStartInfoModal: ui.setShowStartInfoModal,
         handleOpenSurveyModal: () => ui.setShowSurveyModal(true),
         handleCloseSurveyModal: () => ui.setShowSurveyModal(false),
-        handleSurveyComplete: async (activityRating: number, coachRating: number, feedback: string) => {
+        handleSurveyComplete: async (activityRating: number, coachRating: number, feedback: string, wouldRepeat: boolean | null, omniaRating: number, omniaComments: string) => {
             if (!user || !activityId || !data.enrollment) return;
 
             try {
@@ -396,12 +396,16 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
                         activityRating,
                         coachRating,
                         feedback,
+                        wouldRepeat,
+                        omniaRating,
+                        omniaComments,
                         enrollmentId: data.enrollment.id
                     })
                 });
 
                 if (response.ok) {
                     data.setIsRated(true);
+                    ui.setIsRatingModalOpen(false);
                     ui.setShowSurveyModal(false);
                 }
             } catch (error) {
@@ -626,6 +630,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         activities: data.activities,
         blockNames: data.blockNames,
         dayStatuses: data.dayStatuses,
+        dayMetrics: data.dayMetrics,
         dayCounts: data.dayCounts,
         meetCreditsAvailable: data.meetCreditsAvailable,
         isOnboardingLoading: data.isOnboardingLoading,

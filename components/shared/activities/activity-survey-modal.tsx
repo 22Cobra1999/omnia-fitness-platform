@@ -83,7 +83,7 @@ export function ActivitySurveyModal({
     <AnimatePresence>
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-[22%]"
+          className="fixed inset-0 z-50 flex items-center justify-center"
           style={{
             background: 'rgba(0, 0, 0, 0.7)',
             backdropFilter: 'blur(8px)',

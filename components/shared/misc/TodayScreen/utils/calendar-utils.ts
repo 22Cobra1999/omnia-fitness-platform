@@ -112,56 +112,142 @@ export function calculateExerciseDayForDate(targetDate: Date | string, startDate
 
 export async function loadDayStatusesAsMap(userId: string, activityId: string, enrollment: any) {
     const { createClient } = require('@/lib/supabase/supabase-client');
-    const {
-        createBuenosAiresDate,
-        getBuenosAiresDateString
-    } = require('@/utils/date-utils');
-
     const supabase = createClient();
     const statuses: Record<string, string> = {};
+    const dayMetrics: Record<string, { fit_mins: number, nut_items: number }> = {};
     const counts = { completed: 0, pending: 0, started: 0 };
 
-    if (!enrollment?.start_date) return { statuses, counts };
-
     try {
-        const { data: records, error } = await supabase
-            .from('progreso_diario_actividad')
-            .select('fecha, fit_items_c, fit_items_o, nut_items_c, nut_items_o')
-            .eq('cliente_id', userId)
-            .eq('enrollment_id', enrollment.id);
+        const { id: enrollmentId, start_date } = enrollment;
+        
+        // 1. Query progress for THIS activity (less restrictive than enrollment)
+        const [pdaRes, workshopRes] = await Promise.all([
+            supabase
+                .from('progreso_diario_actividad')
+                .select('fecha, enrollment_id, fit_items_c, fit_items_o, nut_items_c, nut_items_o, fit_mins_o')
+                .eq('actividad_id', activityId)
+                .eq('cliente_id', userId),
+            supabase
+                .from('taller_progreso_temas')
+                .select('fecha_seleccionada, estado')
+                .eq('cliente_id', userId)
+                // Filter by activity if linked, or just show all user meetings? 
+                // Usually these are linked via enrollment -> ejecucion -> activity.
+                // For simplicity, we'll fetch all and filter in JS if needed.
+        ]);
 
-        if (error) {
-            console.error('Error fetching progreso_diario_actividad:', error);
-            return { statuses, counts };
+        const records = pdaRes.data || [];
+        const workshopTemas = workshopRes.data || [];
+
+        if (pdaRes.error) {
+            console.error('Error fetching progreso_diario_actividad:', pdaRes.error);
         }
 
-        records?.forEach((record: any) => {
-            if (!record.fecha) return;
-            const dateKey = record.fecha.split('T')[0];
+        // 2. Fetch activity duration to filter out ghost records after completion
+        const { data: activity } = await supabase
+            .from('activities')
+            .select('semanas_totales, duration_weeks')
+            .eq('id', activityId)
+            .single();
+        
+        let limitWeeks = activity?.semanas_totales || activity?.duration_weeks || 0;
+        if (limitWeeks === 0 || limitWeeks === 999) {
+            const { data: maxPlan } = await supabase
+                .from('planificacion_ejercicios')
+                .select('numero_semana')
+                .eq('actividad_id', activityId)
+                .order('numero_semana', { ascending: false })
+                .limit(1);
+            limitWeeks = maxPlan?.[0]?.numero_semana || 4;
+        }
 
-            // Sum both fitness and nutrition to determine overall day status
-            const obj = (Number(record.fit_items_o) || 0) + (Number(record.nut_items_o) || 0);
-            const comp = (Number(record.fit_items_c) || 0) + (Number(record.nut_items_c) || 0);
+        const start = new Date(start_date + 'T12:00:00');
+        const endOfProgram = new Date(start);
+        endOfProgram.setDate(start.getDate() + (limitWeeks * 7));
 
-            if (obj === 0) return;
+        // Group and filter
+        const dayMap: Record<string, any[]> = {};
+        records.forEach((r: any) => {
+            const dateKey = r.fecha.split('T')[0];
+            const recordDate = new Date(dateKey + 'T12:00:00');
 
-            let status = 'not-started';
-            if (comp >= obj && obj > 0) {
-                status = 'completed';
-                counts.completed++;
-            } else if (comp > 0) {
-                status = 'started';
+            // ONLY paint if it's within the program duration
+            if (recordDate >= start && recordDate < endOfProgram) {
+                // Prioritize current enrollment records if multiple exist for the same day
+                if (!dayMap[dateKey]) dayMap[dateKey] = [];
+                if (String(r.enrollment_id) === String(enrollmentId)) {
+                    dayMap[dateKey].unshift(r); // Current enrollment first
+                } else {
+                    dayMap[dateKey].push(r);
+                }
+            }
+        });
+
+        // Add Workshop topics to the map
+        workshopTemas.forEach((wt: any) => {
+            if (wt.fecha_seleccionada) {
+                const dateKey = wt.fecha_seleccionada;
+                if (!dayMap[dateKey]) dayMap[dateKey] = [];
+                dayMap[dateKey].push({ ...wt, area: 'general', tipo: 'taller' });
+            }
+        });
+
+        Object.keys(dayMap).forEach(dateKey => {
+            const dayRecords = dayMap[dateKey];
+            let finalStatus = 'completed';
+            let totalObj = 0;
+            let hasAtLeastOneStarted = false;
+            let hasAtLeastOneNotStarted = false;
+
+            let fitMins = 0;
+            let nutItems = 0;
+            let isWorkshopDay = false;
+
+            dayRecords.forEach(r => {
+                if (r.tipo === 'taller') {
+                    isWorkshopDay = true;
+                    totalObj += 1; // Count as 1 item for status calculation
+                    if (r.estado === 'completado') {
+                        // All good
+                    } else {
+                        hasAtLeastOneNotStarted = true;
+                    }
+                    return;
+                }
+
+                const obj = (Number(r.fit_items_o) || 0) + (Number(r.nut_items_o) || 0);
+                const comp = (Number(r.fit_items_c) || 0) + (Number(r.nut_items_c) || 0);
+                
+                fitMins += (Number(r.fit_mins_o) || 0);
+                nutItems += (Number(r.nut_items_o) || 0);
+
+                if (obj > 0) {
+                    totalObj += obj;
+                    if (comp === 0) hasAtLeastOneNotStarted = true;
+                    else if (comp < obj) hasAtLeastOneStarted = true;
+                }
+            });
+
+            if (totalObj === 0) return; // No activity on this day
+
+            if (hasAtLeastOneNotStarted) {
+                finalStatus = 'not-started';
+                counts.pending++;
+            } else if (hasAtLeastOneStarted) {
+                finalStatus = 'started';
                 counts.started++;
             } else {
-                status = 'not-started';
-                counts.pending++;
+                finalStatus = 'completed';
+                counts.completed++;
             }
-            statuses[dateKey] = status;
+
+            statuses[dateKey] = finalStatus;
+            dayMetrics[dateKey] = { fit_mins: fitMins, nut_items: nutItems, has_workshop: isWorkshopDay } as any;
         });
 
     } catch (e) {
         console.error("Error loading day statuses", e);
     }
 
-    return { statuses, counts };
+    return { statuses, counts, dayMetrics };
 }

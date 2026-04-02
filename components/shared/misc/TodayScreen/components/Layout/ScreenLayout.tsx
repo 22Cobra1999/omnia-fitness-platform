@@ -83,7 +83,7 @@ export function ScreenLayout({
                     height: '100vh',
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    paddingTop: '48px', // Compacted from 56px
+                    paddingTop: isMobile ? '48px' : '20px', // Compacted from 56px
                     paddingBottom: '240px',
                     WebkitOverflowScrolling: 'touch',
                     position: 'relative',
@@ -91,7 +91,7 @@ export function ScreenLayout({
                 }}>
 
                 {/* Content Container - Responsive width */}
-                <div className="w-full px-6">
+                <div className="w-full max-w-[1400px] mx-auto px-6">
                     {/* Hero Wrapper */}
                     <motion.div
                         style={{

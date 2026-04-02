@@ -48,67 +48,67 @@ export function SheetHeader({
                 flexWrap: 'nowrap',
                 gap: 8
             }}>
-                <div style={{ flexShrink: 0 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{
-                        fontSize: 'clamp(11px, 3.5vw, 13px)',
+                        fontSize: '11px',
                         fontWeight: 900,
-                        color: 'rgba(255,255,255,0.7)',
+                        color: 'rgba(255,255,255,0.4)',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
+                        letterSpacing: '0.05em',
+                        flexShrink: 0
                     }}>
                         ACTIVIDADES
                     </div>
-                </div>
 
-                {activities.length > 0 && (
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'clamp(6px, 1.5vw, 12px)',
-                        flexShrink: 0
-                    }}>
-                        {/* KCAL Stat - TOTAL for the day */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Flame size={12} color="#FF7939" fill="#FF7939" />
-                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
-                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>KCAL</span>
-                            </span>
+                    {activities.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            marginLeft: 'auto'
+                        }}>
+                            {/* KCAL Stat */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Flame size={10} color="#FF7939" fill="#FF7939" />
+                                <span style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', fontWeight: 900, color: '#FFFFFF' }}>
+                                    {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
+                                    <span style={{ fontSize: '7px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2 }}>KCAL</span>
+                                </span>
+                            </div>
+                            {/* PRS / PLATOS Stat */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                {isNutrition ? (
+                                    <>
+                                        <UtensilsCrossed size={10} color="#FF7939" fill="#FF7939" />
+                                        <span style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', fontWeight: 900, color: '#FFFFFF' }}>
+                                            {activities.length}
+                                            <span style={{ fontSize: '7px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2 }}>PLATOS</span>
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Zap size={10} color="#FF7939" fill="#FF7939" />
+                                        <span style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', fontWeight: 900, color: '#FFFFFF' }}>
+                                            {activities.reduce((acc: number, curr: any) => {
+                                                const parsed = parseSeries(curr.detalle_series || curr.series);
+                                                return acc + parsed.reduce((as: number, cs: any) => as + (Number(cs.sets) || 1), 0);
+                                            }, 0)}
+                                            <span style={{ fontSize: '7px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2 }}>PRS</span>
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                            {/* MIN Stat */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Clock size={10} color="#FFFFFF" strokeWidth={2.5} />
+                                <span style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', fontWeight: 900, color: '#FFFFFF' }}>
+                                    {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
+                                    <span style={{ fontSize: '7px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2 }}>MIN</span>
+                                </span>
+                            </div>
                         </div>
-                        {/* PRS / PLATOS Stat */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            {isNutrition ? (
-                                <>
-                                    <UtensilsCrossed size={12} color="#FF7939" fill="#FF7939" />
-                                    <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                        {activities.length}
-                                        <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>/PLATOS</span>
-                                    </span>
-                                </>
-                            ) : (
-                                <>
-                                    <Zap size={12} color="#FF7939" fill="#FF7939" />
-                                    <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                        {activities.reduce((acc: number, curr: any) => {
-                                            const parsed = parseSeries(curr.detalle_series || curr.series);
-                                            const seriesCount = parsed.reduce((as: number, cs: any) => as + (Number(cs.sets) || 1), 0);
-                                            return acc + seriesCount;
-                                        }, 0)}
-                                        <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>/PRS</span>
-                                    </span>
-                                </>
-                            )}
-                        </div>
-                        {/* MIN Stat */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
-                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
-                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>MI</span>
-                            </span>
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {isSheetExpanded && goToToday && handlePrevDay && handleNextDay && (

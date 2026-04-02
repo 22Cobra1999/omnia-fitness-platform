@@ -122,9 +122,14 @@ export async function GET(request: NextRequest) {
           .limit(5);
 
         if (legacyData && legacyData.length > 0) {
-          progressRecords = legacyData;
-          progressError = legacyError;
-          console.log(` [API] Se encontr progreso legacy para actividad_id ${activityId}`);
+          // If a client requested a specific enrollment, we should NOT show data from another enrollment
+          // only fallback if the coach is the one requesting (to allow previewing via legacy ID)
+          const isUserCoach = actividadInfo?.coach_id === clientId;
+          if (isUserCoach || !enrollmentId) {
+            progressRecords = legacyData;
+            progressError = legacyError;
+            console.log(` [API] Se encontr progreso legacy para actividad_id ${activityId}`);
+          }
         }
       }
     } else {
@@ -133,19 +138,23 @@ export async function GET(request: NextRequest) {
       progressError = error;
     }
 
-    // Si no encuentra nadia, intentar con activityId como string
+    // Si no encuentra nadia, intentar con activityId como string (LEGACY FALLBACK)
+    // [PATCH] Only fallback if we don't have a specific enrollment or if we are a coach
     if ((!progressRecords || progressRecords.length === 0) && !progressError) {
-      const result = await supabase
-        .from(tablaProgreso)
-        .select(camposProgreso)
-        .eq('cliente_id', clientId)
-        .eq('actividad_id', String(activityId))
-        .eq('fecha', today)
-        .order('id', { ascending: false })
-        .limit(1);
-
-      if (result.data && result.data.length > 0) {
-        progressRecords = result.data;
+      const isUserCoach = actividadInfo?.coach_id === clientId;
+      if (isUserCoach || !enrollmentId) {
+        const result = await supabase
+          .from(tablaProgreso)
+          .select(camposProgreso)
+          .eq('cliente_id', clientId)
+          .eq('actividad_id', String(activityId))
+          .eq('fecha', today)
+          .order('id', { ascending: false })
+          .limit(1);
+  
+        if (result.data && result.data.length > 0) {
+          progressRecords = result.data;
+        }
       }
     }
 
@@ -170,19 +179,8 @@ export async function GET(request: NextRequest) {
         .eq('id', activityId)
         .single();
       
-      const isUserCoach = activity?.coach_id === clientId;
-
-      if (!isUserCoach) {
-        console.log(' [API Todiay] User is client and no progress record exists. Returning empty activities.');
-        return NextResponse.json({
-          success: true,
-          data: { activities: [], count: 0, date: today, message: 'Día sin actividad registrada' }
-        });
-      }
-
-      console.log(' [API Todiay] User is coach. Falling back to planning for preview...');
       if (dia) {
-        // Calcular en qu semana estamos para el fallback
+        // Calcular en qué semana estamos
         let targetWeek = 1;
         const userEnrollment = enrollment && enrollment.length > 0 ? enrollment[0] : null;
 
@@ -193,23 +191,28 @@ export async function GET(request: NextRequest) {
             .eq('id', activityId)
             .single();
           
-          const limitWeeks = activity?.semanas_totales || activity?.duration_weeks || 999;
+          let limitWeeks = activity?.semanas_totales || activity?.duration_weeks || 0;
 
-          const { data: allPlan } = await supabase
-            .from('planificacion_ejercicios')
-            .select('numero_semana')
-            .eq('actividad_id', activityId)
-            .order('numero_semana', { ascending: false })
-            .limit(1);
-
-          const maxSemanas = allPlan?.[0]?.numero_semana || 1;
+          // [FIX] If no duration is set, find the Max week actually planned
+          if (limitWeeks === 0 || limitWeeks === 999) {
+            const { data: maxPlan } = await supabase
+              .from('planificacion_ejercicios')
+              .select('numero_semana')
+              .eq('actividad_id', activityId)
+              .order('numero_semana', { ascending: false })
+              .limit(1);
+            
+            limitWeeks = maxPlan?.[0]?.numero_semana || 1;
+          }
 
           const start = new Date(userEnrollment.start_date);
           const current = new Date(today);
           const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
           const totalWeekNumber = Math.max(1, Math.floor(diffDays / 7) + 1);
 
-          // Si el entrenamiento ya termin, no mostrar actividades (a menos que el coach diga lo contrario)
+          console.log(` [API Today] Duration Check: Enrollment ${enrollmentId}, Current Week: ${totalWeekNumber}, Limit: ${limitWeeks}`);
+
+          // Si el entrenamiento ya terminó, no mostrar actividades (mensajes de completado)
           if (totalWeekNumber > limitWeeks) {
             console.log(` [API Todiay Fallback] Program finished (Week ${totalWeekNumber} > ${limitWeeks})`);
             return NextResponse.json({
@@ -217,11 +220,36 @@ export async function GET(request: NextRequest) {
               data: { activities: [], count: 0, date: today, message: 'Has completado tu programa!' }
             });
           }
-
-          // Si el programa acab y no queremos que repita (opcional, pero por ahora lo dejamos en loop por consistencia)
-          targetWeek = ((totalWeekNumber - 1) % maxSemanas) + 1;
-          console.log(` [API Todiay Fallback] Week calculation: diff=${diffDays}, totalWeek=${totalWeekNumber}, targetWeek=${targetWeek}`);
         }
+      }
+
+      // 4. Verificaciones adicionales para clientes vs coaches
+      const isUserCoach = actividadInfo?.coach_id === clientId;
+      if (!isUserCoach) {
+        console.log(' [API Todiay] User is client and no progress record exists. Returning empty activities.');
+        return NextResponse.json({
+          success: true,
+          data: { activities: [], count: 0, date: today, message: 'Día sin actividad registrada' }
+        });
+      }
+
+      console.log(' [API Todiay] User is coach. Falling back to planning for preview...');
+      if (dia) {
+        // Calcular targetWeek para el coach (loop)
+        const { data: allPlan } = await supabase
+          .from('planificacion_ejercicios')
+          .select('numero_semana')
+          .eq('actividad_id', activityId)
+          .order('numero_semana', { ascending: false })
+          .limit(1);
+
+        const maxSemanas = allPlan?.[0]?.numero_semana || 1;
+        
+        const start = new Date(enrollment?.[0]?.start_date || today);
+        const current = new Date(today);
+        const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const totalWeekNumber = Math.max(1, Math.floor(diffDays / 7) + 1);
+        const targetWeek = ((totalWeekNumber - 1) % maxSemanas) + 1;
 
         return await getActivitiesFromPlanning(supabase, activityId, dia, actividadInfo, targetWeek);
       }

@@ -82,6 +82,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             onOpenSurvey={actions.handleOpenSurveyModal}
                             onBack={onBack}
                             isExpired={state.isExpired}
+                            isMobile={isMobile}
                         />
 
                         {isSpecialType ? (
@@ -117,6 +118,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                     calendarExpanded={state.calendarExpanded}
                                     setCalendarExpanded={actions.setCalendarExpanded}
                                     dayStatuses={state.dayStatuses}
+                                    dayMetrics={state.dayMetrics}
                                     dayCounts={state.dayCounts}
                                     weekNumber={state.weekNumber}
                                     enrollment={state.enrollment}
@@ -132,6 +134,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                     calendarMessage={state.calendarMessage}
                                     setCalendarMessage={actions.setCalendarMessage}
                                     isExpired={state.isExpired}
+                                    isMobile={isMobile}
                                 />
                             </div>
                         )}

@@ -17,6 +17,7 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
     const [activities, setActivities] = React.useState<Activity[]>([]);
     const [blockNames, setBlockNames] = React.useState<Record<string, string>>({});
     const [dayStatuses, setDayStatuses] = React.useState<{ [key: string]: string }>({});
+    const [dayMetrics, setDayMetrics] = React.useState<{ [key: string]: { fit_mins: number, nut_items: number } }>({});
     const [dayCounts, setDayCounts] = React.useState({ completed: 0, pending: 0, started: 0 });
     const [meetCreditsAvailable, setMeetCreditsAvailable] = React.useState<number | null>(null);
     const [backgroundImageLoaded, setBackgroundImageLoaded] = React.useState(false);
@@ -188,9 +189,10 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
 
     const refreshDayStatuses = React.useCallback(async () => {
         if (!user || !activityId || !enrollment?.start_date) return;
-        const { statuses, counts } = await loadDayStatusesAsMap(user.id, activityId, enrollment);
+        const { statuses, counts, dayMetrics } = await loadDayStatusesAsMap(user.id, activityId, enrollment);
         setDayStatuses(statuses);
         setDayCounts(counts);
+        setDayMetrics(dayMetrics);
     }, [user, activityId, enrollment]);
 
     const loadMeetCredits = React.useCallback(async () => {
@@ -227,6 +229,7 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
         blockNames,
         setBlockNames,
         dayStatuses,
+        dayMetrics,
         dayCounts,
         meetCreditsAvailable,
         isRated,
@@ -244,6 +247,7 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
         activities,
         blockNames,
         dayStatuses,
+        dayMetrics,
         dayCounts,
         meetCreditsAvailable,
         isRated,

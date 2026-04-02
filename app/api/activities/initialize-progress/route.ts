@@ -546,7 +546,7 @@ export async function POST(request: NextRequest) {
               ejerciciosMap.set(ej.id, {
                 detalle_series: JSON.stringify(finalDetalle),
                 duracion_min: ej.duracion_min || 0,
-                calorias: ej.calorias || 0,
+                kcal: ej.calorias || 0,
                 series: coachAppliedResult.final.series,
                 reps: coachAppliedResult.final.reps,
                 peso: coachAppliedResult.final.load,

@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { AlertTriangle, RotateCcw, Minus } from 'lucide-react';
+import { AlertTriangle, RotateCcw, Minus, Flashlight as Bolt, Soup as SoupIcon, Video as VideoIcon } from 'lucide-react';
 import { getDaysInMonth } from '../../utils/calendar-utils';
 import { getBuenosAiresDateString, getTodayBuenosAiresString } from '@/utils/date-utils';
 
@@ -29,6 +29,7 @@ interface WeeklyCalendarProps {
     calendarExpanded: boolean;
     setCalendarExpanded: (expanded: boolean) => void;
     dayStatuses: Record<string, string>;
+    dayMetrics?: Record<string, { fit_mins: number, nut_items: number, has_workshop?: boolean }>;
     dayCounts: { pending: number; started: number; completed: number };
     weekNumber: number;
     enrollment: any;
@@ -44,6 +45,7 @@ interface WeeklyCalendarProps {
     calendarMessage: string | null;
     setCalendarMessage: (m: string | null) => void;
     isExpired?: boolean;
+    isMobile?: boolean;
 }
 
 export function WeeklyCalendar({
@@ -54,6 +56,7 @@ export function WeeklyCalendar({
     calendarExpanded,
     setCalendarExpanded,
     dayStatuses,
+    dayMetrics = {},
     dayCounts,
     weekNumber,
     enrollment,
@@ -66,7 +69,8 @@ export function WeeklyCalendar({
     setShowConfirmModal,
     calendarMessage,
     setCalendarMessage,
-    isExpired = false
+    isExpired = false,
+    isMobile = false
 }: WeeklyCalendarProps) {
 
     const [isMonthPickerOpen, setIsMonthPickerOpen] = React.useState(false);
@@ -113,16 +117,16 @@ export function WeeklyCalendar({
             borderRadius: 24,
             padding: '2px 20px', 
             paddingTop: '2px',
-            paddingBottom: calendarExpanded ? 48 : 8,
-            minHeight: calendarExpanded ? '38vh' : '22vh', 
+            paddingBottom: calendarExpanded ? (isMobile ? 48 : 24) : 8,
+            minHeight: calendarExpanded ? (isMobile ? '38vh' : 'auto') : (isMobile ? '22vh' : 'auto'), 
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center', 
             marginBottom: 0,
-            marginTop: -12, // Pull up closer to Hero
-            marginLeft: '-24px',
-            marginRight: '-24px',
-            width: 'calc(100% + 48px)',
+            marginTop: isMobile ? -12 : 12, // Pull up closer to Hero on mobile, but push down slightly on Web to breathe after header
+            marginLeft: isMobile ? '-24px' : '0',
+            marginRight: isMobile ? '-24px' : '0',
+            width: isMobile ? 'calc(100% + 48px)' : '100%',
             position: 'relative',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
         }}>
@@ -238,10 +242,10 @@ export function WeeklyCalendar({
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(7, 1fr)',
-                    gap: 6, // Original had 16 but with style overrides. Let's stick to visual provided earlier or 6 for safety if constraint. Original 3160 says gap: 16.
+                    gap: isMobile ? 6 : 16,
                     width: '100%',
                     marginBottom: 4,
-                    padding: '8px 0'
+                    padding: isMobile ? '8px 0' : '16px 0'
                 }}>
                     {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((dayInitial, index) => {
                         // Logic from original 3166
@@ -267,9 +271,10 @@ export function WeeklyCalendar({
                                 <div
                                     onClick={() => { setSelectedDate(dayDate); setCalendarMessage(null); }}
                                     style={{
-                                        width: 36, height: 52,
+                                        width: isMobile ? 36 : 42, 
+                                        height: isMobile ? 52 : 56,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        borderRadius: 26, fontSize: 14, fontWeight: 600,
+                                        borderRadius: isMobile ? 26 : 28, fontSize: 14, fontWeight: 600,
                                         position: 'relative', cursor: 'pointer',
                                         transition: 'all 0.2s ease',
                                         // Copying glassmorphism styles from original 3253+
@@ -297,6 +302,12 @@ export function WeeklyCalendar({
                                 >
                                     {dayDate.getDate()}
                                     {isToday && <div style={{ position: 'absolute', top: 6, right: 6, width: 4, height: 4, background: '#FFD700', borderRadius: '50%' }} />}
+                                    
+                                    {/* Small Bottom Markers in Weekly View */}
+                                    <div style={{ position: 'absolute', bottom: 4, display: 'flex', gap: 2 }}>
+                                        {dayMetrics[dateString]?.fit_mins > 0 && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#FF7939' }} />}
+                                        {dayMetrics[dateString]?.nut_items > 0 && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#FF4488' }} />}
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -347,7 +358,11 @@ export function WeeklyCalendar({
                         return (
                             <div key={index} onClick={handleClick}
                                 style={{
-                                    aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    aspectRatio: '1', 
+                                    maxWidth: isMobile ? 'none' : 64, // Limit size on web
+                                    width: '100%',
+                                    margin: '0 auto', // Center within grid cell
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     borderRadius: '50%', fontSize: 14, fontWeight: 500, position: 'relative',
                                     transition: 'all 0.2s ease', cursor: isLocked ? 'not-allowed' : (dayInfo.isCurrentMonth ? 'pointer' : 'default'),
                                     opacity: isLocked ? 0.3 : 1,
@@ -378,7 +393,29 @@ export function WeeklyCalendar({
                                 }}
                             >
                                 {dayInfo.day}
-                                {isToday && <div style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, background: '#FFD700', borderRadius: '50%' }} />}
+                                
+                                {/* Metrics Bubbles in Month View */}
+                                <div style={{ position: 'absolute', bottom: -12, display: 'flex', gap: 3, zIndex: 10 }}>
+                                    {dayMetrics[dateString]?.fit_mins > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, color: '#FF7939', fontSize: 9, fontWeight: 800, background: 'rgba(255, 121, 57, 0.15)', padding: '1px 5px', borderRadius: 6, border: '1px solid rgba(255, 121, 57, 0.3)', backdropFilter: 'blur(4px)' }}>
+                                            <Bolt size={8} fill="#FF7939" />
+                                            <span>{dayMetrics[dateString].fit_mins}m</span>
+                                        </div>
+                                    )}
+                                    {dayMetrics[dateString]?.nut_items > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, color: '#FF4488', fontSize: 9, fontWeight: 800, background: 'rgba(255, 68, 136, 0.15)', padding: '1px 5px', borderRadius: 6, border: '1px solid rgba(255, 68, 136, 0.3)', backdropFilter: 'blur(4px)' }}>
+                                            <SoupIcon size={8} fill="#FF4488" />
+                                            <span>{dayMetrics[dateString].nut_items}</span>
+                                        </div>
+                                    )}
+                                    {dayMetrics[dateString]?.has_workshop && (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF4444', background: 'rgba(255, 68, 68, 0.2)', padding: '2px', borderRadius: 6, border: '1px solid rgba(255, 68, 68, 0.3)' }}>
+                                            <VideoIcon size={10} fill="#FF4444" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {isToday && <div style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, background: '#FFD700', borderRadius: '50%', border: '2px solid #000' }} />}
                                 {/* Expiration marker (simplified) */}
                                 {enrollment?.expiration_date && format(dayInfo.date, 'yyyy-MM-dd') === enrollment.expiration_date.split('T')[0] && (
                                     <div style={{ position: 'absolute', top: -8, left: -4 }}><AlertTriangle size={12} color="#FFD700" /></div>
