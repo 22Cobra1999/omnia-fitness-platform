@@ -1,6 +1,6 @@
 "use client"
 
-import { Award, Flame, MapPin, Star, User } from "lucide-react"
+import { Award, Flame, MapPin, Scale, Star, Zap, User, Utensils } from "lucide-react"
 
 interface CoachPersonalInfoSectionProps {
   coach: {
@@ -16,6 +16,7 @@ interface CoachPersonalInfoSectionProps {
     rating?: number
     total_sales?: number | null
     experience_years?: number | string | null
+    category?: 'fitness' | 'nutrition' | 'general' | string | null
   }
   variant?: 'profile' | 'modal'
   showEditButton?: boolean
@@ -53,28 +54,29 @@ export function CoachPersonalInfoSection({
   if (variant === 'modal') {
     // Variante para modal (más compacta, sin fondo difuminado)
     return (
-      <div className="relative p-6 pb-4">
-        {/* Racha en esquina superior izquierda */}
-        {showStreak && (
-          <div className="absolute top-4 left-4 z-20">
-            <div className="flex items-center space-x-2 bg-orange-500/20 px-3 py-1 rounded-full">
-              <Flame className="h-4 w-4 text-orange-500" />
-              <span className="text-sm font-medium text-orange-500">{streakCount}</span>
-            </div>
+      <div className="relative p-4 pb-2">
+        {/* Rating y Ventas en esquina superior izquierda */}
+        <div className="absolute top-3 left-4 z-20">
+          <div className="flex items-center space-x-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
+            <Star className="h-3 w-3 text-[#FF7939] fill-[#FF7939]" />
+            <span className="text-[10px] font-black text-white italic">
+              {coach.rating?.toFixed(1) || "0.0"} 
+              <span className="ml-1 text-white/40 font-bold">({coach.total_sales || 0})</span>
+            </span>
           </div>
-        )}
+        </div>
 
         {/* Contenido del header */}
         <div className="relative z-10 text-center">
           {/* Avatar con acciones laterales */}
-          <div className="flex justify-center items-center gap-6 mb-4">
+          <div className="flex justify-center items-center gap-6 mb-3">
             {leftAction && (
               <div className="shrink-0 flex items-center justify-center">
                 {leftAction}
               </div>
             )}
 
-            <div className="w-24 h-24 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden shrink-0 ring-4 ring-black/20">
+            <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden shrink-0 ring-4 ring-white/5 shadow-2xl">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
@@ -94,64 +96,53 @@ export function CoachPersonalInfoSection({
           </div>
 
           {/* Nombre */}
-          <h1 className="text-2xl font-bold text-white mb-2">
+          <h1 className="text-xl font-black text-white mb-2 tracking-tight italic uppercase">
             {displayName}
           </h1>
 
-          {/* Rating, Ventas, Ubicación y edad en la misma línea */}
-          <div className="flex items-center justify-center gap-4 mb-4 flex-wrap">
-            {/* Rating */}
-            {coach.rating && coach.rating > 0 ? (
-              <div className="flex items-center text-[#FF7939]">
-                <Star className="w-4 h-4 fill-current mr-1" />
-                <span className="text-sm font-semibold">{coach.rating.toFixed(1)}</span>
-              </div>
-            ) : (
-              <div className="flex items-center text-gray-400">
-                <Star className="w-4 h-4 mr-1" />
-                <span className="text-xs">Sin reseñas</span>
-              </div>
-            )}
+          {/* Subtitle: Categoría, Años, Ventas, Ubicación */}
+          <div className="flex flex-col items-center gap-2 mb-4">
+               {/* Primera fila: Ubicación y Experiencia */}
+               <div className="flex items-center justify-center gap-3 text-[10px] uppercase font-black italic tracking-widest text-white/50">
+                    {coach.location && (
+                        <div className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-[#FF7939]" />
+                            <span>{coach.location}</span>
+                        </div>
+                    )}
+                    {coach.experience_years !== null && coach.experience_years !== undefined && (
+                        <div className="flex items-center gap-1.5">
+                            <Award className="w-3 h-3 text-[#FF7939]" />
+                            <span>{coach.experience_years} {Number(coach.experience_years) === 1 ? 'AÑO' : 'AÑOS'} EXP.</span>
+                        </div>
+                    )}
+               </div>
 
-            {/* Años de Experiencia */}
-            {coach.experience_years !== null && coach.experience_years !== undefined && (
-              <div className="flex items-center text-gray-300">
-                <span className="text-sm font-semibold">
-                  {coach.experience_years} {Number(coach.experience_years) === 1 ? 'año' : 'años'}
-                </span>
-              </div>
-            )}
-
-            {/* Ventas totales */}
-            {coach.total_sales !== null && coach.total_sales !== undefined && (
-              <div className="flex items-center text-gray-300">
-                <span className="text-sm">
-                  {coach.total_sales} ventas
-                </span>
-              </div>
-            )}
-
-            {/* Ubicación */}
-            {coach.location && (
-              <div className="flex items-center text-gray-300">
-                <MapPin className="w-4 h-4 text-[#FF7939] mr-1" />
-                <span className="text-sm">{coach.location}</span>
-              </div>
-            )}
-
-            {/* Edad */}
-            {coach.age_years && (
-              <div className="flex items-center text-gray-300">
-                <span className="text-sm">{coach.age_years} años</span>
-              </div>
-            )}
+               {/* Segunda fila: Burbuja de Categoría */}
+               <div className="flex items-center gap-2 mt-1">
+                   {coach.category && (
+                       <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
+                           <div className="w-4 h-4 rounded-full bg-[#FF7939]/20 flex items-center justify-center">
+                               {coach.category === 'fitness' ? (
+                                   <Zap className="w-2.5 h-2.5 text-[#FF7939]" fill="currentColor" />
+                               ) : coach.category === 'nutrition' ? (
+                                   <Utensils className="w-2.5 h-2.5 text-green-500" />
+                               ) : (
+                                   <Scale className="w-2.5 h-2.5 text-blue-400" />
+                               )}
+                           </div>
+                           <span className="text-[9px] font-black text-white/80 uppercase italic tracking-tighter">Coach {coach.category}</span>
+                       </div>
+                   )}
+               </div>
           </div>
 
           {/* Bio */}
-          {coach.bio && (
-            <div className="text-center mb-4">
-              <p className="text-gray-300 text-sm leading-relaxed">
-                {coach.bio}
+          {/* Bio - Omit if redundant with specs */}
+          {coach.bio && coach.bio !== specsRaw && (
+            <div className="text-center mb-4 px-2">
+              <p className="text-gray-300/80 text-xs leading-relaxed italic">
+                "{coach.bio}"
               </p>
             </div>
           )}

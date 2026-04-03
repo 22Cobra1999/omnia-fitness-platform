@@ -30,6 +30,7 @@ export async function POST(
     }
 
     const { is_finished, coach_rating, coach_feedback } = await request.json()
+    console.log('📬 [API:finish-workshop] Received data:', { is_finished, coach_rating, coach_feedback })
 
     const supabase = await createRouteHandlerClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -254,7 +255,7 @@ export async function POST(
           .eq('id', existingSurvey.id)
 
         if (surveyError) {
-          console.error('❌ Error actualizando encuesta del coach:', {
+          console.error('❌ [API:finish-workshop] Error updating coach survey:', {
             error: surveyError,
             message: surveyError.message,
             details: surveyError.details,
@@ -276,7 +277,7 @@ export async function POST(
           .insert(surveyData)
 
         if (surveyError) {
-          console.error('❌ Error creando encuesta del coach:', {
+          console.error('❌ [API:finish-workshop] Error creating coach survey:', {
             error: surveyError,
             message: surveyError.message,
             details: surveyError.details,

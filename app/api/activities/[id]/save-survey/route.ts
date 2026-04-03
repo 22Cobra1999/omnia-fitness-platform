@@ -1,13 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 import { NextResponse } from 'next/server'
 
 export async function POST(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const activityId = params.id
+    const { id: activityId } = await params
     const body = await request.json()
+    console.log('📬 [API:save-survey] Request body received:', JSON.stringify(body, null, 2))
     const { 
         activityRating, 
         coachRating, 
@@ -18,7 +18,7 @@ export async function POST(
         omniaComments 
     } = body
 
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = await createRouteHandlerClient()
 
     try {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -54,11 +54,22 @@ export async function POST(
         const actRatingVal = Number(activityRating)
         const coachRatingVal = Number(coachRating)
         const omniaRatingVal = Number(omniaRating)
+        const parsedEnrollmentId = Number(enrollmentId)
+        const parsedActivityId = Number(activityId)
+
+        console.log('🔢 [API:save-survey] Parsed Values:', {
+            actRatingVal,
+            coachRatingVal,
+            omniaRatingVal,
+            parsedEnrollmentId,
+            parsedActivityId,
+            userId: user.id
+        })
 
         const surveyPayload: any = {
-            activity_id: Number(activityId),
+            activity_id: parsedActivityId,
             client_id: user.id,
-            enrollment_id: Number(enrollmentId),
+            enrollment_id: parsedEnrollmentId,
             coach_method_rating: coachRatingVal >= 0 ? coachRatingVal : null,
             difficulty_rating: actRatingVal >= 0 ? actRatingVal : null,
             would_repeat: wouldRepeat,
@@ -88,29 +99,43 @@ export async function POST(
         }
 
         if (surveyError) {
-            console.error('Error saving survey (safe method):', surveyError)
+            console.error('❌ [API:save-survey] Error direct saving survey:', {
+                message: surveyError.message,
+                code: surveyError.code,
+                details: surveyError.details,
+                hint: surveyError.hint,
+                payload: surveyPayload
+            })
             // Fallback for older schema if comments_omnia/calificacion_omnia/would_repeat don't exist
-            if (surveyError.message?.includes('column') || surveyError.code === '42703') {
-                console.log('⚠️ [API] Legacy schema detected. Retrying with basic columns...')
+            if (surveyError.message?.includes('column') || surveyError.code === '42703' || surveyError.message?.includes('does not exist')) {
+                console.log('⚠️ [API:save-survey] Schema mismatch detected. Retrying with basic columns only...')
                 const basicPayload = {
-                    activity_id: activityId,
+                    activity_id: parsedActivityId,
                     client_id: user.id,
-                    enrollment_id: enrollmentId,
-                    coach_method_rating: coachRating,
+                    enrollment_id: parsedEnrollmentId,
+                    coach_method_rating: coachRatingVal >= 0 ? coachRatingVal : null,
+                    difficulty_rating: actRatingVal >= 0 ? actRatingVal : null,
                     comments: feedback
                 }
+                console.log('🔄 [API:save-survey] Retry Payload:', JSON.stringify(basicPayload, null, 2))
                 const { error: retryError } = existingSurvey 
                     ? await supabase.from('activity_surveys').update(basicPayload).eq('id', existingSurvey.id)
                     : await supabase.from('activity_surveys').insert(basicPayload)
                 
                 if (retryError) {
-                    console.error('Error in legacy fallback survey save:', retryError)
-                    return NextResponse.json({ error: 'Error saving survey', details: retryError.message, code: retryError.code }, { status: 500 })
+                    console.error('❌ [API:save-survey] Error in fallback retry save:', {
+                        message: retryError.message,
+                        code: retryError.code,
+                        details: retryError.details
+                    })
+                    return NextResponse.json({ error: 'Error saving survey (fallback)', details: retryError.message, code: retryError.code }, { status: 500 })
                 }
+                console.log('✅ [API:save-survey] Fallback save successful')
             } else {
-                console.error('Detailed survey save error:', surveyError)
                 return NextResponse.json({ error: 'Error saving survey', details: surveyError.message, code: surveyError.code }, { status: 500 })
             }
+        } else {
+            console.log('✅ [API:save-survey] Survey saved successfully!')
         }
 
         // 2. marking as rated is implicit by the survey presence

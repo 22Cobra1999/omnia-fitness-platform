@@ -403,12 +403,20 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
                 });
 
                 if (response.ok) {
+                    console.log('✅ [useTodayScreenLogic] Survey saved successfully');
                     data.setIsRated(true);
                     ui.setIsRatingModalOpen(false);
                     ui.setShowSurveyModal(false);
+                } else {
+                    const errorDetails = await response.json().catch(() => ({}));
+                    console.error('❌ [useTodayScreenLogic] Failed to save survey:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorDetails
+                    });
                 }
             } catch (error) {
-                console.error('Error saving survey:', error);
+                console.error('❌ [useTodayScreenLogic] Network/Unexpected error saving survey:', error);
             }
         },
         handleStartToday: async () => {

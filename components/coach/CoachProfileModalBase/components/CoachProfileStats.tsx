@@ -71,16 +71,16 @@ export const CoachProfileStats: React.FC<CoachProfileStatsProps> = ({
         <div className="px-6 mb-6">
             <button
                 onClick={() => setIsStatsOpen(!isStatsOpen)}
-                className="w-full flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all"
+                className="w-full flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/[0.02] hover:bg-white/5 transition-all"
             >
                 <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-[#FF7939]" />
                     <span className="text-[10px] font-bold text-white/80 uppercase tracking-wide">Estadísticas</span>
                 </div>
                 {isStatsOpen ? (
-                    <ChevronUp className="h-4 w-4 text-white/40" />
+                    <ChevronUp className="h-4 w-4 text-[#FF7939]" />
                 ) : (
-                    <ChevronDown className="h-4 w-4 text-white/40" />
+                    <ChevronDown className="h-4 w-4 text-[#FF7939]" />
                 )}
             </button>
 
@@ -96,7 +96,7 @@ export const CoachProfileStats: React.FC<CoachProfileStatsProps> = ({
                             <div className="text-[10px] text-white/40 mb-2 uppercase tracking-wider font-bold">
                                 Últimos 30 días
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                                 {/* Tasa de respuesta */}
                                 <div className="flex flex-col p-2.5 rounded-xl bg-black/40 border border-white/5">
                                     <div className="flex items-center justify-between mb-1">

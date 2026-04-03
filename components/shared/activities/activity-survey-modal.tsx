@@ -168,6 +168,33 @@ export function ActivitySurveyModal({
                       </div>
                     </div>
 
+                    {/* ¿Repetiría la actividad? */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-3">
+                        ¿Repetirías esta actividad?
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setWouldRepeat(true)}
+                          className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${wouldRepeat === true
+                            ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50 shadow-[0_0_15px_rgba(255,121,57,0.15)]'
+                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                            }`}
+                        >
+                          Sí, totalmente
+                        </button>
+                        <button
+                          onClick={() => setWouldRepeat(false)}
+                          className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${wouldRepeat === false
+                            ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50 shadow-[0_0_15px_rgba(255,121,57,0.15)]'
+                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                            }`}
+                        >
+                          No por ahora
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Feedback */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -182,33 +209,6 @@ export function ActivitySurveyModal({
                           background: 'rgba(255, 255, 255, 0.05)',
                         }}
                       />
-                    </div>
-
-                    {/* ¿Repetiría la actividad? */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-3">
-                        ¿Repetirías esta actividad?
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setWouldRepeat(true)}
-                          className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${wouldRepeat === true
-                            ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
-                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                            }`}
-                        >
-                          Sí
-                        </button>
-                        <button
-                          onClick={() => setWouldRepeat(false)}
-                          className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${wouldRepeat === false
-                            ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
-                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                            }`}
-                        >
-                          No
-                        </button>
-                      </div>
                     </div>
                   </>
                 ) : (

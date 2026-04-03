@@ -103,14 +103,15 @@ export async function GET(request: Request) {
     const encryptedToken = encrypt(longLivedToken);
     
     const { error: updateError } = await supabase
-      .from('coaches')
-      .update({
+      .from('coach_social_accounts')
+      .upsert({
+        id: user.id,
         instagram_access_token: encryptedToken,
         instagram_user_id: instagramUserId.toString(),
-        instagram_username: username, // AHORA GUARDAMOS EL NOMBRE REAL
+        instagram_username: username,
         instagram_expires_at: expiresAt.toISOString(),
-      })
-      .eq('id', user.id);
+        instagram_connected_at: new Date().toISOString(),
+      });
 
     if (updateError) {
       console.error('Error de base de datos guardando el token:', updateError);

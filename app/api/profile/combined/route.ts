@@ -27,10 +27,15 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo user_profile:', userProfileError)
     }
 
-    // Verificar si es coach o cliente
+    // Verificar si es coach o cliente - Ahora con tablas normalizadas
     const { data: coachData, error: coachError } = await supabase
       .from('coaches')
-      .select('*')
+      .select(`
+        *,
+        coach_meets_config(*),
+        coach_social_accounts(*),
+        coach_contact_info(*)
+      `)
       .eq('id', user.id)
       .maybeSingle()
 
@@ -94,17 +99,33 @@ export async function GET(request: NextRequest) {
     // Si es coach, usar datos de coaches; si es cliente, usar datos de clients
     // Usar maybeSingle() para evitar errores cuando no hay registro
     const isCoach = coachData && !coachError
+    
+    // Extraer datos de las tablas relacionadas si es coach
+    const coachMeets = coachData?.coach_meets_config?.[0] || coachData
+    const coachSocial = coachData?.coach_social_accounts?.[0] || coachData
+    const coachContact = coachData?.coach_contact_info?.[0] || coachData
+
     const profileData = isCoach ? {
-      height: coachData?.height || null,
-      weight: coachData?.weight || null,
-      birth_date: coachData?.birth_date || null,
-      gender: coachData?.gender || null,
-      level: 'Principiante', // Los coaches no tienen nivel de fitness
-      phone: coachData?.phone || null,
-      location: coachData?.location || null,
-      emergency_contact: coachData?.emergency_contact || null,
+      height: coachContact?.height || null,
+      weight: coachContact?.weight || null,
+      birth_date: coachContact?.birth_date || null,
+      gender: coachContact?.gender || null,
+      level: 'Principiante', 
+      phone: coachContact?.phone || null,
+      location: coachContact?.location || null,
+      emergency_contact: coachContact?.emergency_contact || null,
+      whatsapp: coachContact?.whatsapp || null,
       specialization: coachData?.specialization || null,
       experience_history: coachData?.experience_history || [],
+      experience_years: coachData?.experience_years || 0,
+      instagram_username: coachSocial?.instagram_username || null,
+      cafe: coachMeets?.cafe || null,
+      cafe_enabled: coachMeets?.cafe_enabled || false,
+      meet_1: coachMeets?.meet_1 || 0,
+      meet_1_enabled: coachMeets?.meet_1_enabled || false,
+      meet_30: coachMeets?.meet_30 || 0,
+      meet_30_enabled: coachMeets?.meet_30_enabled || false,
+      category: coachData?.category || 'general',
       fitness_goals: [],
       sports: []
     } : {

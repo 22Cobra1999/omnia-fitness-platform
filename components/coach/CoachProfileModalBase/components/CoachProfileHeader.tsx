@@ -2,6 +2,7 @@ import React from "react"
 import { MessageCircle, Calendar as CalendarIcon } from "lucide-react"
 import Image from "next/image"
 import { CoachPersonalInfoSection } from "@/components/shared/coach/coach-personal-info-section"
+import { CoachProfileCertifications } from "./CoachProfileCertifications"
 
 interface CoachProfileHeaderProps {
     coach: {
@@ -14,6 +15,7 @@ interface CoachProfileHeaderProps {
         certifications?: string[]
         rating?: number
         experience_years?: number
+        category?: string
     }
     totalSales: number | null
     onClose: () => void
@@ -48,11 +50,11 @@ export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
                         certifications_count: coach.certifications?.length,
                         rating: coach.rating,
                         total_sales: totalSales,
-                        experience_years: coach.experience_years
+                        experience_years: coach.experience_years,
+                        category: (coach as any).category
                     }}
                     variant="modal"
-                    showStreak={true}
-                    streakCount={6}
+                    showStreak={false}
                     leftAction={
                         <button
                             onClick={(e) => {
@@ -100,6 +102,11 @@ export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
                         </button>
                     }
                 />
+                
+                {/* Certificaciones integradas en el header (fondo difuminado) */}
+                <div className="pb-4">
+                    <CoachProfileCertifications certifications={coach.certifications || []} />
+                </div>
             </div>
         </div>
     )

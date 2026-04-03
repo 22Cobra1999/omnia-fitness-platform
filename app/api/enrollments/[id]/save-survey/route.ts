@@ -1,12 +1,11 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 import { NextResponse } from 'next/server'
 
 export async function POST(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const enrollmentId = params.id
+    const { id: enrollmentId } = await params
     console.log('🚀 [API:save-survey] STARTING save for enrollment:', enrollmentId)
     
     try {
@@ -22,7 +21,7 @@ export async function POST(
 
         console.log('📝 [API:save-survey] Request Body Received:', JSON.stringify(body, null, 2))
 
-        const supabase = createRouteHandlerClient({ cookies })
+        const supabase = await createRouteHandlerClient()
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         
         if (authError || !user) {
@@ -62,10 +61,10 @@ export async function POST(
         const surveyPayload: any = {
             activity_id: activityId,
             client_id: user.id,
-            enrollment_id: enrollmentId,
+            enrollment_id: Number(enrollmentId),
             coach_method_rating: sanitize(coachRatingVal, 0),
             difficulty_rating: sanitize(actRatingVal, 0),
-            would_repeat: Boolean(wouldRepeat),
+            would_repeat: typeof wouldRepeat === 'boolean' ? wouldRepeat : null,
             comments: feedback,
             calificacion_omnia: sanitize(omniaRatingVal, 1),
             comentarios_omnia: omniaComments,
@@ -94,7 +93,13 @@ export async function POST(
         }
 
         if (surveyError) {
-            console.error('❌ [API:save-survey] DB Operation Failed:', surveyError)
+            console.error('❌ [API:save-survey] DB Operation Failed:', {
+                error: surveyError,
+                message: surveyError.message,
+                details: surveyError.details,
+                code: surveyError.code,
+                payload: surveyPayload
+            })
             return NextResponse.json({ 
                 error: 'Database Error', 
                 details: surveyError.message, 

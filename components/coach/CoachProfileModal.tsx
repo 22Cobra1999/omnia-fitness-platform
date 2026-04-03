@@ -88,7 +88,7 @@ export default function CoachProfileModal(props: CoachProfileModalProps) {
             initial={{ scale: 0.9, opacity: 0, y: -20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: -20 }}
-            className="relative bg-[#1A1A1A] rounded-2xl w-full max-w-2xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto overscroll-contain"
+            className="relative bg-black rounded-2xl w-full max-w-2xl border border-white/5 max-h-[92vh] overflow-y-auto overscroll-contain shadow-[0_0_50px_rgba(0,0,0,0.5)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Botón de cerrar */}
@@ -111,9 +111,6 @@ export default function CoachProfileModal(props: CoachProfileModalProps) {
             />
 
             <div className="relative z-10">
-              {/* Certifications Section */}
-              <CoachProfileCertifications certifications={coachCertifications} />
-
               {/* Statistics Section */}
               <CoachProfileStats
                 isStatsOpen={isStatsOpen}
@@ -144,6 +141,8 @@ export default function CoachProfileModal(props: CoachProfileModalProps) {
                 handleProductClick={handleProductClick}
               />
             </div>
+            {/* Espaciador final para scroll */}
+            <div className="h-32" />
           </motion.div>
         </motion.div>
       )}

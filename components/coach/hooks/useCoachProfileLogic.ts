@@ -94,15 +94,29 @@ export function useCoachProfileLogic({
 
         try {
             const supabase = createClient()
-            const { data: coachData, error } = await supabase
-                .from("coaches")
+            
+            // Intentar primero con la nueva tabla coach_meets_config
+            const { data: configData, error: configError } = await supabase
+                .from("coach_meets_config")
                 .select("cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled")
                 .eq("id", coach.id)
-                .single()
+                .maybeSingle()
 
-            if (error) {
-                console.warn("⚠️ Error cargando consultas del coach:", error.message)
-                return
+            let coachData = configData
+
+            // Si no hay datos en la nueva, usamos la vieja (compatibilidad mientras se migra)
+            if (!coachData || configError) {
+                const { data: legacyData, error: legacyError } = await supabase
+                    .from("coaches")
+                    .select("cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled")
+                    .eq("id", coach.id)
+                    .single()
+                
+                if (legacyError) {
+                    console.warn("⚠️ Error cargando consultas del coach:", legacyError.message)
+                    return
+                }
+                coachData = legacyData
             }
 
             if (coachData) {

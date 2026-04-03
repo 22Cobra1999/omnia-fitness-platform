@@ -12,129 +12,87 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    // Obtener datos del formulario
     const formData = await request.formData()
 
-    const updateData: any = {}
+    const coachUpdates: any = {}
+    const meetsUpdates: any = { id: user.id }
+    const socialUpdates: any = { id: user.id }
+    const contactUpdates: any = { id: user.id }
 
-    // Mapear campos del formulario a columnas de la tabla coaches
-    if (formData.has('full_name')) {
-      updateData.full_name = formData.get('full_name') || null
-    }
-    if (formData.has('height')) {
-      const height = formData.get('height')
-      updateData.height = height ? parseInt(height.toString()) : null
-    }
-    if (formData.has('weight')) {
-      const weight = formData.get('weight')
-      updateData.weight = weight ? parseFloat(weight.toString()) : null
-    }
-    if (formData.has('birth_date')) {
-      updateData.birth_date = formData.get('birth_date') || null
-    }
-    if (formData.has('gender')) {
-      updateData.gender = formData.get('gender') || null
-    }
-    if (formData.has('phone')) {
-      updateData.phone = formData.get('phone') || null
-    }
-    if (formData.has('location')) {
-      updateData.location = formData.get('location') || null
-    }
-    if (formData.has('emergency_contact')) {
-      updateData.emergency_contact = formData.get('emergency_contact') || null
-    }
-    if (formData.has('specialization')) {
-      updateData.specialization = formData.get('specialization') || null
-    }
+    let hasMeets = false
+    let hasSocial = false
+    let hasContact = false
+
+    // Mapear campos a sus respectivas tablas
+    if (formData.has('full_name')) coachUpdates.full_name = formData.get('full_name') || null
+    if (formData.has('specialization')) coachUpdates.specialization = formData.get('specialization') || null
     if (formData.has('experience_years')) {
       const exp = formData.get('experience_years')
-      updateData.experience_years = exp ? parseInt(exp.toString()) : 0
+      coachUpdates.experience_years = exp ? parseInt(exp.toString()) : 0
     }
-    if (formData.has('whatsapp')) {
-      const wa = formData.get('whatsapp')
-      updateData.whatsapp = wa ? parseFloat(wa.toString()) : null
-    }
-    if (formData.has('instagram_username')) {
-      updateData.instagram_username = formData.get('instagram_username') || null
-    }
-    if (formData.has('bio')) {
-      updateData.bio = formData.get('bio') || null
-    }
-    if (formData.has('cafe')) {
-      const c = formData.get('cafe')
-      updateData.cafe = c ? parseFloat(c.toString()) : null
-    }
-    if (formData.has('cafe_enabled')) {
-      updateData.cafe_enabled = formData.get('cafe_enabled') === 'true'
-    }
-    if (formData.has('meet_1')) {
-      const m1 = formData.get('meet_1')
-      updateData.meet_1 = m1 ? parseInt(m1.toString()) : 0
-    }
-    if (formData.has('meet_1_enabled')) {
-      updateData.meet_1_enabled = formData.get('meet_1_enabled') === 'true'
-    }
-    if (formData.has('meet_30')) {
-      const m30 = formData.get('meet_30')
-      updateData.meet_30 = m30 ? parseInt(m30.toString()) : 0
-    }
-    if (formData.has('meet_30_enabled')) {
-      updateData.meet_30_enabled = formData.get('meet_30_enabled') === 'true'
-    }
-    if (formData.has('category')) {
-      updateData.category = formData.get('category') || 'general'
-    }
+    if (formData.has('bio')) coachUpdates.bio = formData.get('bio') || null
+    if (formData.has('category')) coachUpdates.category = formData.get('category') || 'general'
     if (formData.has('experience_history')) {
       try {
         const historyStr = formData.get('experience_history') as string
-        updateData.experience_history = historyStr ? JSON.parse(historyStr) : []
-      } catch (e) {
-        console.warn('⚠️ Error parsing experience_history:', e)
-      }
+        coachUpdates.experience_history = historyStr ? JSON.parse(historyStr) : []
+      } catch (e) {}
     }
 
-    // Actualizar coaches
-    const { data: updatedCoach, error: updateError } = await supabase
-      .from('coaches')
-      .update(updateData)
-      .eq('id', user.id)
-      .select()
-      .single()
+    // Meets Config
+    if (formData.has('cafe')) { meetsUpdates.cafe = parseFloat(formData.get('cafe')!.toString()); hasMeets = true; }
+    if (formData.has('cafe_enabled')) { meetsUpdates.cafe_enabled = formData.get('cafe_enabled') === 'true'; hasMeets = true; }
+    if (formData.has('meet_1')) { meetsUpdates.meet_1 = parseInt(formData.get('meet_1')!.toString()); hasMeets = true; }
+    if (formData.has('meet_1_enabled')) { meetsUpdates.meet_1_enabled = formData.get('meet_1_enabled') === 'true'; hasMeets = true; }
+    if (formData.has('meet_30')) { meetsUpdates.meet_30 = parseInt(formData.get('meet_30')!.toString()); hasMeets = true; }
+    if (formData.has('meet_30_enabled')) { meetsUpdates.meet_30_enabled = formData.get('meet_30_enabled') === 'true'; hasMeets = true; }
 
-    if (updateError) {
-      console.error('Error actualizando coach:', updateError)
-      return NextResponse.json({
-        success: false,
-        error: 'Error al actualizar el perfil del coach',
-        details: updateError.message
-      }, { status: 500 })
+    // Social
+    if (formData.has('instagram_username')) { socialUpdates.instagram_username = formData.get('instagram_username') || null; hasSocial = true; }
+
+    // Contact & Personal
+    if (formData.has('whatsapp')) { contactUpdates.whatsapp = parseFloat(formData.get('whatsapp')!.toString()); hasContact = true; }
+    if (formData.has('phone')) { contactUpdates.phone = formData.get('phone') || null; hasContact = true; }
+    if (formData.has('location')) { contactUpdates.location = formData.get('location') || null; hasContact = true; }
+    if (formData.has('emergency_contact')) { contactUpdates.emergency_contact = formData.get('emergency_contact') || null; hasContact = true; }
+    if (formData.has('height')) { contactUpdates.height = parseInt(formData.get('height')!.toString()); hasContact = true; }
+    if (formData.has('weight')) { contactUpdates.weight = parseFloat(formData.get('weight')!.toString()); hasContact = true; }
+    if (formData.has('birth_date')) { contactUpdates.birth_date = formData.get('birth_date') || null; hasContact = true; }
+    if (formData.has('gender')) { contactUpdates.gender = formData.get('gender') || null; hasContact = true; }
+
+    // Ejecutar actualizaciones en paralelo
+    const promises = []
+    
+    if (Object.keys(coachUpdates).length > 0) {
+      promises.push(supabase.from('coaches').update(coachUpdates).eq('id', user.id).select().single())
     }
+    if (hasMeets) promises.push(supabase.from('coach_meets_config').upsert(meetsUpdates).select().maybeSingle())
+    if (hasSocial) promises.push(supabase.from('coach_social_accounts').upsert(socialUpdates).select().maybeSingle())
+    if (hasContact) promises.push(supabase.from('coach_contact_info').upsert(contactUpdates).select().maybeSingle())
+
+    const results = await Promise.all(promises)
+    const coachResult = results[0]
+
+    if (coachResult?.error) {
+      console.error('Error actualizando coach:', coachResult.error)
+      return NextResponse.json({ success: false, error: 'Error al actualizar el perfil' }, { status: 500 })
+    }
+
+    const finalCoach = coachResult?.data || {}
+    const finalMeets = results.find(r => r.data && 'cafe' in r.data)?.data || {}
+    const finalSocial = results.find(r => r.data && 'instagram_username' in r.data)?.data || {}
+    const finalContact = results.find(r => r.data && 'whatsapp' in r.data)?.data || {}
 
     return NextResponse.json({
       success: true,
       profile: {
-        full_name: updatedCoach?.full_name || null,
-        height: updatedCoach?.height || null,
-        weight: updatedCoach?.weight || null,
-        birth_date: updatedCoach?.birth_date || null,
-        gender: updatedCoach?.gender || null,
-        phone: updatedCoach?.phone || null,
-        location: updatedCoach?.location || null,
-        emergency_contact: updatedCoach?.emergency_contact || null,
-        specialization: updatedCoach?.specialization || null,
-        experience_years: updatedCoach?.experience_years || 0,
-        whatsapp: updatedCoach?.whatsapp || null,
-        instagram_username: updatedCoach?.instagram_username || null,
-        bio: updatedCoach?.bio || null,
-        cafe: updatedCoach?.cafe || null,
-        cafe_enabled: updatedCoach?.cafe_enabled || false,
-        meet_1: updatedCoach?.meet_1 || 0,
-        meet_1_enabled: updatedCoach?.meet_1_enabled || false,
-        meet_30: updatedCoach?.meet_30 || 0,
-        meet_30_enabled: updatedCoach?.meet_30_enabled || false,
-        category: updatedCoach?.category || 'general',
-        experience_history: updatedCoach?.experience_history || []
+        ...finalCoach,
+        ...finalMeets,
+        ...finalSocial,
+        ...finalContact,
+        // Asegurar nombres consistentes
+        experience_years: finalCoach.experience_years || 0,
+        experience_history: finalCoach.experience_history || []
       }
     })
 
