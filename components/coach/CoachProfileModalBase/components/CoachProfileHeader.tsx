@@ -18,12 +18,16 @@ interface CoachProfileHeaderProps {
         category?: string
     }
     totalSales: number | null
+    hasPurchased: boolean
+    instagramUsername: string | null
     onClose: () => void
 }
 
 export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
     coach,
     totalSales,
+    hasPurchased,
+    instagramUsername,
     onClose,
 }) => {
     return (
@@ -51,11 +55,12 @@ export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
                         rating: coach.rating,
                         total_sales: totalSales,
                         experience_years: coach.experience_years,
-                        category: (coach as any).category
+                        category: (coach as any).category,
+                        instagram_username: instagramUsername
                     }}
                     variant="modal"
                     showStreak={false}
-                    leftAction={
+                    leftAction={hasPurchased ? (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
@@ -77,8 +82,8 @@ export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
                         >
                             <MessageCircle className="w-6 h-6 group-hover:text-[#FF7939] transition-colors" />
                         </button>
-                    }
-                    rightAction={
+                    ) : null}
+                    rightAction={hasPurchased ? (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
@@ -100,7 +105,7 @@ export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
                         >
                             <CalendarIcon className="w-6 h-6 group-hover:text-[#FF7939] transition-colors" />
                         </button>
-                    }
+                    ) : null}
                 />
                 
                 {/* Certificaciones integradas en el header (fondo difuminado) */}

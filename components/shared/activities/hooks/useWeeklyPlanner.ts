@@ -157,6 +157,10 @@ export function useWeeklyPlanner({
                 calories: parseInt(row.calories || row.calorias || '0') || null,
                 is_active: row.is_active !== false,
                 activo: row.activo !== false,
+                series: row.series || row.series_num || row.sets || row.Series || row.Sets || '',
+                detalle_series: row.detalle_series || row.series_details || '',
+                reps: row.reps || row.repeticiones || row.Reps || row.Repeticiones || '',
+                peso: row.peso || row.peso_kg || row.weight || row.Weight || ''
             }
         })
 
@@ -239,6 +243,11 @@ export function useWeeklyPlanner({
         }
     }, [summaryStats, onStatsChange, getPatternStats])
 
+    // Update periods via prop
+    useEffect(() => {
+        if (onPeriodsChange) onPeriodsChange(periods)
+    }, [periods, onPeriodsChange])
+
     return {
         // State
         weeklySchedule,
@@ -247,7 +256,7 @@ export function useWeeklyPlanner({
         setReplicationCount,
         similarDays: dayHandlers.similarDays,
         selectedExercises: selection.selectedExercises,
-        weekLimitError: null, // Placeholder for now
+        weekLimitError: null,
         searchTerm,
         setSearchTerm,
         isExerciseSelectorOpen,
@@ -272,7 +281,14 @@ export function useWeeklyPlanner({
         addWeek: replication.addWeek,
         removeWeek: replication.removeWeek,
         replicateWeeks: replication.replicateWeeks,
-        increasePeriods: () => setPeriods(p => Math.min(12, p + 1)),
+        increasePeriods: () => setPeriods(p => {
+            const weeksLimit = planLimits?.weeksLimit || 4
+            // Total weeks = content weeks * cycles
+            if (numberOfWeeks * (p + 1) <= weeksLimit) {
+                return p + 1
+            }
+            return p
+        }),
         decreasePeriods: () => setPeriods(p => Math.max(1, p - 1)),
         handleUndo,
         toggleExerciseSelection: selection.toggleExerciseSelection,

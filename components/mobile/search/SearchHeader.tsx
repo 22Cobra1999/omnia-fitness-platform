@@ -144,86 +144,91 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
         <div className="mb-2 mt-0.5 px-4 space-y-4">
             {/* Fila Principal: Buscador expansible, Botones de Fitness/Nutricion, Botón Filter */}
             <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 flex-1">
-                    {isSearchExpanded ? (
-                        <div className="relative flex-1 group flex items-center">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <div className={`flex items-center gap-2 transition-all duration-300 ${isSearchExpanded ? 'w-10' : 'flex-1'}`}>
+                        {isSearchExpanded ? (
+                            <button onClick={() => { setIsSearchExpanded(false); handleSearchChange(''); }} className="w-10 h-10 flex items-center justify-center text-[#FF7939] hover:bg-white/5 rounded-full transition-all">
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                        ) : (
+                            <button onClick={() => setIsSearchExpanded(true)} className="w-10 h-10 flex items-center justify-center text-white/50 hover:bg-white/5 rounded-full transition-all">
+                                <Search className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
+
+                    {isSearchExpanded && (
+                        <div className="relative flex-1 group flex items-center min-w-[100px] animate-in fade-in slide-in-from-left-2 duration-300">
                             <input
                                 type="text"
                                 autoFocus
                                 value={searchTerm}
                                 onChange={(e) => handleSearchChange(e.target.value)}
                                 placeholder="Buscar..."
-                                className="w-full bg-transparent border-b border-white/20 py-2 pl-9 pr-8 text-sm text-white focus:outline-none focus:border-[#FF7939] transition-all"
+                                className="w-full bg-transparent border-b border-white/20 py-2 pr-8 text-sm text-white focus:outline-none focus:border-[#FF7939] transition-all"
                             />
-                            <button onClick={() => { setIsSearchExpanded(false); handleSearchChange(''); }} className="absolute right-2 text-white/40">
-                                <X className="w-4 h-4" />
-                            </button>
+                            {searchTerm && (
+                                <button onClick={() => handleSearchChange('')} className="absolute right-2 text-white/40">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
-                    ) : (
-                        <button onClick={() => setIsSearchExpanded(true)} className="w-10 h-10 flex items-center justify-center text-white/50 hover:bg-white/5 rounded-full transition-all">
-                            <Search className="w-5 h-5" />
-                        </button>
                     )}
 
-                    {!isSearchExpanded && (
-                        <div className="flex items-center">
-                            {/* Fitness / Nutricion */}
-                            <div className="flex gap-1">
-                                {[
-                                    { id: 'fitness', title: 'Fitness', icon: <Zap className="w-4 h-4 text-[#FF7939]" /> },
-                                    { id: 'nutricion', title: 'Nutrición', icon: <Utensils className="w-4 h-4 text-[#FF7939]" /> }
-                                ].map(cat => (
+                    <div className="flex items-center">
+                        {/* Fitness / Nutricion */}
+                        <div className="flex gap-1">
+                            {[
+                                { id: 'fitness', title: 'Fitness', icon: <Zap className="w-4 h-4 text-[#FF7939]" /> },
+                                { id: 'nutricion', title: 'Nutrición', icon: <Utensils className="w-4 h-4 text-[#FF7939]" /> }
+                            ].map(cat => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
+                                    className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${selectedCategory === cat.id
+                                        ? 'bg-white/10'
+                                        : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                        }`}
+                                >
+                                    {cat.icon}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Separador */}
+                        <div className="w-[1px] h-6 bg-white/10 mx-1.5 self-center" />
+
+                        {/* Doc / Programas / Talleres */}
+                        <div className="flex gap-1">
+                            {[
+                                { id: 'doc', title: 'Documentos', icon: <FileText className="w-4 h-4" />, color: '#FF9FC4' },
+                                { id: 'programa', title: 'Programas', icon: <BookOpen className="w-4 h-4" />, color: '#FF7939' },
+                                { id: 'taller', title: 'Talleres', icon: <Users className="w-4 h-4" />, color: '#FFD1A6' }
+                            ].map(mod => {
+                                const isActive = selectedModalities.includes(mod.id);
+                                return (
                                     <button
-                                        key={cat.id}
-                                        onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
-                                        className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${selectedCategory === cat.id
+                                        key={mod.id}
+                                        onClick={() => {
+                                            if (isActive) {
+                                                setSelectedModalities(selectedModalities.filter(m => m !== mod.id))
+                                            } else {
+                                                setSelectedModalities([...selectedModalities, mod.id])
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${isActive
                                             ? 'bg-white/10'
                                             : 'bg-white/5 text-white/40 hover:bg-white/10'
                                             }`}
                                     >
-                                        {cat.icon}
+                                        {React.cloneElement(mod.icon, {
+                                            className: `w-4 h-4 ${isActive ? '' : 'opacity-40'}`,
+                                            style: { color: mod.color }
+                                        })}
                                     </button>
-                                ))}
-                            </div>
-
-                            {/* Separador */}
-                            <div className="w-[1px] h-6 bg-white/10 mx-1.5 self-center" />
-
-                            {/* Doc / Programas / Talleres */}
-                            <div className="flex gap-1">
-                                {[
-                                    { id: 'doc', title: 'Documentos', icon: <FileText className="w-4 h-4" />, color: '#FF9FC4' },
-                                    { id: 'programa', title: 'Programas', icon: <BookOpen className="w-4 h-4" />, color: '#FF7939' },
-                                    { id: 'taller', title: 'Talleres', icon: <Users className="w-4 h-4" />, color: '#FFD1A6' }
-                                ].map(mod => {
-                                    const isActive = selectedModalities.includes(mod.id);
-                                    return (
-                                        <button
-                                            key={mod.id}
-                                            onClick={() => {
-                                                if (isActive) {
-                                                    setSelectedModalities(selectedModalities.filter(m => m !== mod.id))
-                                                } else {
-                                                    setSelectedModalities([...selectedModalities, mod.id])
-                                                }
-                                            }}
-                                            className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${isActive
-                                                ? 'bg-white/10'
-                                                : 'bg-white/5 text-white/40 hover:bg-white/10'
-                                                }`}
-                                        >
-                                            {React.cloneElement(mod.icon, {
-                                                className: `w-4 h-4 ${isActive ? '' : 'opacity-40'}`,
-                                                style: { color: mod.color }
-                                            })}
-                                        </button>
-                                    )
-                                })}
-                            </div>
+                                )
+                            })}
                         </div>
-                    )}
-                </div>
+                    </div>
 
                 <button
                     onClick={() => {

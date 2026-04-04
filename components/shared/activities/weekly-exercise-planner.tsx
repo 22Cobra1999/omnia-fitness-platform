@@ -252,7 +252,11 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
                     <Minus className="w-3 h-3" />
                   </button>
                   <span className="text-white font-black text-[13px] px-1">{periods}x</span>
-                  <button onClick={increasePeriods} className="text-white/40 hover:text-[#FF4D00] p-1 transition-colors">
+                  <button 
+                    onClick={increasePeriods} 
+                    disabled={weeksLimit !== null && (numberOfWeeks * (periods + 1)) > weeksLimit}
+                    className="text-white/40 hover:text-[#FF7939] p-1 transition-colors disabled:opacity-5 disabled:cursor-not-allowed"
+                  >
                     <Plus className="w-3 h-3" />
                   </button>
                 </div>

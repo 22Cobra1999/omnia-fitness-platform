@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronLeft, Star, Calendar, Zap, UtensilsCrossed, Users, MapPin, MessageCircle } from "lucide-react"
+import { ChevronLeft, Star, Calendar, Zap, UtensilsCrossed, Users, MapPin, MessageCircle, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { VimeoPlayer } from '@/components/shared/video/vimeo-player'
 import { extractVimeoId } from "@/utils/vimeo-utils"
@@ -81,12 +81,24 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
     if (modality === 'presencial') {
       return <MapPin className="w-4 h-4 text-red-500" />
     }
-    return <Calendar className="w-4 h-4 text-white" />
+    if (modality === 'hibrido' || modality === 'híbrido') {
+      return (
+        <div className="flex items-center gap-0.5">
+          <Globe className="w-3.5 h-3.5 text-[#FF7939] opacity-70" />
+          <span className="text-[10px] font-black text-white/20">/</span>
+          <MapPin className="w-3.5 h-3.5 text-red-500 opacity-90" />
+        </div>
+      )
+    }
+    return <Globe className="w-4 h-4 text-[#FF7939]" />
   }
 
   const getModalityLabel = (modality?: string) => {
     if (modality === 'presencial') {
       return 'Presencial'
+    }
+    if (modality === 'hibrido' || modality === 'híbrido') {
+      return 'Híbrido'
     }
     return 'Online'
   }

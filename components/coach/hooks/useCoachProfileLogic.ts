@@ -49,6 +49,8 @@ export function useCoachProfileLogic({
     const [totalSales, setTotalSales] = useState<number | null>(null)
     const [coachCertifications, setCoachCertifications] = useState<string[]>([])
     const [isStatsOpen, setIsStatsOpen] = useState(false)
+    const [hasPurchased, setHasPurchased] = useState(false)
+    const [instagramUsername, setInstagramUsername] = useState<string | null>(null)
 
     useEffect(() => {
         if (isOpen && coach?.id) {
@@ -56,6 +58,8 @@ export function useCoachProfileLogic({
             loadCoachConsultations()
             loadCoachSales()
             loadCoachCertifications()
+            checkPurchaseStatus()
+            loadSocialData()
         }
     }, [isOpen, coach?.id, preloadedActivities])
 
@@ -318,6 +322,49 @@ export function useCoachProfileLogic({
         }
     }
 
+    const checkPurchaseStatus = async () => {
+        if (!coach?.id) return
+        try {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Buscar si el cliente tiene alguna inscripción en actividades de este coach
+            const { data: activities } = await supabase.from('activities').select('id').eq('coach_id', coach.id)
+            if (!activities || activities.length === 0) return
+
+            const { data: enrollment } = await supabase
+                .from('activity_enrollments')
+                .select('id')
+                .eq('client_id', user.id)
+                .in('activity_id', (activities as { id: number }[]).map(a => a.id))
+                .limit(1)
+                .maybeSingle()
+            
+            setHasPurchased(!!enrollment)
+        } catch (e) {
+            console.error("Error checking purchase status", e)
+        }
+    }
+
+    const loadSocialData = async () => {
+        if (!coach?.id) return
+        try {
+            const supabase = createClient()
+            const { data, error } = await supabase
+                .from('coach_social_accounts')
+                .select('instagram_username')
+                .eq('id', coach.id)
+                .maybeSingle()
+            
+            if (data?.instagram_username) {
+                setInstagramUsername(data.instagram_username)
+            }
+        } catch (e) {
+            console.error("Error loading social data", e)
+        }
+    }
+
     return {
         coachProducts,
         loadingProducts,
@@ -336,6 +383,8 @@ export function useCoachProfileLogic({
         coachCertifications,
         isStatsOpen,
         setIsStatsOpen,
+        hasPurchased,
+        instagramUsername,
         handleProductClick,
         handleCloseProductModal,
         handlePurchaseConsultation,

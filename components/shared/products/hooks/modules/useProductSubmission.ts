@@ -19,6 +19,8 @@ interface SubmitProductParams {
     weeklyStats: any
     pendingImageFile: File | null
     pendingVideoFile: File | null
+    mediaUploadUrl: string | null
+    isMediaUploading: boolean
     planType: PlanType
     onClose: (refresh?: boolean) => void
     setCurrentStep: (step: any) => void
@@ -27,21 +29,61 @@ interface SubmitProductParams {
 export function useProductSubmission() {
     const [isPublishing, setIsPublishing] = useState(false)
     const [publishProgress, setPublishProgress] = useState('')
+    const [publishPercentage, setPublishPercentage] = useState(0)
     const [validationErrors, setValidationErrors] = useState<string[]>([])
     const [fieldErrors, setFieldErrors] = useState<{ [key: string]: boolean }>({})
+
+    const cleanScheduleForSubmission = (schedule: any) => {
+        if (!schedule || typeof schedule !== 'object') return null
+        const cleaned: any = {}
+        
+        Object.entries(schedule).forEach(([weekNum, weekData]: [string, any]) => {
+            cleaned[weekNum] = {}
+            Object.entries(weekData).forEach(([dayKey, dayContent]: [string, any]) => {
+                if (!dayContent || !dayContent.ejercicios) return
+                
+                cleaned[weekNum][dayKey] = {
+                    blockCount: dayContent.blockCount,
+                    blockNames: dayContent.blockNames,
+                    ejercicios: (dayContent.ejercicios || []).map((ex: any) => {
+                        const item: any = {
+                            id: ex.id,
+                            orden: ex.orden || ex.order || 1,
+                            bloque: ex.bloque || ex.block || 1
+                        }
+                        // Only keep essential variables that might have been changed/personalized
+                        if (ex.series) item.series = String(ex.series)
+                        if (ex.reps) item.reps = String(ex.reps)
+                        if (ex.peso) item.peso = String(ex.peso)
+                        if (ex.detalle_series) item.detalle_series = String(ex.detalle_series)
+                        if (ex.notas_coach) item.notas_coach = String(ex.notas_coach)
+                        if (ex.calorias || ex.calories) item.calorias = Number(ex.calorias || ex.calories || 0)
+                        if (ex.proteinas) item.proteinas = Number(ex.proteinas || 0)
+                        if (ex.carbohidratos) item.carbohidratos = Number(ex.carbohidratos || 0)
+                        if (ex.grasas) item.grasas = Number(ex.grasas || 0)
+                        if (ex.minutos || ex.duration) item.minutos = Number(ex.minutos || ex.duration || 0)
+                        return item
+                    }).filter((ex: any) => ex.id !== undefined && ex.id !== null)
+                }
+            })
+        })
+        return cleaned
+    }
 
     const handlePublishProduct = async (params: SubmitProductParams) => {
         const {
             generalForm, selectedType, productCategory, user, editingProduct,
             persistentCsvData, persistentCalendarSchedule, periods, workshopSchedule,
             workshopMaterial, documentMaterial, weeklyStats, pendingImageFile, pendingVideoFile,
+            mediaUploadUrl, isMediaUploading,
             planType, onClose, setCurrentStep, specificForm
         } = params
 
         if (isPublishing) return
 
-        console.log('🚀 [useProductSubmission] handlePublishProduct started', { generalForm, selectedType })
         setIsPublishing(true)
+        setPublishProgress('Validando datos...')
+        setPublishPercentage(5)
         setValidationErrors([])
         setFieldErrors({})
 
@@ -94,58 +136,88 @@ export function useProductSubmission() {
                 }
                 
                 setIsPublishing(false)
+                setPublishPercentage(0)
                 return
             }
 
             setPublishProgress('Preparando archivos...')
+            setPublishPercentage(10)
 
-            // 1. Upload Main Image (Deferred)
+            // 1. Wait for Background Upload if in progress
             let finalImageUrl = (generalForm.image && 'url' in generalForm.image) ? generalForm.image.url : null
+            let finalVideoUrl = generalForm.videoUrl || null
+            let finalVideoMetadata = {
+                bunny_video_id: null,
+                bunny_library_id: null,
+                video_thumbnail_url: null,
+                video_file_name: null
+            }
+            
+            // Sync with background upload result
+            if (mediaUploadUrl) {
+                if (pendingVideoFile) finalVideoUrl = mediaUploadUrl
+                if (pendingImageFile) finalImageUrl = mediaUploadUrl
+            }
+
+            // 2. Fallback Upload (only if background failed or wasn't even triggered)
             const isLocalImage = finalImageUrl && finalImageUrl.startsWith('blob:')
-
             if (pendingImageFile || isLocalImage) {
-                setPublishProgress('Subiendo imagen...')
-                const fileToUpload = pendingImageFile || (await fetch(finalImageUrl!).then(r => r.blob()))
+                if (finalImageUrl && !finalImageUrl.startsWith('blob:')) {
+                    // Already uploaded in background or from gallery
+                    setPublishPercentage(40)
+                } else {
+                    setPublishProgress('Subiendo imagen...')
+                    setPublishPercentage(30)
+                    const fileToUpload = pendingImageFile || (await fetch(finalImageUrl!).then(r => r.blob()))
 
-                const formData = new FormData()
-                formData.append('file', fileToUpload as Blob)
-                formData.append('mediaType', 'image')
-                formData.append('category', 'product')
+                    const formData = new FormData()
+                    formData.append('file', fileToUpload as Blob)
+                    formData.append('mediaType', 'image')
+                    formData.append('category', 'product')
 
-                try {
-                    const res = await fetch('/api/upload-organized', { method: 'POST', body: formData })
-                    if (res.ok) {
-                        const data = await res.json()
-                        if (data.success) finalImageUrl = data.url
-                    } else {
-                        throw new Error('Falló la subida de imagen')
+                    try {
+                        const res = await fetch('/api/upload-organized', { method: 'POST', body: formData })
+                        if (res.ok) {
+                            const data = await res.json()
+                            if (data.success) finalImageUrl = data.url
+                        }
+                    } catch (e) {
+                        console.error('Image fallback upload failed', e)
                     }
-                } catch (e) {
-                    console.error('Image upload failed', e)
-                    toast.error('Error subiendo imagen, se guardará sin ella.')
-                    finalImageUrl = null
+                    setPublishPercentage(45)
                 }
             }
 
-            // 2. Upload Main Video if pending
-            let finalVideoUrl = generalForm.videoUrl || null
-            if (pendingVideoFile) {
+            if (pendingVideoFile && (finalVideoUrl?.startsWith('blob:') || !finalVideoUrl)) {
                 setPublishProgress('Subiendo video...')
+                setPublishPercentage(60)
                 const formData = new FormData()
                 formData.append('file', pendingVideoFile)
                 formData.append('title', pendingVideoFile.name)
                 const res = await fetch('/api/bunny/upload-video', { method: 'POST', body: formData })
                 const data = await res.json()
-                if (res.ok && data.success) finalVideoUrl = data.streamUrl
+                if (res.ok && data.success) {
+                    finalVideoUrl = data.streamUrl
+                    finalVideoMetadata = {
+                        bunny_video_id: data.videoId,
+                        bunny_library_id: data.libraryId,
+                        video_thumbnail_url: data.thumbnailUrl,
+                        video_file_name: data.fileName
+                    }
+                }
+                setPublishPercentage(75)
             }
 
             if (typeof finalVideoUrl === 'string' && (finalVideoUrl.trim() === '' || finalVideoUrl.startsWith('blob:'))) finalVideoUrl = null
             if (typeof finalImageUrl === 'string' && (finalImageUrl.trim() === '' || finalImageUrl.startsWith('blob:'))) finalImageUrl = null
 
-            // 3. Prepare product data
+            setPublishProgress('Finalizando publicación...')
+            setPublishPercentage(85)
+
+            // 3. Prepare product data - CLEANED SCHEDULE
             const capacityRaw = parseInt(generalForm.stockQuantity)
             const parsedCapacity = Number.isFinite(capacityRaw) ? Math.max(1, capacityRaw) : 1
-            const capacity = generalForm.capacity === 'ilimitada' ? 999999 : parsedCapacity
+            const capacity = generalForm.capacity === 'ilimitada' ? 0 : parsedCapacity
 
             // Validate and map difficulty level
             const validLevels = ['beginner', 'intermediate', 'advanced']
@@ -156,7 +228,6 @@ export function useProductSubmission() {
             }
             if (levelMap[finalLevel]) finalLevel = levelMap[finalLevel]
             if (!validLevels.includes(finalLevel)) finalLevel = 'beginner'
-
 
             const productData = {
                 name: generalForm.name,
@@ -170,12 +241,13 @@ export function useProductSubmission() {
                 type: generalForm.modality || 'online',
                 included_meet_credits: selectedType === 'workshop' ? 0 : (generalForm.included_meet_credits || 0),
                 is_public: generalForm.is_public !== false,
-                // is_paused: !!generalForm.is_paused, 
                 coach_id: user?.id,
                 image_url: finalImageUrl,
                 video_url: finalVideoUrl,
-                csvData: persistentCsvData || [],
-                weeklySchedule: persistentCalendarSchedule || null,
+                ...finalVideoMetadata,
+                // csvData is NOT sent to backend (not used and makes payload huge)
+                // USE CLEANED SCHEDULE
+                weeklySchedule: cleanScheduleForSubmission(persistentCalendarSchedule),
                 periods: periods,
                 editingProductId: editingProduct?.id,
                 workshopSchedule: selectedType === 'workshop' ? workshopSchedule : null,
@@ -193,10 +265,11 @@ export function useProductSubmission() {
                 items_unicos: weeklyStats?.ejerciciosUnicos || 0,
             }
 
-            console.log('🚀 [useProductSubmission] Submit Payload:', {
-                weeklySchedulePreview: productData.weeklySchedule ? JSON.stringify(productData.weeklySchedule).substring(0, 200) : 'null',
-                modality: productData.modality
-            })
+            console.log("💾 [useProductSubmission] Final Product Data Save:", JSON.stringify({
+                ...productData,
+                weeklySchedule: '[REDACTED_FOR_LOGS]',
+                workshopSchedule: productData.workshopSchedule ? '[REDACTED_FOR_LOGS]' : null
+            }, null, 2))
 
             const method = editingProduct ? 'PUT' : 'POST'
             const response = await fetch('/api/products', {
@@ -210,9 +283,11 @@ export function useProductSubmission() {
                 throw new Error(result.error || 'Error al guardar el producto')
             }
 
-            // 4. Handle bulk exercises/nutrition
+            setPublishPercentage(100)
+            setPublishProgress('¡Éxito!')
+
+            // 4. Handle bulk exercises/nutrition (if any)
             if (persistentCsvData && persistentCsvData.length > 0 && selectedType === 'program') {
-                setPublishProgress('Guardando detalles...')
                 const bulkEndpoint = productCategory === 'nutricion' ? '/api/activity-nutrition/bulk' : '/api/activities/exercises/bulk'
                 await fetch(bulkEndpoint, {
                     method: 'POST',
@@ -232,6 +307,7 @@ export function useProductSubmission() {
         } finally {
             setIsPublishing(false)
             setPublishProgress('')
+            setPublishPercentage(0)
         }
     }
 
@@ -247,6 +323,7 @@ export function useProductSubmission() {
         isPublishing,
         setIsPublishing,
         publishProgress,
+        publishPercentage,
         setPublishProgress,
         validationErrors,
         fieldErrors,

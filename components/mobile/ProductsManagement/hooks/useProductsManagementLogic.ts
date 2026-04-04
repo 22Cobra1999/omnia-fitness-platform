@@ -36,7 +36,6 @@ export function useProductsManagementLogic() {
 
     // Hook 3: Actions (CRUD)
     const fetchProducts = useCallback(async () => {
-        console.log("📡 [ProductsLogicV2] Calling fetchProducts API...")
         try {
             setLoading(true)
             const response = await fetch(API_ENDPOINTS.PRODUCTS, { credentials: 'include' })
@@ -100,10 +99,6 @@ export function useProductsManagementLogic() {
     }
 
     const handleSaveConditioning = async (rules: any) => {
-        console.log("💾 [OMNIA_RECONSTRUCTOR] Auto-syncing rules:", {
-            selected: selectedProductsForConditioning,
-            unlinked: initialConditionedIds.current.filter(id => !selectedProductsForConditioning.includes(id))
-        })
         try {
             // 1. CLEAR rules for initially conditioned products that ARE NO LONGER selected
             const productsToUnlink = initialConditionedIds.current.filter(
@@ -151,14 +146,12 @@ export function useProductsManagementLogic() {
         if (authLoading || !user?.id) return
 
         const loadData = async () => {
-            console.log("🔄 [ProductsLogicV2] Initial data fetch for user:", user?.id)
             try {
                 setLoading(true)
                 await Promise.all([
                     fetchProducts(),
                     consultation.actions.fetchCafeConsultation()
                 ])
-                console.log("✅ [ProductsLogicV2] Initial data load complete")
             } catch (err) {
                 console.error("❌ [ProductsLogicV2] Error loading initial data:", err)
             } finally {

@@ -166,6 +166,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     isPublishing,
     setIsPublishing,
     publishProgress,
+    publishPercentage,
     setPublishProgress,
     validationErrors,
     setValidationErrors,
@@ -441,6 +442,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               onClose={onClose}
               handlePublishProduct={handlePublishProduct}
               isPublishing={isPublishing}
+              publishProgress={publishProgress}
+              publishPercentage={publishPercentage}
               selectedType={selectedType}
               selectedProgramType={selectedProgramType}
             />

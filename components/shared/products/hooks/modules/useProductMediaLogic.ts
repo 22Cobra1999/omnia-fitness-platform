@@ -29,6 +29,70 @@ export function useProductMediaLogic() {
     // Pending files to be uploaded on save
     const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
     const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
+    const [mediaUploadUrl, setMediaUploadUrl] = useState<string | null>(null)
+    const [isMediaUploading, setIsMediaUploading] = useState(false)
+    const [mediaUploadProgress, setMediaUploadProgress] = useState(0)
+
+    const startBackgroundUpload = async (file: File, type: InlineMediaType) => {
+        setIsMediaUploading(true)
+        setMediaUploadProgress(5)
+        setMediaUploadUrl(null)
+
+        try {
+            let videoId: string | undefined = undefined
+            
+            // 1. Pre-creación instantánea para videos
+            if (type === 'video') {
+                const createRes = await fetch('/api/products/media/create-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: file.name })
+                })
+                const createData = await createRes.json()
+                if (createRes.ok && createData.success) {
+                    videoId = createData.videoId
+                    // ¡CLAVE! Establecemos la URL inmediatamente para que el Guardado sea instantáneo
+                    setMediaUploadUrl(createData.streamUrl)
+                    setMediaUploadProgress(15)
+                }
+            }
+
+            // 2. Carga en segundo plano (No bloquea la URL si ya se obtuvo)
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('mediaType', type)
+            formData.append('category', 'product')
+            formData.append('title', file.name)
+            if (videoId) formData.append('videoId', videoId)
+
+            const endpoint = type === 'video' ? '/api/bunny/upload-video' : '/api/upload-organized'
+            
+            setMediaUploadProgress(30)
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            })
+            
+            setMediaUploadProgress(90)
+            const data = await response.json()
+            
+            if (response.ok && data.success) {
+                const url = type === 'video' ? data.streamUrl : data.url
+                // Solo sobreescribir si es imagen (en video ya estaba seteado el predicted)
+                if (type !== 'video' || !mediaUploadUrl) {
+                    setMediaUploadUrl(url)
+                }
+                toast.success(`${type === 'video' ? 'Video' : 'Imagen'} cargada en segundo plano`)
+            } else {
+                throw new Error(data.error || 'Error en subida')
+            }
+        } catch (error) {
+            console.error('❌ [BackgroundUpload] Upload failed:', error)
+        } finally {
+            setIsMediaUploading(false)
+            setMediaUploadProgress(0)
+        }
+    }
 
     const loadInlineMedia = async (type: InlineMediaType) => {
         if (type === inlineMediaType && inlineMediaItems.length > 0) return
@@ -83,39 +147,31 @@ export function useProductMediaLogic() {
             setInlineMediaType('video')
             setPendingVideoFile(file)
             setIsVideoPreviewActive(true)
-
-            // NO CLEAR: En Safari, vaciar el input abortará la carga del archivo (Error de WebKitBlobResource 1)
-
-            setIsInlineUploading(true)
-            setUploadProgress(100)
-            setTimeout(() => {
-                setIsInlineUploading(false)
-                setUploadProgress(0)
-                toast.success('Video seleccionado (se subirá al guardar)')
-            }, 500)
+            startBackgroundUpload(file, 'video')
         } else {
             setInlineMediaType('image')
             setPendingImageFile(file)
             setIsVideoPreviewActive(false)
-
-            // NO CLEAR: En Safari, vaciar el input abortará la carga del archivo
-
-            setIsInlineUploading(true)
-            setUploadProgress(100)
-            setTimeout(() => {
-                setIsInlineUploading(false)
-                setUploadProgress(0)
-                toast.success('Imagen seleccionada')
-            }, 500)
+            startBackgroundUpload(file, 'image')
         }
     }
 
     const handleMediaSelection = (url: string, type: 'image' | 'video' | 'pdf', file?: File) => {
         if (type === 'image') {
             setPendingImageFile(file || null)
+            if (file) {
+                startBackgroundUpload(file, 'image')
+            } else {
+                setMediaUploadUrl(url) // Already uploaded gallery image
+            }
         } else if (type === 'video') {
             setPendingVideoFile(file || null)
             setIsVideoPreviewActive(true)
+            if (file) {
+                startBackgroundUpload(file, 'video')
+            } else {
+                setMediaUploadUrl(url) // Already uploaded gallery video
+            }
         }
         setIsMediaModalOpen(false)
     }
@@ -166,7 +222,6 @@ export function useProductMediaLogic() {
         setWorkshopMaterial: (updater: any) => void,
         contextOverride?: PdfSelectionContext | null
     ) => {
-        console.log('📄 [useProductMediaLogic] handlePdfSelected triggered', { url, _type, fileName: name, selectedType, contextOverride, pdfModalContext })
         const context = contextOverride || pdfModalContext
         if (!context) {
             console.error('❌ [useProductMediaLogic] handlePdfSelected: No context found')
@@ -242,6 +297,10 @@ export function useProductMediaLogic() {
         setPendingImageFile,
         pendingVideoFile,
         setPendingVideoFile,
+        mediaUploadUrl,
+        isMediaUploading,
+        mediaUploadProgress,
+        startBackgroundUpload,
 
         loadInlineMedia,
         handleInlineUploadChange,

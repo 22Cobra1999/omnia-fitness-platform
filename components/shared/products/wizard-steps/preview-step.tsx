@@ -126,6 +126,9 @@ export function PreviewStep({
             // If capacity is 'ilimitada' (or anything else), use a safe 'infinity' number (999999) consistent with backend logic.
             capacity: generalForm.capacity === 'limitada'
                 ? (Math.max(0, parseInt(generalForm.stockQuantity || '0')))
+                : 999999,
+            stockQuantity: generalForm.capacity === 'limitada'
+                ? (Math.max(0, parseInt(generalForm.stockQuantity || '0')))
                 : 999999
         }),
         previewStats: {

@@ -14,7 +14,8 @@ interface ExpandedProductCardProps {
     title: string
     description: string
     price: number
-    type: 'workshop' | 'program' | 'document'
+    type: 'workshop' | 'program' | 'document' | 'fitness' | 'nutrition'
+    categoria?: 'fitness' | 'nutricion' | 'nutrition'
     image?: string | null
     video?: string | null
     videoUrl?: string | null
@@ -160,12 +161,12 @@ export function ExpandedProductCard({
       })
     }
 
+    const isNutrition = product.categoria === 'nutricion' || product.categoria === 'nutrition' || product.type === 'nutrition'
+
     // Para programas y fitness, mostrar cantidad de ejercicios y sesiones
-    if (product.type === 'program' || product.type === 'fitness') {
+    if (product.type === 'program' || product.type === 'fitness' || product.type === 'nutrition') {
       const exercisesCount = product.exercisesCount || (csvData && csvData.length > 1 ? csvData.length - 1 : 0)
       if (exercisesCount > 0) {
-        // Determinar si es nutrición o fitness basado en la categoría
-        const isNutrition = product.categoria === 'nutricion' || product.type === 'nutrition'
         const label = isNutrition ? 'Platos' : 'Ejercicios'
         const value = isNutrition ? `${exercisesCount} platos` : `${exercisesCount} ejercicios`
 
@@ -188,6 +189,17 @@ export function ExpandedProductCard({
           bgColor: 'bg-green-400/10'
         })
       }
+    }
+
+    if (product.capacity && product.capacity > 0) {
+      const isUnlimited = product.capacity >= 9999
+      details.push({
+        label: 'Cupos',
+        value: isUnlimited ? 'Ilimitados' : `${product.capacity} disponibles`,
+        icon: Users,
+        color: 'text-purple-400',
+        bgColor: 'bg-purple-400/10'
+      })
     }
 
     return details

@@ -36,7 +36,7 @@ export const CoachProfileConsultations: React.FC<CoachProfileConsultationsProps>
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-[#FF7939]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                         
                         <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 mb-3 group-hover:scale-110 group-hover:bg-[#FF7939]/10 transition-all duration-500 ring-1 ring-white/5 group-hover:ring-[#FF7939]/20">
-                            <Zap className="w-5 h-5 text-[#FF7939] opacity-70 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} fill="none" />
+                            <Coffee className="w-5 h-5 text-[#FF7939] opacity-70 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} fill="none" />
                         </div>
                         
                         <h4 className="text-white/90 font-bold text-[10px] uppercase tracking-wider text-center mb-0.5 leading-none">
@@ -44,9 +44,12 @@ export const CoachProfileConsultations: React.FC<CoachProfileConsultationsProps>
                         </h4>
                         <p className="text-white/30 text-[9px] font-medium mb-2 uppercase tracking-tighter italic">{coachConsultations.express.time} min</p>
                         
-                        <div className="flex items-baseline gap-0.5 mt-1">
-                            <span className="text-white/40 text-[9px] font-black">$</span>
-                            <span className="text-white font-black text-sm tracking-tighter">{coachConsultations.express.price}</span>
+                        <div className="flex flex-col items-center gap-1 mt-1">
+                            <div className="flex items-baseline gap-0.5">
+                                <span className="text-white/40 text-[9px] font-black">$</span>
+                                <span className="text-white font-black text-sm tracking-tighter">{coachConsultations.express.price}</span>
+                            </div>
+                            <span className="text-[#FF7939] text-[8px] font-black uppercase italic tracking-widest leading-none">Invitar café</span>
                         </div>
 
                         {isProcessingPurchase === "express" && (

@@ -92,7 +92,6 @@ export const parseSeries = (seriesData?: any) => {
         return [];
     }
 
-    console.log('[parseSeries] Input:', typeof seriesData, seriesData);
 
     // Si es un string, usar el formato anterior (reps-kg-sets; reps-kg-sets...)
     if (typeof seriesData === 'string') {
@@ -112,7 +111,6 @@ export const parseSeries = (seriesData?: any) => {
                 sets: parts[2] || '1'
             };
         });
-        console.log('[parseSeries] Parsed:', result);
         return result;
     }
 
@@ -139,9 +137,9 @@ export const formatSeriesDisplay = (exercise: Exercise) => {
         return parsed.map(f => `${f.kg || 0}kg · ${f.reps || 0}r · ${f.sets || 1}s`).join(' || ');
     }
 
-    const p = exercise.peso || (exercise as any).peso_kg || (exercise as any).weight || (exercise as any).Weight || '0'
-    const r = exercise.reps || (exercise as any).repeticiones || (exercise as any).Reps || (exercise as any).Repeticiones || '0'
-    const s = exercise.series || (exercise as any).series_num || (exercise as any).sets || (exercise as any).Sets || (exercise as any).Series || '1'
+    const p = exercise.peso || (exercise as any).peso_kg || (exercise as any).weight || (exercise as any).Weight || (exercise as any).Peso || (exercise as any)['Peso (kg)'] || (exercise as any)['Peso Ejercicio'] || '0'
+    const r = exercise.reps || (exercise as any).repeticiones || (exercise as any).reps_num || (exercise as any).Reps || (exercise as any).Repeticiones || (exercise as any)['Repeticiones Ejercicio'] || '0'
+    const s = exercise.series || (exercise as any).series_num || (exercise as any).sets || (exercise as any).Sets || (exercise as any).Series || (exercise as any).Blocks || (exercise as any).Bloques || '1'
 
     const displayP = p.toString().toLowerCase().includes('kg') ? p : `${p}kg`
     return `${displayP} · ${r}r · ${s}s`;
@@ -253,9 +251,9 @@ export const normalizeExerciseData = (data: any, isNutrition: boolean): Exercise
         image_url,
         block: data.block || data.bloque,
         orden: data.orden,
-        series: data.series || data.series_num || data.sets || data.Series || data.Sets || '',
-        detalle_series: data.detalle_series || data.series_details || '',
-        reps: data.reps || data.repeticiones || data.Reps || data.Repeticiones || '',
-        peso: data.peso || data.peso_kg || data.weight || data.Weight || ''
+        series: data.series || data.series_num || data.sets || data.Series || data.Sets || data.Blocks || data.Bloques || '',
+        detalle_series: data.detalle_series || data.series_details || data['Detalle Series'] || '',
+        reps: data.reps || data.repeticiones || data.reps_num || data.Reps || data.Repeticiones || data['Repeticiones Ejercicio'] || '',
+        peso: data.peso || data.peso_kg || data.weight || data.Weight || data.Peso || data['Peso (kg)'] || data['Peso Ejercicio'] || ''
     }
 }

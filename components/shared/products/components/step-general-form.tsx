@@ -434,34 +434,76 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
                             </div>
                         </div>
                     )}
-                    <div className="flex items-center gap-3">
-                        <div className={`flex-1 bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.stockQuantity ? 'border-red-500/50' : 'border-white/10'}`}>
-                            <span className="px-3 text-xs font-bold text-[#FF7939] uppercase">Cupos</span>
-                            <Input
-                                type="number"
-                                value={generalForm.stockQuantity}
-                                onChange={(e) => {
-                                    actions.handleStockQuantityChange(e.target.value)
-                                    clearFieldError('stockQuantity')
-                                }}
-                                className="bg-transparent border-none text-right font-bold focus-visible:ring-0 h-10 w-full"
-                                placeholder="0"
-                            />
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between bg-black/40 p-3 rounded-xl border border-white/10">
+                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest pl-1">Tipo de disponibilidad</label>
+                            <div className="flex bg-[#0A0A0A] p-0.5 rounded-lg border border-white/5">
+                                <button
+                                    onClick={() => setGeneralForm(prev => ({ ...prev, capacity: 'ilimitada' }))}
+                                    className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${
+                                        generalForm.capacity === 'ilimitada' ? 'bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20' : 'text-zinc-500 hover:text-white'
+                                    }`}
+                                >
+                                    Ilimitada
+                                </button>
+                                <button
+                                    onClick={() => setGeneralForm(prev => ({ ...prev, capacity: 'limitada' }))}
+                                    className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${
+                                        generalForm.capacity === 'limitada' ? 'bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20' : 'text-zinc-500 hover:text-white'
+                                    }`}
+                                >
+                                    Limitada
+                                </button>
+                            </div>
                         </div>
-                        <span className="text-gray-500 font-bold">×</span>
-                        <div className={`flex-1 bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.price ? 'border-red-500/50' : 'border-white/10'}`}>
-                            <span className="px-2 text-white"><DollarSign className="h-4 w-4" /></span>
-                            <Input
-                                type="number"
-                                value={generalForm.price}
-                                onChange={(e) => {
-                                    setGeneralForm(prev => ({ ...prev, price: e.target.value }))
-                                    clearFieldError('price')
-                                }}
-                                className="bg-transparent border-none font-bold focus-visible:ring-0 h-10 w-full"
-                                placeholder="0.00"
-                            />
-                        </div>
+
+                        {generalForm.capacity === 'limitada' && (
+                            <div className="flex items-center gap-3">
+                                <div className={`flex-1 bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.stockQuantity ? 'border-red-500/50' : 'border-white/10'}`}>
+                                    <span className="px-3 text-xs font-bold text-[#FF7939] uppercase">Cupos</span>
+                                    <Input
+                                        type="number"
+                                        value={generalForm.stockQuantity}
+                                        onChange={(e) => {
+                                            actions.handleStockQuantityChange(e.target.value)
+                                            clearFieldError('stockQuantity')
+                                        }}
+                                        className="bg-transparent border-none text-right font-bold focus-visible:ring-0 h-10 w-full"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <span className="text-gray-500 font-bold">×</span>
+                                <div className={`flex-1 bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.price ? 'border-red-500/50' : 'border-white/10'}`}>
+                                    <span className="px-2 text-white"><DollarSign className="h-4 w-4" /></span>
+                                    <Input
+                                        type="number"
+                                        value={generalForm.price}
+                                        onChange={(e) => {
+                                            setGeneralForm(prev => ({ ...prev, price: e.target.value }))
+                                            clearFieldError('price')
+                                        }}
+                                        className="bg-transparent border-none font-bold focus-visible:ring-0 h-10 w-full"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {generalForm.capacity !== 'limitada' && (
+                            <div className={`w-full bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.price ? 'border-red-500/50' : 'border-white/10'}`}>
+                                <span className="px-2 text-white"><DollarSign className="h-4 w-4" /></span>
+                                <Input
+                                    type="number"
+                                    value={generalForm.price}
+                                    onChange={(e) => {
+                                        setGeneralForm(prev => ({ ...prev, price: e.target.value }))
+                                        clearFieldError('price')
+                                    }}
+                                    className="bg-transparent border-none font-bold focus-visible:ring-0 h-10 w-full"
+                                    placeholder="Precio de venta"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-4 text-center">

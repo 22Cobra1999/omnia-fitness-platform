@@ -1,20 +1,12 @@
-
 import { createClient } from '@supabase/supabase-js'
 
 /**
  * Saves the weekly schedule for a program/fitness product.
- * Handles both English/Spanish day keys and cleaning of obsolete weeks.
  */
 export async function saveWeeklySchedule(supabase: any, activityId: number | string, weeklySchedule: any, category?: string) {
     try {
         const activityIdInt = typeof activityId === 'string' ? parseInt(activityId, 10) : activityId
-        console.log(`📅 Guardando planificación (formato minimalista) para actividad ${activityIdInt} (${category})...`)
-
-        // 1. Validar schedule no vacío
-        if (!weeklySchedule || Object.keys(weeklySchedule).length === 0) {
-            console.log('ℹ️ Schedule vacío, saltando guardado.')
-            return
-        }
+        if (!weeklySchedule || Object.keys(weeklySchedule).length === 0) return
 
         const isNutrition = category === 'nutricion' || category === 'nutrition'
 
@@ -24,11 +16,8 @@ export async function saveWeeklySchedule(supabase: any, activityId: number | str
             if (typeof data === 'string' && data.trim() !== '') {
                 try { dayObj = JSON.parse(data); } catch { return {} }
             }
-
             if (!dayObj || typeof dayObj !== 'object') return {}
-            if (Array.isArray(dayObj)) {
-                dayObj = { ejercicios: dayObj }
-            }
+            if (Array.isArray(dayObj)) dayObj = { ejercicios: dayObj }
 
             const cleanObj: any = {}
             if (dayObj.blockCount !== undefined) cleanObj.blockCount = Number(dayObj.blockCount)
@@ -44,34 +33,39 @@ export async function saveWeeklySchedule(supabase: any, activityId: number | str
                             orden: Number(ex.orden || ex.order || 1),
                             bloque: Number(ex.bloque || ex.block || 1)
                         }
-
+                        item.series = String(ex.series || ex.series_num || ex.sets || ex.Series || ex.Sets || ex.Blocks || ex.Bloques || '1')
+                        item.reps = String(ex.reps || ex.repeticiones || ex.reps_num || ex.Reps || ex.Repeticiones || ex['Repeticiones Ejercicio'] || '0')
+                        item.peso = String(ex.peso || ex.peso_kg || ex.weight || ex.Weight || ex.Peso || ex['Peso (kg)'] || ex['Peso Ejercicio'] || '0')
+                        
+                        if (ex.detalle_series !== undefined) item.detalle_series = String(ex.detalle_series || ex.series_details || '')
+                        if (ex.notas_coach !== undefined) item.notas_coach = String(ex.notas_coach)
+                        if (ex.calorias !== undefined || ex.calories !== undefined) item.calorias = Number(ex.calorias || ex.calories || 0)
+                        if (ex.proteinas !== undefined) item.proteinas = Number(ex.proteinas || 0)
+                        if (ex.carbohidratos !== undefined) item.carbohidratos = Number(ex.carbohidratos || 0)
+                        if (ex.grasas !== undefined) item.grasas = Number(ex.grasas || 0)
+                        if (ex.minutos !== undefined || ex.minutes !== undefined || ex.duration !== undefined) {
+                            item.minutos = Number(ex.minutos || ex.minutes || ex.duration || 0)
+                        }
                         if (isNutrition) {
                             const name = ex.nombre || ex.name || ex.nombre_ejercicio || ex.title
                             if (name) item.nombre = name
                         }
-
                         return item
                     })
             } else {
                 cleanObj.ejercicios = []
             }
-
             return cleanObj
         }
 
-        // Identificar semanas que estamos procesando para limpiar las obsoletas después
         const weekNumbersProcessed: number[] = []
-
-        // 2. Preparar filas para insertar
         const rows: any[] = []
 
         Object.entries(weeklySchedule).forEach(([weekKey, weekData]: [string, any]) => {
             const weekNum = parseInt(weekKey)
             if (isNaN(weekNum)) return
-
             weekNumbersProcessed.push(weekNum)
 
-            // Helper para extraer datos de días, soportando claves numéricas ("1"-"7") o nombres ("lunes")
             const getDayData = (dayName: string, dayIndex: string) => {
                 const dayContent = weekData[dayName] || weekData[dayIndex] || weekData[parseInt(dayIndex)]
                 return dayContent ? cleanDayData(dayContent) : {}
@@ -92,45 +86,24 @@ export async function saveWeeklySchedule(supabase: any, activityId: number | str
         })
 
         if (rows.length > 0) {
-            // 2. Primero eliminamos las semanas que NO están en el nuevo schedule (limpieza)
-            // Esto es más seguro que borrar todo primero si algo falla en el medio
             if (weekNumbersProcessed.length > 0) {
-                const { error: deleteError } = await supabase
+                await supabase
                     .from('planificacion_ejercicios')
                     .delete()
                     .eq('actividad_id', activityIdInt)
                     .not('numero_semana', 'in', `(${weekNumbersProcessed.join(',')})`)
-
-                if (deleteError) {
-                    console.error('❌ Error limpiando semanas obsoletas:', deleteError)
-                }
             }
 
-            // 3. Upsert de las nuevas semanas (insertar o actualizar)
-            // Usamos upsert con onConflict (actividad_id, numero_semana)
             const { error: upsertError } = await supabase
                 .from('planificacion_ejercicios')
                 .upsert(rows, { onConflict: 'actividad_id, numero_semana' })
 
             if (upsertError) {
-                console.error('❌ Error guardando (upsert) planificación:', upsertError)
-                // Intentar fallback a delete-insert si upsert falla por alguna razón exótica
-                console.log('⚠️ Intentando fallback a delete-insert...')
-
                 await supabase.from('planificacion_ejercicios').delete().eq('actividad_id', activityIdInt)
                 const { error: insertError } = await supabase.from('planificacion_ejercicios').insert(rows)
-
-                if (insertError) {
-                    console.error('❌ Error fatal en fallback insert:', insertError)
-                    throw new Error(`Error guardando planificación: ${insertError.message}`)
-                }
+                if (insertError) throw new Error(`Error guardando planificación: ${insertError.message}`)
             }
-
-            console.log(`✅ Planificación guardada correctamente: ${rows.length} semanas para actividad ${activityId}`)
-        } else {
-            console.log(`ℹ️ No hay semanas válidas para guardar en la planificación de ${activityId}`)
         }
-
     } catch (error) {
         console.error('❌ Error crítico en saveWeeklySchedule:', error)
     }
@@ -142,27 +115,17 @@ export async function saveWeeklySchedule(supabase: any, activityId: number | str
 export async function saveProductPeriods(supabase: any, activityId: number | string, periods: number) {
     try {
         const activityIdInt = typeof activityId === 'string' ? parseInt(activityId, 10) : activityId
-
-        // Validar que periods sea un número válido
         const periodsInt = typeof periods === 'string' ? parseInt(periods, 10) : periods
-        if (isNaN(periodsInt) || periodsInt < 1) {
-            console.warn(`⚠️ Periodos inválidos (${periods}) para actividad ${activityId}, saltando guardado.`)
-            return
-        }
+        if (isNaN(periodsInt) || periodsInt < 1) return
 
-        const { error } = await supabase
-            .from('periodos')
+        await supabase
+            .from('activity_periodos')
             .upsert({
                 actividad_id: activityIdInt,
                 cantidad_periodos: periodsInt,
                 fecha_actualizacion: new Date().toISOString()
             }, { onConflict: 'actividad_id' })
 
-        if (error) {
-            console.error('❌ Error guardando periodos:', error)
-        } else {
-            console.log(`✅ Periodos guardados para actividad ${activityIdInt}: ${periodsInt}`)
-        }
     } catch (e) {
         console.error('❌ Excepción guardando periodos:', e)
     }

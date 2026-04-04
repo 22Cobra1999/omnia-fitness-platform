@@ -59,6 +59,8 @@ export default function CoachProfileModal(props: CoachProfileModalProps) {
     coachCertifications,
     isStatsOpen,
     setIsStatsOpen,
+    hasPurchased,
+    instagramUsername,
     handleProductClick,
     handleCloseProductModal,
     handlePurchaseConsultation,
@@ -107,6 +109,8 @@ export default function CoachProfileModal(props: CoachProfileModalProps) {
             <CoachProfileHeader
               coach={coach}
               totalSales={totalSales}
+              hasPurchased={hasPurchased}
+              instagramUsername={instagramUsername}
               onClose={onClose}
             />
 

@@ -42,7 +42,6 @@ export function useWorkshopLogic(editingProduct: any, selectedType: string | nul
             })
 
             // Populate schedule by flattening taller_detalles
-            console.log('🔍 [useWorkshopLogic] Found details:', details?.length, details)
             if (details && Array.isArray(details)) {
                 const flatSchedule: any[] = []
                 const calculateDuration = (start: string, end: string) => {
@@ -106,10 +105,7 @@ export function useWorkshopLogic(editingProduct: any, selectedType: string | nul
                 })
 
                 if (flatSchedule.length > 0) {
-                    console.log('✅ [useWorkshopLogic] Setting flatSchedule:', flatSchedule)
                     setWorkshopSchedule(flatSchedule)
-                } else {
-                    console.warn('⚠️ [useWorkshopLogic] flatSchedule is empty')
                 }
             }
         }

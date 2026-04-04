@@ -79,26 +79,47 @@ export async function POST(request: NextRequest) {
       return null
     }
 
-    let videoMeta =
-      await findReusableVideo()
+    const providedVideoId = formData.get('videoId') as string
+    let videoMeta = null
 
-    if (!videoMeta) {
-      const uploadResult = await bunnyClient.uploadVideoToStream(file, title)
-
-      if (!uploadResult.success) {
-        return NextResponse.json({ 
-          error: uploadResult.error || 'Error subiendo video',
-          success: false 
-        }, { status: 500 })
-      }
-
+    if (providedVideoId && providedVideoId !== 'undefined' && providedVideoId !== 'null' && providedVideoId.length > 5) {
+      // Usar videoId ya creado (Estrategia de guardado instantáneo)
       videoMeta = {
-        streamUrl: bunnyClient.getStreamUrl(uploadResult.videoId!),
-        thumbnailUrl: bunnyClient.getThumbnailUrl(uploadResult.videoId!),
-        videoId: uploadResult.videoId!,
-        libraryId: uploadResult.libraryId,
+        streamUrl: bunnyClient.getStreamUrl(providedVideoId),
+        thumbnailUrl: bunnyClient.getThumbnailUrl(providedVideoId),
+        videoId: providedVideoId,
+        libraryId: parseInt(process.env.BUNNY_STREAM_LIBRARY_ID || '0'),
         fileName: normalizedFileName,
         reused: false
+      }
+      
+      // Realizar solo el PUT
+      const uploadUrl = `https://video.bunnycdn.com/library/${videoMeta.libraryId}/videos/${providedVideoId}`
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'AccessKey': process.env.BUNNY_STREAM_API_KEY || '' },
+        body: file,
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Error subiendo video a Bunny: ${uploadResponse.statusText}`)
+      }
+    } else {
+      // Búsqueda de video reutilizable o creación normal
+      videoMeta = await findReusableVideo()
+      if (!videoMeta) {
+        const uploadResult = await bunnyClient.uploadVideoToStream(file, title)
+        if (!uploadResult.success) {
+          return NextResponse.json({ error: uploadResult.error || 'Error subiendo video', success: false }, { status: 500 })
+        }
+        videoMeta = {
+          streamUrl: bunnyClient.getStreamUrl(uploadResult.videoId!),
+          thumbnailUrl: bunnyClient.getThumbnailUrl(uploadResult.videoId!),
+          videoId: uploadResult.videoId!,
+          libraryId: uploadResult.libraryId,
+          fileName: normalizedFileName,
+          reused: false
+        }
       }
     }
 

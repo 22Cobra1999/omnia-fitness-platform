@@ -72,7 +72,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
     return Number(activity.exercisesCount) || 0
   })()
-  const productCapacity = activity.capacity
+  const productCapacity = activity.capacity ?? (activity as any).stockQuantity ?? (activity as any).available_slots ?? (activity as any).total_slots
   const productModality = activity.modality || (activity as any).type || null
 
   let objetivos = (activity as any).objetivos
@@ -98,9 +98,9 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
   }
 
-  const capacityDisplay = String(productCapacity) === '∞' || String(productCapacity).toLowerCase() === 'ilimitada' || String(productCapacity).toLowerCase() === 'unlimited' || (typeof productCapacity === 'number' && productCapacity > 9999)
+  const capacityDisplay = (String(productCapacity) === '∞' || String(productCapacity) === 'Ilimitada' || String(productCapacity) === 'Infinity' || (typeof productCapacity === 'number' && productCapacity > 9999))
     ? '∞'
-    : (productCapacity ? parseInt(productCapacity.toString()) : null)
+    : (productCapacity !== undefined && productCapacity !== null && productCapacity !== '' && !isNaN(parseInt(productCapacity.toString())) ? parseInt(productCapacity.toString()) : null)
 
   const getValidImageUrl = (activity: Activity) => {
     const imageUrl = activity.media?.image_url ||
@@ -200,7 +200,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       case 'online': return <Globe className="w-5 h-5" />
       case 'presencial': return <MapPin className="w-5 h-5" />
       case 'híbrido':
-      case 'hibrido': return <Combine className="w-5 h-5" />
+      case 'hibrido': return (
+        <div className="flex items-center gap-0.5">
+          <Globe className="w-4 h-4 opacity-70" />
+          <span className="text-[10px] font-black text-white/20">/</span>
+          <MapPin className="w-4 h-4 opacity-90" />
+        </div>
+      )
       default: return <Globe className="w-5 h-5" />
     }
   }
@@ -494,10 +500,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                   {activity.items_unicos ?? uniqueExercises}
                 </span>
               </div>
-              {capacityDisplay !== '∞' && (
-                <div className="flex items-center gap-1.5">
+              {capacityDisplay !== null && (
+                <div className="flex items-center gap-1.5" title="Cupos">
                   <Users className="w-5 h-5 text-[#FF7939]/80" />
-                  <span className="text-sm font-black text-zinc-300 tracking-tight">{capacityDisplay || '-'}</span>
+                  <span className="text-sm font-black text-zinc-300 tracking-tight">{capacityDisplay}</span>
                 </div>
               )}
             </div>

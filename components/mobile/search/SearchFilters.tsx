@@ -95,6 +95,14 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     </select>
                     <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" />
                 </div>
+
+                {selectedCategory === 'all' && (
+                    <div className="absolute left-4 -bottom-4 animate-pulse">
+                        <span className="text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.1em]">
+                             Selecciona FIT o NUTRI para filtrar
+                        </span>
+                    </div>
+                )}
             </div>
 
             {selectedObjectives.length > 0 && (

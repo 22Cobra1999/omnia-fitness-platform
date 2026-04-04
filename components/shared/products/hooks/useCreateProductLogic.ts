@@ -85,16 +85,6 @@ export function useCreateProductLogic({
         }
     }, [editingProduct?.id])
 
-    useEffect(() => {
-        console.log('🔍 [useCreateProductLogic] Init:', {
-            category: editingProduct?.category,
-            categoria: editingProduct?.categoria,
-            derivedProductCategory: productCategory,
-            isNutritionCheck: (editingProduct?.categoria === 'nutricion' || editingProduct?.categoria === 'nutrition')
-        })
-    }, [editingProduct, productCategory])
-
-
     const {
         currentStep,
         setCurrentStep,
@@ -172,6 +162,7 @@ export function useCreateProductLogic({
         uploadingPdf, selectedTopics, setSelectedTopics,
         inlineFileInputRef, isInlineUploading, setIsInlineUploading, uploadProgress, setUploadProgress,
         pendingImageFile, setPendingImageFile, pendingVideoFile, setPendingVideoFile,
+        mediaUploadUrl, isMediaUploading, mediaUploadProgress,
         loadInlineMedia, handleInlineUploadChange, handleMediaSelection,
         handlePdfSelectionChoice, handlePdfSelected: handlePdfSelectedBase
     } = useProductMediaLogic()
@@ -238,7 +229,7 @@ export function useCreateProductLogic({
 
     // Submission Logic
     const {
-        isPublishing, setIsPublishing, publishProgress, setPublishProgress, validationErrors, fieldErrors,
+        isPublishing, setIsPublishing, publishProgress, publishPercentage, setPublishProgress, validationErrors, fieldErrors,
         setValidationErrors, setFieldErrors, handlePublishProduct: submitProduct, clearFieldError
     } = useProductSubmission()
 
@@ -269,7 +260,6 @@ export function useCreateProductLogic({
     // --- HANDLERS WRAPPERS ---
 
     const handlePublishProduct = () => {
-        console.log('🏁 [useCreateProductLogic] handlePublishProduct triggered', { selectedType })
         if (!selectedType) {
             console.error('❌ [useCreateProductLogic] No selectedType found')
             return
@@ -291,6 +281,8 @@ export function useCreateProductLogic({
             weeklyStats,
             pendingImageFile,
             pendingVideoFile,
+            mediaUploadUrl,
+            isMediaUploading,
             planType: planType as PlanType,
             onClose,
             setCurrentStep
@@ -343,7 +335,7 @@ export function useCreateProductLogic({
         const realMediaType = file.type.startsWith('video/') ? 'video' : 'image'
         if (realMediaType === 'video') {
             const localPreviewUrl = URL.createObjectURL(file)
-            setGeneralForm(prev => ({ ...prev, videoUrl: localPreviewUrl, image: null }))
+            setGeneralForm(prev => ({ ...prev, videoUrl: localPreviewUrl }))
         } else {
             const localImageUrl = URL.createObjectURL(file)
             setGeneralForm(prev => ({ ...prev, image: { url: localImageUrl } }))
@@ -425,6 +417,7 @@ export function useCreateProductLogic({
         showMediaSourceModal, setShowMediaSourceModal,
         pendingVideoFile, setPendingVideoFile,
         pendingImageFile, setPendingImageFile,
+        mediaUploadUrl, isMediaUploading, mediaUploadProgress,
         inlineFileInputRef,
 
         // PDF State
@@ -475,7 +468,7 @@ export function useCreateProductLogic({
         documentMaterial, setDocumentMaterial,
         workshopSchedule, setWorkshopSchedule,
         isPublishing, setIsPublishing,
-        publishProgress, setPublishProgress,
+        publishProgress, publishPercentage, setPublishProgress,
         validationErrors, setValidationErrors,
         fieldErrors, setFieldErrors,
 

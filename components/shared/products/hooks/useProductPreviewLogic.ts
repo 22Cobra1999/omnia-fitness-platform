@@ -56,7 +56,10 @@ export const useProductPreviewLogic = ({ product, onPurchase, csvData }: Product
 
         // TALLERES
         if (product.type === 'workshop') {
-            if (product.capacity) details.push({ label: 'Capacidad', value: `${product.capacity} personas`, icon: Users, color: 'text-[#FF7939]' })
+            if (product.capacity !== undefined && product.capacity !== null) {
+                const capacityVal = product.capacity >= 9999 ? '∞' : product.capacity
+                details.push({ label: 'Cupos', value: `${capacityVal} personas`, icon: Users, color: 'text-[#FF7939]' })
+            }
             if (product.sessionsPerClient) details.push({ label: 'Sesiones/cliente', value: `${product.sessionsPerClient}`, icon: Clock, color: 'text-[#FF7939]' })
             if (product.workshopType) details.push({ label: 'Tipo', value: product.workshopType, icon: Target, color: 'text-[#FF7939]' })
             if (product.modality) details.push({ label: 'Modalidad', value: product.modality, icon: MapPin, color: 'text-[#FF7939]' })
@@ -82,6 +85,10 @@ export const useProductPreviewLogic = ({ product, onPurchase, csvData }: Product
             }
 
             if (product.pages) details.push({ label: 'Extensión', value: product.pages, icon: BookOpen, color: 'text-[#FF7939]' })
+            if (product.capacity !== undefined && product.capacity !== null) {
+                const capacityVal = product.capacity >= 9999 ? '∞' : product.capacity
+                details.push({ label: 'Cupos', value: `${capacityVal} personas`, icon: Users, color: 'text-[#FF7939]' })
+            }
             if (product.modality && product.type !== 'program') details.push({ label: 'Modalidad', value: product.modality, icon: MapPin, color: 'text-[#FF7939]' })
         }
 

@@ -17,6 +17,7 @@ interface CoachPersonalInfoSectionProps {
     total_sales?: number | null
     experience_years?: number | string | null
     category?: 'fitness' | 'nutrition' | 'general' | string | null
+    instagram_username?: string | null
   }
   variant?: 'profile' | 'modal'
   showEditButton?: boolean
@@ -55,19 +56,36 @@ export function CoachPersonalInfoSection({
     // Variante para modal (más compacta, sin fondo difuminado)
     return (
       <div className="relative p-4 pb-2">
-        {/* Rating y Ventas en esquina superior izquierda */}
+        {/* Rating Badge */}
         <div className="absolute top-3 left-4 z-20">
           <div className="flex items-center space-x-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
             <Star className="h-3 w-3 text-[#FF7939] fill-[#FF7939]" />
             <span className="text-[10px] font-black text-white italic">
               {coach.rating?.toFixed(1) || "0.0"} 
-              <span className="ml-1 text-white/40 font-bold">({coach.total_sales || 0})</span>
             </span>
           </div>
         </div>
 
-        {/* Contenido del header */}
         <div className="relative z-10 text-center">
+          {/* Instagram clickable above photo */}
+          <div className="h-6 mb-2">
+            {coach.instagram_username && (
+              <a 
+                href={`https://instagram.com/${coach.instagram_username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[10px] font-black text-white/40 hover:text-[#FF7939] transition-colors uppercase tracking-widest italic"
+              >
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center scale-90">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                    </svg>
+                </div>
+                @{coach.instagram_username}
+              </a>
+            )}
+          </div>
+
           {/* Avatar con acciones laterales */}
           <div className="flex justify-center items-center gap-6 mb-3">
             {leftAction && (
@@ -96,45 +114,48 @@ export function CoachPersonalInfoSection({
           </div>
 
           {/* Nombre */}
-          <h1 className="text-xl font-black text-white mb-2 tracking-tight italic uppercase">
+          <h1 className="text-xl font-black text-white mb-2 tracking-tighter italic uppercase scale-y-90">
             {displayName}
           </h1>
 
-          {/* Subtitle: Categoría, Años, Ventas, Ubicación */}
-          <div className="flex flex-col items-center gap-2 mb-4">
-               {/* Primera fila: Ubicación y Experiencia */}
-               <div className="flex items-center justify-center gap-3 text-[10px] uppercase font-black italic tracking-widest text-white/50">
-                    {coach.location && (
-                        <div className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-[#FF7939]" />
-                            <span>{coach.location}</span>
-                        </div>
-                    )}
-                    {coach.experience_years !== null && coach.experience_years !== undefined && (
-                        <div className="flex items-center gap-1.5">
-                            <Award className="w-3 h-3 text-[#FF7939]" />
-                            <span>{coach.experience_years} {Number(coach.experience_years) === 1 ? 'AÑO' : 'AÑOS'} EXP.</span>
-                        </div>
-                    )}
-               </div>
+          {/* Subtitle Row - COMBINED */}
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-4 px-2">
+               {/* Categoría Logo ONLY - un poco más grande */}
+               {coach.category && (
+                    <div className="w-6 h-6 rounded-full bg-[#FF7939]/20 flex items-center justify-center p-1 border border-[#FF7939]/20">
+                        {coach.category === 'fitness' ? (
+                            <Zap className="w-full h-full text-[#FF7939]" fill="currentColor" />
+                        ) : coach.category === 'nutrition' ? (
+                            <Utensils className="w-full h-full text-green-500" />
+                        ) : (
+                            <Scale className="w-full h-full text-blue-400" />
+                        )}
+                    </div>
+               )}
 
-               {/* Segunda fila: Burbuja de Categoría */}
-               <div className="flex items-center gap-2 mt-1">
-                   {coach.category && (
-                       <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
-                           <div className="w-4 h-4 rounded-full bg-[#FF7939]/20 flex items-center justify-center">
-                               {coach.category === 'fitness' ? (
-                                   <Zap className="w-2.5 h-2.5 text-[#FF7939]" fill="currentColor" />
-                               ) : coach.category === 'nutrition' ? (
-                                   <Utensils className="w-2.5 h-2.5 text-green-500" />
-                               ) : (
-                                   <Scale className="w-2.5 h-2.5 text-blue-400" />
-                               )}
-                           </div>
-                           <span className="text-[9px] font-black text-white/80 uppercase italic tracking-tighter">Coach {coach.category}</span>
-                       </div>
-                   )}
-               </div>
+               {/* Ubicación */}
+               {coach.location && coach.location !== "No especificada" && (
+                    <div className="flex items-center gap-1 text-[10px] font-black text-white/50 uppercase italic tracking-wider">
+                        <MapPin className="w-3 h-3 text-[#FF7939]" />
+                        <span>{coach.location}</span>
+                    </div>
+               )}
+
+               {/* Experiencia - Mayor a 0 */}
+               {coach.experience_years !== null && Number(coach.experience_years) > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-black text-white/50 uppercase italic tracking-wider">
+                        <Award className="w-3 h-3 text-[#FF7939]" />
+                        <span>{coach.experience_years} {Number(coach.experience_years) === 1 ? 'AÑO' : 'AÑOS'} EXP.</span>
+                    </div>
+               )}
+
+               {/* Ventas con $ */}
+               {coach.total_sales !== null && (
+                   <div className="flex items-center gap-1 text-[10px] font-black text-white/50 uppercase italic tracking-wider">
+                       <span className="text-[#FF7939]">$</span>
+                       <span>{coach.total_sales} ventas</span>
+                   </div>
+               )}
           </div>
 
           {/* Bio */}

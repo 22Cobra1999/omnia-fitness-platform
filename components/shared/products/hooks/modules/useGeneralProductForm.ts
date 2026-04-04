@@ -61,7 +61,7 @@ export function useGeneralProductForm(
                 is_paused: !!editingProduct.is_paused,
                 objetivos: splitSemicolonList(editingProduct.objetivos),
                 restricciones: splitSemicolonList(editingProduct.restricciones),
-                capacity: editingProduct.capacity ? 'limitada' : 'ilimitada',
+                capacity: (editingProduct.capacity && editingProduct.capacity < 999999) ? 'limitada' : 'ilimitada',
                 stockQuantity: stockQuantity,
                 dietType: editingProduct.diet_type || '',
                 dias_acceso: editingProduct.dias_acceso || 30,
