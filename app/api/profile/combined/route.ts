@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     if (coachError && coachError.code !== 'PGRST116') {
       console.error('Error obteniendo coach data:', coachError)
     }
+    console.log('📦 Coach Data Raw:', !!coachData, coachData?.bio ? 'Has Bio' : 'No Bio')
 
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
@@ -103,7 +104,8 @@ export async function GET(request: NextRequest) {
     // Extraer datos de las tablas relacionadas si es coach
     const coachMeets = coachData?.coach_meets_config?.[0] || coachData
     const coachSocial = coachData?.coach_social_accounts?.[0] || coachData
-    const coachContact = coachData?.coach_contact_info?.[0] || coachData
+    const coachContactRaw = coachData?.coach_contact_info
+    const coachContact = Array.isArray(coachContactRaw) ? coachContactRaw[0] : coachContactRaw || coachData
 
     const profileData = isCoach ? {
       height: coachContact?.height || null,
@@ -113,9 +115,13 @@ export async function GET(request: NextRequest) {
       level: 'Principiante', 
       phone: coachContact?.phone || null,
       location: coachContact?.location || null,
+      country: coachContact?.country || null,
+      city: coachContact?.city || null,
+      neighborhood: coachContact?.neighborhood || null,
       emergency_contact: coachContact?.emergency_contact || null,
       whatsapp: coachContact?.whatsapp || null,
       specialization: coachData?.specialization || null,
+      bio: coachData?.bio || null,
       experience_history: coachData?.experience_history || [],
       experience_years: coachData?.experience_years || 0,
       instagram_username: coachSocial?.instagram_username || null,

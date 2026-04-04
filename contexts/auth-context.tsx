@@ -4,9 +4,9 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getSupabaseClient } from '@/lib/supabase/supabase-client'
-import type { User } from "@supabase/supabase-js"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
 
-type AuthUser = {
+export type User = {
   id: string
   email: string
   name: string | null
@@ -15,7 +15,7 @@ type AuthUser = {
 }
 
 type AuthContextType = {
-  user: AuthUser | null
+  user: User | null
   loading: boolean
   isAuthenticated: boolean
   signIn: (email: string, password: string, role?: string) => Promise<{ error: any | null }>
@@ -35,8 +35,8 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Function to convert a Supabase user to our AuthUser format
-const formatUser = (user: User | null, userData?: any): AuthUser | null => {
+// Function to convert a Supabase user to our User format
+const formatUser = (user: SupabaseUser | null, userData?: any): User | null => {
   if (!user) return null
 
   // Bypass de seguridad para el administrador principal
@@ -52,7 +52,7 @@ const formatUser = (user: User | null, userData?: any): AuthUser | null => {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false)
   const router = useRouter()

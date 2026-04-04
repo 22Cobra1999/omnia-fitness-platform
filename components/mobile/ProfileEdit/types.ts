@@ -28,6 +28,7 @@ export interface ProfileData {
         start_date: string
         end_date: string | null
         is_current?: boolean
+        certificate_url?: string
     }[]
     country?: string
     city?: string

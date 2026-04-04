@@ -50,6 +50,9 @@ export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
         }
     }, [history])
 
+    const [isUploading, setIsUploading] = useState(false)
+    const [certFile, setCertFile] = useState<File | null>(null)
+
     const toggleSpecialty = (spec: string) => {
         if (specs.includes(spec)) {
             onChange({ specialization: specs.filter(s => s !== spec).join(', ') })
@@ -58,10 +61,47 @@ export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
         }
     }
 
-    const addExperience = () => {
+    const handleCertificateUpload = async () => {
+        if (!certFile) return null;
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', certFile);
+            const response = await fetch('/api/profile/upload-certificate', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (result.success && result.url) {
+                return result.url;
+            } else {
+                throw new Error(result.error || 'Error al subir certificado');
+            }
+        } catch (error) {
+            console.error('Error uploading certificate:', error);
+            return null;
+        } finally {
+            setIsUploading(false);
+        }
+    }
+
+    const addExperience = async () => {
         if (!newExp.title || !newExp.start_date) return
-        onChange({ experience_history: [...history, { ...newExp, end_date: newExp.end_date || null }] })
+        
+        let certificateUrl = "";
+        if (certFile) {
+            certificateUrl = await handleCertificateUpload() || "";
+        }
+        
+        onChange({ 
+            experience_history: [...history, { 
+                ...newExp, 
+                end_date: newExp.end_date || null,
+                certificate_url: certificateUrl 
+            }] 
+        })
         setNewExp({ title: '', start_date: '', end_date: '', is_current: false })
+        setCertFile(null)
     }
 
     const removeExperience = (index: number) => {
@@ -77,7 +117,10 @@ export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
                     <Textarea
                         id="bio"
                         value={data.bio}
-                        onChange={(e) => onChange({ bio: e.target.value })}
+                        onChange={(e) => {
+                            console.log('📝 BIO CHANGE:', e.target.value);
+                            onChange({ bio: e.target.value });
+                        }}
                         className="bg-zinc-900/50 border-white/5 rounded-2xl px-4 py-4 h-32 text-white focus:ring-[#FF7939]/20 focus:border-[#FF7939]/30 transition-all placeholder:text-gray-700 text-sm italic"
                         placeholder="Tu filosofía de entrenamiento..."
                     />
@@ -164,9 +207,16 @@ export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
                             <div key={i} className="bg-white/5 border border-white/5 rounded-xl px-3 py-2 flex items-center justify-between group">
                                 <div className="flex items-center gap-3">
                                      <Briefcase className="w-3 h-3 text-white/20" />
-                                     <div>
+                                     <div className="flex flex-col">
                                         <p className="text-[11px] font-black text-white/80 uppercase italic tracking-tighter leading-none">{item.title}</p>
-                                        <p className="text-[8px] font-mono text-white/20 leading-none mt-1 uppercase tracking-widest">{new Date(item.start_date).getFullYear()} - {item.is_current ? 'PRESENTE' : (item.end_date ? new Date(item.end_date).getFullYear() : '---')}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <p className="text-[8px] font-mono text-white/20 leading-none uppercase tracking-widest">{new Date(item.start_date).getFullYear()} - {item.is_current ? 'PRESENTE' : (item.end_date ? new Date(item.end_date).getFullYear() : '---')}</p>
+                                            {item.certificate_url && (
+                                                <a href={item.certificate_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[7px] font-black text-[#FF7939] uppercase bg-[#FF7939]/10 px-1 rounded">
+                                                    PDF
+                                                </a>
+                                            )}
+                                        </div>
                                      </div>
                                 </div>
                                 <button onClick={() => removeExperience(i)} className="p-1.5 text-red-500/20 hover:text-red-500 transition-all">
@@ -219,13 +269,39 @@ export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
                             <label htmlFor="is_current" className="text-[9px] font-bold text-white/40 uppercase tracking-widest cursor-pointer">Sigo trabajando aquí</label>
                         </div>
 
+                        {/* Certificate Upload Field */}
+                        <div className="relative group">
+                            <input 
+                                type="file" 
+                                id="cert_pdf"
+                                accept="application/pdf"
+                                onChange={e => setCertFile(e.target.files?.[0] || null)}
+                                className="hidden"
+                            />
+                            <label 
+                                htmlFor="cert_pdf"
+                                className="flex items-center justify-between gap-3 w-full h-8 bg-zinc-900 border border-white/5 rounded-lg px-3 cursor-pointer hover:border-[#FF7939]/30 transition-all overflow-hidden"
+                            >
+                                <span className="text-[9px] font-bold text-white/40 uppercase truncate">
+                                    {certFile ? certFile.name : "+ Adjuntar PDF de certificado"}
+                                </span>
+                                {certFile ? (
+                                    <button type="button" onClick={(e) => { e.preventDefault(); setCertFile(null); }} className="text-red-500 hover:scale-110 transition-transform">
+                                        <Trash2 className="w-3 h-3" />
+                                    </button>
+                                ) : (
+                                    <GraduationCap className="w-3.4 h-3.5 text-white/20" />
+                                )}
+                            </label>
+                        </div>
+
                         <button 
                             type="button"
                             onClick={addExperience}
-                            disabled={!newExp.title || !newExp.start_date}
+                            disabled={!newExp.title || !newExp.start_date || isUploading}
                             className="w-full h-8 bg-[#FF7939]/10 text-[#FF7939] hover:bg-[#FF7939] hover:text-black transition-all rounded-lg text-[9px] font-black uppercase tracking-widest disabled:opacity-30 border border-[#FF7939]/20"
                         >
-                            + INTEGRAR ACADEMIA
+                            {isUploading ? 'CARGANDO...' : '+ INTEGRAR ACADEMIA'}
                         </button>
                     </div>
                 </div>

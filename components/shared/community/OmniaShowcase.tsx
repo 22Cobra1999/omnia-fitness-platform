@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform, MotionValue, useMotionValue } from 'framer-motion'
-import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, ChevronLeft, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, ArrowDown, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Plus, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal, ShoppingBag, BookOpen, Book, RotateCcw, Printer, MessageCircle } from 'lucide-react'
+import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, ChevronLeft, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, ArrowDown, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Plus, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal, ShoppingBag, BookOpen, Book, RotateCcw, Printer, MessageCircle, CreditCard } from 'lucide-react'
 import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept, ShowcaseActivityRings, ShowcaseWeeklyMiniRings, ShowcaseTripleMiniRing } from './ShowcaseComponents'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/utils'
@@ -496,8 +496,8 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
 
                     {/* Fixed 2-Column Product Display on all screen sizes - Maximized presence (+20% scale feel) */}
                     <div className="grid grid-cols-2 gap-2 lg:gap-6 items-stretch min-h-[640px] lg:min-h-[440px] relative px-1">
-                        {/* Fake Floating Comments (Desktop only) - Positioned in the void between columns */}
-                        <div className="hidden lg:block absolute top-[10%] left-[32%] w-60 h-full z-20 pointer-events-none">
+                        {/* Fake Floating Comments (Desktop only) - Narrowed and shifted to avoid text overlap */}
+                        <div className="hidden lg:block absolute top-0 left-[18%] xl:left-[22%] w-48 h-full z-20 pointer-events-none">
                             <AnimatePresence mode="popLayout">
                                 <motion.div
                                     key={`${filterType}-${filterCategory}`}
@@ -509,14 +509,16 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
                                         exit: { opacity: 0, transition: { duration: 0.2 } }
                                     }}
-                                    className="relative w-full h-[600px]"
+                                    className="relative w-full h-[600px] py-16"
                                 >
                                     {(() => {
                                         const comments = filterCategory === 'nutricion'
-                                            ? [{ text: "¡Súper rico!", x: -40, y: 0 }, { text: "Fácil de hacer", x: 20, y: 140 }, { text: "10/10 sano", x: -30, y: 280 }]
+                                            ? [{ text: "¡Súper rico!", x: 0, y: 0 }, { text: "Fácil de hacer", x: 10, y: 140 }, { text: "10/10 sano", x: -10, y: 280 }]
                                             : filterType === 'workshop'
-                                                ? [{ text: "Clase increíble", x: -40, y: 0 }, { text: "Maru es lo más", x: 20, y: 140 }, { text: "Pura paz", x: -30, y: 280 }]
-                                                : [{ text: "¡Increíble!", x: -40, y: 0 }, { text: "10/10 brutal", x: 20, y: 140 }, { text: "Pura calidad", x: -30, y: 280 }];
+                                                ? [{ text: "Clase increíble", x: -10, y: 0 }, { text: "Maru es lo más", x: 20, y: 140 }, { text: "Pura paz", x: 0, y: 280 }]
+                                                : filterType === 'document'
+                                                    ? [{ text: "¡Increíble!", x: 10, y: 0 }, { text: "10/10 brutal", x: -10, y: 140 }, { text: "Pura calidad", x: 10, y: 280 }]
+                                                    : [{ text: "Súper recomendado", x: -15, y: 0 }, { text: "Me encantó", x: 10, y: 140 }, { text: "Brutal", x: -5, y: 280 }];
 
                                         return comments.map((c, i) => (
                                             <motion.div
@@ -526,12 +528,12 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                     visible: { opacity: 1, scale: 1, x: c.x, transition: { type: "spring", bounce: 0.4 } }
                                                 }}
                                                 style={{ top: c.y }}
-                                                className="absolute bg-white/[0.07] backdrop-blur-xl rounded-3xl p-5 border border-white/10 shadow-2xl"
+                                                className="absolute bg-white/[0.08] backdrop-blur-2xl rounded-[1.8rem] p-4 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-white/10 w-full"
                                             >
-                                                <div className="flex gap-1 text-[#FF7939] mb-1">
-                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={14} fill="currentColor" />)}
+                                                <div className="flex gap-0.5 text-[#FF7939] mb-1">
+                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={11} fill="currentColor" />)}
                                                 </div>
-                                                <p className="text-[14px] text-white font-black italic">"{c.text}"</p>
+                                                <p className="text-[13px] text-white font-black italic leading-tight">"{c.text}"</p>
                                             </motion.div>
                                         ));
                                     })()}
@@ -560,7 +562,11 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             className="h-full sm:scale-100 mobile:scale-[1.1] origin-top-left"
                                         >
                                             <ActivityCard
-                                                activity={act}
+                                                activity={{
+                                                    ...act,
+                                                    modality: modality,
+                                                    difficulty: intensity === 1 ? 'beginner' : intensity === 2 ? 'intermediate' : 'advanced'
+                                                }}
                                                 size="small"
                                                 variant="blurred"
                                             />
@@ -592,13 +598,23 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                 : 'Transformación total.'}
                                     </p>
                                 </div>
+                                <div className="mt-2 text-left">
+                                    <p className="text-[12px] text-white/40 leading-relaxed italic font-medium">
+                                        {filterType === 'program' 
+                                            ? "Un sistema diseñado para transformar tu físico con progresión real. Incluye videos, planificación estructurada y soporte directo para asegurar tus resultados."
+                                            : filterType === 'workshop'
+                                                ? "Experiencia intensiva y práctica para refinar tu técnica. Sesiones en vivo, correcciones en tiempo real y una comunidad enfocada en el alto rendimiento."
+                                                : "Recurso digital especializado con toda la base científica y práctica. Guías paso a paso, plantillas y herramientas listas para aplicar."
+                                        }
+                                    </p>
+                                </div>
                             </div>
 
                             {/* Meet Feature (Compact Single Row) */}
                             <div className="pt-2 border-t border-white/5">
                                 <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/5">
                                     <div className="flex items-center gap-1.5">
-                                        <Video size={12} className="text-[#FF7939]" />
+                                        <Video size={12} className={cn(filterCategory === 'fitness' ? "text-[#FF7939]" : "text-orange-300")} />
                                         <span className="text-[9px] font-black text-white uppercase italic tracking-wider">Meet Incluida</span>
                                     </div>
                                     <span className="text-[8px] font-bold text-white/10 uppercase italic">Opcional</span>
@@ -683,7 +699,9 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             ? ["¡Súper rico!", "Fácil de hacer", "10/10 sano"]
                                             : filterType === 'workshop'
                                                 ? ["Clase increíble", "Maru es lo más", "Pura paz"]
-                                                : ["¡Me encantó!", "Súper claro", "Brutal 10/10"];
+                                                : filterType === 'document'
+                                                    ? ["¡Increíble!", "10/10 brutal", "Pura calidad"]
+                                                    : ["¡Me encantó!", "Súper claro", "Brutal 10/10"];
 
                                         // Stagger logic based on filter to vary horizontal positions - COMPACT
                                         const offsets = filterType === 'workshop' ? ['ml-8', 'ml-0', 'ml-4'] : ['ml-0', 'ml-12', 'ml-2'];
@@ -1470,8 +1488,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
 
                                                                 {/* Bio */}
                                                                 <div className="text-center mb-2 px-1">
-                                                                    <p className="text-white text-[11px] leading-tight font-medium">
-                                                                        Profesional de futbol, preparador fisico de Boca Juniors.
+                                                                    <p className="text-white text-[11px] leading-tight font-[700] italic">
+                                                                        "Apasionado por la transformación física y el rendimiento. Mi método combina ciencia deportiva con motivación real para llevarte a tu mejor versión."
+                                                                    </p>
+                                                                </div>
+                                                                <div className="text-left mb-3 px-3 bg-white/[0.03] border border-white/5 p-2.5 rounded-2xl">
+                                                                    <p className="text-white/40 text-[9px] leading-relaxed font-bold uppercase italic tracking-tighter">
+                                                                        Especialista en alto rendimiento con +5 años de experiencia. Ex-preparador físico de Boca Juniors. Enfoque 100% en resultados sostenibles y técnica perfecta.
                                                                     </p>
                                                                 </div>
 
@@ -1542,6 +1565,49 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                         </div>
                                                     </div>
                                                 </PhoneMockup>
+
+                                                {/* API Connection Badges (Task-005) - Real Logos & Better Spacing */}
+                                                <div className={cn(
+                                                    "hidden lg:flex flex-col gap-8 absolute -right-48 xl:-right-64 top-1/4 z-30 transition-all duration-700",
+                                                    coachMockupType === 'profile' ? "opacity-100 translate-x-0" : "opacity-0 translate-x-20"
+                                                )}>
+                                                    {[
+                                                        { 
+                                                            label: 'Google Calendar', 
+                                                            img: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg', 
+                                                            color: '#4285F4', 
+                                                            text: 'Agenda Sincronizada' 
+                                                        },
+                                                        { 
+                                                            label: 'Instagram', 
+                                                            img: 'https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg', 
+                                                            color: '#E1306C', 
+                                                            text: '@francopomati' 
+                                                        },
+                                                        { 
+                                                            label: 'Mercado Pago', 
+                                                            img: 'https://seeklogo.com/images/M/mercado-pago-logo-1A51111E9B-seeklogo.com.png', 
+                                                            color: '#009EE3', 
+                                                            text: 'Cobros Directos' 
+                                                        }
+                                                    ].map((api, idx) => (
+                                                        <motion.div
+                                                            key={api.label}
+                                                            initial={{ opacity: 0, x: 40 }}
+                                                            animate={coachMockupType === 'profile' ? { opacity: 1, x: 0 } : {}}
+                                                            transition={{ delay: 0.3 + idx * 0.15, type: "spring", stiffness: 100 }}
+                                                            className="flex items-center gap-4 bg-[#121212]/80 backdrop-blur-3xl p-4 px-6 rounded-[2.5rem] border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.5)] group hover:border-[#FF7939]/30 transition-all min-w-[240px]"
+                                                        >
+                                                            <div className="w-11 h-11 rounded-2xl bg-white/5 p-2.5 flex items-center justify-center group-hover:scale-110 transition-transform duration-500 overflow-hidden">
+                                                                <img src={api.img} alt={api.label} className="w-full h-full object-contain" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">{api.label}</span>
+                                                                <span className="text-[12px] font-[1000] text-white italic uppercase tracking-tighter leading-none">{api.text}</span>
+                                                            </div>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

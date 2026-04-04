@@ -13,6 +13,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const formData = await request.formData()
+    console.log('📥 RECEIVED FORM DATA KEYS:', Array.from(formData.keys()))
 
     const coachUpdates: any = {}
     const meetsUpdates: any = { id: user.id }
@@ -59,29 +60,65 @@ export async function PUT(request: NextRequest) {
     if (formData.has('weight')) { contactUpdates.weight = parseFloat(formData.get('weight')!.toString()); hasContact = true; }
     if (formData.has('birth_date')) { contactUpdates.birth_date = formData.get('birth_date') || null; hasContact = true; }
     if (formData.has('gender')) { contactUpdates.gender = formData.get('gender') || null; hasContact = true; }
+    if (formData.has('country')) { contactUpdates.country = formData.get('country')?.toString() || null; hasContact = true; }
+    if (formData.has('city')) { contactUpdates.city = formData.get('city')?.toString() || null; hasContact = true; }
+    if (formData.has('neighborhood')) { contactUpdates.neighborhood = formData.get('neighborhood')?.toString() || null; hasContact = true; }
 
-    // Ejecutar actualizaciones en paralelo
-    const promises = []
+    console.log('📝 Saving Coach Info:', { coachUpdates, contactUpdates, hasContact })
+ 
+     // Ejecutar actualizaciones en paralelo
+     const promises = []
     
+    console.log('📝 FINAL PRE-SAVE OBJECTS:', { 
+      coachUpdates: Object.keys(coachUpdates),
+      contactUpdates 
+    });
+
     if (Object.keys(coachUpdates).length > 0) {
       promises.push(supabase.from('coaches').update(coachUpdates).eq('id', user.id).select().single())
     }
     if (hasMeets) promises.push(supabase.from('coach_meets_config').upsert(meetsUpdates).select().maybeSingle())
     if (hasSocial) promises.push(supabase.from('coach_social_accounts').upsert(socialUpdates).select().maybeSingle())
-    if (hasContact) promises.push(supabase.from('coach_contact_info').upsert(contactUpdates).select().maybeSingle())
-
-    const results = await Promise.all(promises)
-    const coachResult = results[0]
-
-    if (coachResult?.error) {
-      console.error('Error actualizando coach:', coachResult.error)
-      return NextResponse.json({ success: false, error: 'Error al actualizar el perfil' }, { status: 500 })
+    if (hasContact) {
+      console.log('📝 EXECUTE UPSERT coach_contact_info:', contactUpdates);
+      promises.push(supabase.from('coach_contact_info').upsert(contactUpdates).select().maybeSingle())
     }
 
-    const finalCoach = coachResult?.data || {}
-    const finalMeets = results.find(r => r.data && 'cafe' in r.data)?.data || {}
-    const finalSocial = results.find(r => r.data && 'instagram_username' in r.data)?.data || {}
-    const finalContact = results.find(r => r.data && 'whatsapp' in r.data)?.data || {}
+    const results = await Promise.all(promises)
+    results.forEach((r, i) => console.log(`📡 DB OP ${i} RESULT:`, { success: !r.error, dataKeys: r.data ? Object.keys(Array.isArray(r.data) ? r.data[0] : r.data) : 'no data', error: r.error }));
+
+    // Extraer datos con mayor precaución
+    let finalCoach: any = {}
+    let finalMeets: any = {}
+    let finalSocial: any = {}
+    let finalContact: any = {}
+
+    results.forEach((res, idx) => {
+      if (!res.data) return
+      const d = Array.isArray(res.data) ? res.data[0] : res.data
+      console.log(`🧩 Processing result ${idx}:`, { 
+        hasSpecs: 'specialization' in d, 
+        hasLoc: 'location' in d, 
+        hasCountry: 'country' in d,
+        specs: d.specialization,
+        loc: d.location,
+        country: d.country 
+      })
+      
+      if (d.specialization !== undefined || d.bio !== undefined) finalCoach = d
+      if (d.cafe !== undefined || d.meet_1 !== undefined) finalMeets = d
+      if (d.instagram_username !== undefined) finalSocial = d
+      if (d.location !== undefined || d.country !== undefined || d.whatsapp !== undefined) finalContact = d
+    })
+
+    console.log('🔍 Final Unified Data Prepared:', { 
+      coachId: finalCoach.id || user.id, 
+      location: finalContact.location,
+      country: finalContact.country,
+      city: finalContact.city,
+      neighborhood: finalContact.neighborhood,
+      specs: finalCoach.specialization
+    })
 
     return NextResponse.json({
       success: true,

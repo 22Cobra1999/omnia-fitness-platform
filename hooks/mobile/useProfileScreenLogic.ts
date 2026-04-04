@@ -74,7 +74,8 @@ export function useProfileScreenLogic() {
         salesData,
         earningsData,
         recentActivities,
-        loading: coachLoading
+        loading: coachLoading,
+        refetch: refetchCoach
     } = useCoachProfile()
 
     const processedBiometrics = useMemo(() => {
@@ -504,6 +505,7 @@ export function useProfileScreenLogic() {
         handleSaveBiometric,
         handleDeleteBiometricFromModal,
         confirmDeleteBiometric,
-        loadProfile
+        loadProfile,
+        refetchCoach
     }
 }

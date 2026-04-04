@@ -13,6 +13,9 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void, onSave
         email: "",
         phone: "",
         location: "",
+        country: "",
+        city: "",
+        neighborhood: "",
         emergency_contact: "",
         birth_date: "",
         weight: "",
@@ -36,107 +39,6 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void, onSave
 
     const [isGoalsPopoverOpen, setIsGoalsPopoverOpen] = useState(false)
     const [isSportsPopoverOpen, setIsSportsPopoverOpen] = useState(false)
-
-    useEffect(() => {
-        if (isOpen) {
-            loadProfile(false)
-        } else {
-            isInitialized.current = false;
-        }
-    }, [isOpen, loadProfile])
-
-    // Solo cargar los datos iniciales UNA VEZ cuando el perfil llega
-    useEffect(() => {
-        if (isOpen && profile && !isInitialized.current) {
-            let formattedBirthDate = ""
-            if (profile.birth_date) {
-                const date = new Date(profile.birth_date)
-                if (!isNaN(date.getTime())) {
-                    formattedBirthDate = date.toISOString().split('T')[0]
-                }
-            }
-
-            const normalizedGender =
-                profile.gender === 'M' || profile.gender === 'F' || profile.gender === 'O'
-                    ? profile.gender
-                    : ""
-
-            // Desglosar ubicación: "País, Ciudad, Barrio"
-            const parts = (profile.location || "").split(',').map(s => s.trim())
-            
-            const data: ProfileData = {
-                full_name: profile.full_name || "",
-                email: profile.email || "",
-                phone: profile.phone || "",
-                location: profile.location || "",
-                country: parts[0] || "",
-                city: parts[1] || "",
-                neighborhood: parts[2] || "",
-                emergency_contact: profile.emergency_contact || "",
-                birth_date: formattedBirthDate,
-                weight: profile.weight?.toString() || "",
-                height: profile.height?.toString() || "",
-                gender: normalizedGender,
-                level: profile.level || "Principiante",
-                // Coach fields
-                specialization: (profile as any).specialization || "",
-                experience_years: (profile as any).experience_years?.toString() || "",
-                certifications: (profile as any).certifications || [],
-                whatsapp: (profile as any).whatsapp?.toString() || "",
-                instagram_username: (profile as any).instagram_username || "",
-                bio: (profile as any).bio || "",
-                cafe: (profile as any).cafe?.toString() || "",
-                cafe_enabled: (profile as any).cafe_enabled || false,
-                meet_1: (profile as any).meet_1?.toString() || "",
-                meet_30: (profile as any).meet_30?.toString() || "",
-                meet_1_enabled: (profile as any).meet_1_enabled || false,
-                meet_30_enabled: (profile as any).meet_30_enabled || false,
-                category: (profile as any).category || "general",
-                experience_history: (profile as any).experience_history || []
-            }
-
-            setProfileData(data)
-            
-            // Solo sobreescribir la previsualización si el usuario NO ha elegido una imagen nueva todavía
-            if (!profileImage) {
-                setPreviewImage(profile.avatar_url || null)
-            }
-
-            const profileGoals = (profile as any).fitness_goals || []
-            const profileSports = (profile as any).sports || []
-            
-            setGoals(profileGoals)
-            setSports(profileSports)
-
-            setInitialData({
-                ...data,
-                goals: profileGoals,
-                sports: profileSports,
-                avatar_url: profile.avatar_url // Guardar para referencia de borrado
-            })
-
-            isInitialized.current = true;
-        }
-    }, [isOpen, profile, profileImage])
-
-    const handleImageChange = (file: File) => {
-        setProfileImage(file)
-        const previewUrl = URL.createObjectURL(file)
-        setPreviewImage(previewUrl)
-    }
-
-    const handleRemoveImage = () => {
-        setProfileImage(null)
-        setPreviewImage(null)
-    }
-
-    const handleToggleGoal = (goal: string) => {
-        setGoals(prev => prev.includes(goal) ? prev.filter(g => g !== goal) : [...prev, goal])
-    }
-
-    const handleToggleSport = (sport: string) => {
-        setSports(prev => prev.includes(sport) ? prev.filter(s => s !== sport) : [...prev, sport])
-    }
 
     const hasChanges = useCallback(() => {
         if (!initialData) return false
@@ -163,6 +65,116 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void, onSave
 
         return false
     }, [profileData, goals, sports, profileImage, previewImage, initialData])
+
+    useEffect(() => {
+        if (isOpen) {
+            loadProfile(false)
+        } else {
+            isInitialized.current = false;
+        }
+    }, [isOpen, loadProfile])
+
+    // Cargar los datos cuando el perfil llega
+    useEffect(() => {
+        if (isOpen && profile) {
+            // Si ya estamos inicializados y el perfil cambia (ej: por un refetch), 
+            // comprobamos si el usuario ha hecho cambios locales. 
+            // Si no los ha hecho, actualizamos con la nueva data del server.
+            const userHasMadeChanges = hasChanges();
+            
+            if (!isInitialized.current || !userHasMadeChanges) {
+                console.log('🔄 INITIALIZING/REFRESHING PROFILE EDIT WITH:', { 
+                    bio: (profile as any).bio, 
+                    country: (profile as any).country,
+                    location: profile.location
+                });
+                
+                let formattedBirthDate = ""
+                if (profile.birth_date) {
+                    const date = new Date(profile.birth_date)
+                    if (!isNaN(date.getTime())) {
+                        formattedBirthDate = date.toISOString().split('T')[0]
+                    }
+                }
+
+                const normalizedGender =
+                    profile.gender === 'M' || profile.gender === 'F' || profile.gender === 'O'
+                        ? profile.gender
+                        : ""
+
+                const data: ProfileData = {
+                    full_name: profile.full_name || "",
+                    email: profile.email || "",
+                    phone: profile.phone || "",
+                    location: profile.location || "",
+                    country: (profile as any).country || "",
+                    city: (profile as any).city || "",
+                    neighborhood: (profile as any).neighborhood || "",
+                    emergency_contact: profile.emergency_contact || "",
+                    birth_date: formattedBirthDate,
+                    weight: profile.weight?.toString() || "",
+                    height: profile.height?.toString() || "",
+                    gender: normalizedGender,
+                    level: profile.level || "Principiante",
+                    // Coach fields
+                    specialization: (profile as any).specialization || "",
+                    experience_years: (profile as any).experience_years?.toString() || "",
+                    certifications: (profile as any).certifications || [],
+                    whatsapp: (profile as any).whatsapp?.toString() || "",
+                    instagram_username: (profile as any).instagram_username || "",
+                    bio: (profile as any).bio || "",
+                    cafe: (profile as any).cafe?.toString() || "",
+                    cafe_enabled: (profile as any).cafe_enabled || false,
+                    meet_1: (profile as any).meet_1?.toString() || "",
+                    meet_30: (profile as any).meet_30?.toString() || "",
+                    meet_1_enabled: (profile as any).meet_1_enabled || false,
+                    meet_30_enabled: (profile as any).meet_30_enabled || false,
+                    category: (profile as any).category || "general",
+                    experience_history: (profile as any).experience_history || []
+                }
+
+                setProfileData(data)
+                
+                if (!profileImage) {
+                    setPreviewImage(profile.avatar_url || null)
+                }
+
+                const profileGoals = (profile as any).fitness_goals || []
+                const profileSports = (profile as any).sports || []
+                
+                setGoals(profileGoals)
+                setSports(profileSports)
+
+                setInitialData({
+                    ...data,
+                    goals: profileGoals,
+                    sports: profileSports,
+                    avatar_url: profile.avatar_url
+                })
+
+                isInitialized.current = true;
+            }
+        }
+    }, [isOpen, profile, profileImage, hasChanges])
+
+    const handleImageChange = (file: File) => {
+        setProfileImage(file)
+        const previewUrl = URL.createObjectURL(file)
+        setPreviewImage(previewUrl)
+    }
+
+    const handleRemoveImage = () => {
+        setProfileImage(null)
+        setPreviewImage(null)
+    }
+
+    const handleToggleGoal = (goal: string) => {
+        setGoals(prev => prev.includes(goal) ? prev.filter(g => g !== goal) : [...prev, goal])
+    }
+
+    const handleToggleSport = (sport: string) => {
+        setSports(prev => prev.includes(sport) ? prev.filter(s => s !== sport) : [...prev, sport])
+    }
 
     const handleCloseAttempt = () => {
         if (hasChanges()) {
@@ -203,7 +215,7 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void, onSave
                 profileData.country?.trim(),
                 profileData.city?.trim(),
                 profileData.neighborhood?.trim()
-            ].filter(Boolean).join(', ')
+            ].filter(Boolean).filter(s => s !== 'null' && s !== 'undefined').join(', ')
 
             const payload = {
                 ...profileData,

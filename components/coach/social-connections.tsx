@@ -39,17 +39,25 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
         if (!user?.id) return;
         setLoading(true);
         try {
+            // Unir tablas para obtener datos de contacto y redes sociales
             const { data, error } = await supabase
                 .from('coaches')
-                .select('whatsapp, instagram_username, instagram_access_token')
+                .select(`
+                    id, 
+                    coach_contact_info(whatsapp),
+                    coach_social_accounts(instagram_username, instagram_access_token)
+                `)
                 .eq('id', user.id)
                 .single();
 
             if (!error && data) {
+                const contact = (data.coach_contact_info as any)?.[0] || data.coach_contact_info;
+                const social = (data.coach_social_accounts as any)?.[0] || data.coach_social_accounts;
+
                 const loadedData = {
-                    whatsapp: data.whatsapp?.toString() || '',
-                    instagram_username: data.instagram_username || '',
-                    has_instagram_token: !!data.instagram_access_token
+                    whatsapp: contact?.whatsapp?.toString() || '',
+                    instagram_username: social?.instagram_username || '',
+                    has_instagram_token: !!social?.instagram_access_token
                 };
                 setSocialData(loadedData);
                 setDraftData({
@@ -68,15 +76,20 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
         if (!user?.id) return;
         setSaving(true);
         try {
-            const { error } = await supabase
-                .from('coaches')
-                .update({
-                    whatsapp: draftData.whatsapp,
-                    instagram_username: draftData.instagram_username
-                })
-                .eq('id', user.id);
+            // Actualizar tablas por separado
+            const contactPromise = supabase
+                .from('coach_contact_info')
+                .upsert({ id: user.id, whatsapp: draftData.whatsapp })
+            
+            const socialPromise = supabase
+                .from('coach_social_accounts')
+                .upsert({ id: user.id, instagram_username: draftData.instagram_username })
 
-            if (error) throw error;
+            const [res1, res2] = await Promise.all([contactPromise, socialPromise]);
+
+            if (res1.error) throw res1.error;
+            if (res2.error) throw res2.error;
+
             toast.success('Cambios guardados');
             await loadSocialData();
             setIsModalOpen(false);

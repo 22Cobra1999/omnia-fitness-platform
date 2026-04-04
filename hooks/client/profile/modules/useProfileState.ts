@@ -15,8 +15,19 @@ export interface ProfileData {
     level?: string
     avatar_url?: string
     specialization?: string
+    bio?: string
+    country?: string
+    city?: string
+    neighborhood?: string
     fitness_goals?: string[]
     sports?: string[]
+    experience_history?: {
+        title: string
+        start_date: string
+        end_date: string | null
+        is_current?: boolean
+        certificate_url?: string
+    }[]
     physical_data?: {
         height?: number
         weight?: number

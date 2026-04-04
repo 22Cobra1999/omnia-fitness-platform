@@ -39,10 +39,13 @@ export function useProfileActions({
                 level: profileData.level,
                 birth_date: profileData.birth_date,
                 phone: profileData.phone,
+                fitness_goals: profileData.fitness_goals,
+                sports: profileData.sports,
                 location: profileData.location,
                 emergency_contact: profileData.emergency_contact,
-                fitness_goals: profileData.fitness_goals,
-                sports: profileData.sports
+                country: (profileData as any).country,
+                city: (profileData as any).city,
+                neighborhood: (profileData as any).neighborhood
             }
 
             if (isCoach) {
@@ -50,7 +53,8 @@ export function useProfileActions({
                     'specialization', 'experience_years', 'whatsapp',
                     'instagram_username', 'bio', 'cafe', 'cafe_enabled',
                     'meet_1', 'meet_30', 'meet_1_enabled',
-                    'meet_30_enabled', 'category', 'experience_history'
+                    'meet_30_enabled', 'category', 'experience_history',
+                    'country', 'city', 'neighborhood'
                 ]
                 coachFields.forEach(field => {
                     if ((profileData as any)[field] !== undefined) {
@@ -58,6 +62,13 @@ export function useProfileActions({
                     }
                 })
             }
+
+            console.log('🚀 PREPARANDO UPDATE PROFILE:', { 
+                isCoach, 
+                country: profileSpecificData.country,
+                city: profileSpecificData.city,
+                neighborhood: profileSpecificData.neighborhood
+            });
 
             const userProfileFormData = new FormData()
             Object.entries(userProfileData).forEach(([key, value]) => {
@@ -71,11 +82,12 @@ export function useProfileActions({
 
             const profileFormData = new FormData()
             Object.entries(profileSpecificData).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
+                if (value !== undefined && value !== null && value !== 'null') {
                     const formattedValue = typeof value === 'object' ? JSON.stringify(value) : value.toString()
                     profileFormData.append(key, formattedValue)
                 }
             })
+            console.log('📤 SENDING TO API:', Array.from((profileFormData as any).keys()))
 
             const profileResponse = await fetch(isCoach ? '/api/profile/coach' : '/api/profile/client', { method: 'PUT', body: profileFormData })
             const profileResult = await profileResponse.json()

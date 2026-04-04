@@ -44,7 +44,8 @@ export function ProfileScreen() {
     showSportsSelect,
     setShowSportsSelect,
     editSports,
-    setEditSports
+    setEditSports,
+    refetchCoach
   } = logic
 
   return (
@@ -63,6 +64,7 @@ export function ProfileScreen() {
           setShowInjuriesModal(false)
           setEditingSection(null)
         }}
+        onSaveSuccess={refetchCoach}
         editingSection={editingSection}
         isCoach={isCoach}
       />
